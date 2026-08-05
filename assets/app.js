@@ -2911,7 +2911,7 @@
         const span = btn.querySelector("span");
         if (span) span.textContent = "Redirecting to Google…";
       }
-      const redirectTarget = window.location.origin + "/";
+      const redirectTarget = window.location.origin;
       const { error } = await client.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -2984,6 +2984,10 @@
       return;
     }
     authRole = role;
+    // Clean OAuth tokens from address bar if present
+    if (window.location.search || window.location.hash.includes("access_token=")) {
+      try { history.replaceState(null, "", window.location.pathname + "#/" + (ui.route || "dashboard")); } catch {}
+    }
     // Update current user name from auth metadata
     const displayName = authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User";
     state.employees[0] = {
