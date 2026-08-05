@@ -275,11 +275,18 @@
   const store = new StateStore(STORAGE_KEY);
   let state = store.load();
 
-  // ── Supabase client ────────────────────────────────────────────────────────
-  const cfg = window.AKIHQ_CONFIG || {};
-  const sbClient = (window.supabase && cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY)
-    ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
-    : null;
+  // ── Supabase client helper ──────────────────────────────────────────────────
+  function getSupabaseClient() {
+    if (window._sbClientInstance) return window._sbClientInstance;
+    const cfg = window.AKIHQ_CONFIG || {};
+    const url = cfg.SUPABASE_URL || "https://vhpbvcfkcteswlsdjrfl.supabase.co";
+    const key = cfg.SUPABASE_ANON_KEY || "sb_publishable_Mm4CJvGyIaLOWbU3g1sxIQ_Wv2jrKt1";
+    if (window.supabase && url && key) {
+      window._sbClientInstance = window.supabase.createClient(url, key);
+      return window._sbClientInstance;
+    }
+    return null;
+  }
 
   // Auth state — populated after boot
   let authUser = null;   // supabase user object
@@ -288,6 +295,7 @@
 
   // ── Live data loader ───────────────────────────────────────────────────────
   async function loadLiveData() {
+    const sbClient = getSupabaseClient();
     if (!sbClient || !authUser) return;
     try {
       // Dashboard stats
@@ -2887,8 +2895,9 @@
     portal.innerHTML = "";
 
     document.getElementById("google-login-btn")?.addEventListener("click", async () => {
-      if (!sbClient) { renderLoginScreen("Supabase is not configured."); return; }
-      const { error } = await sbClient.auth.signInWithOAuth({
+      const client = getSupabaseClient();
+      if (!client) { renderLoginScreen("Supabase client not initialized. Please refresh."); return; }
+      const { error } = await client.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: window.location.origin }
       });
@@ -2903,8 +2912,9 @@
         if (btn) { btn.disabled = true; btn.textContent = "Signing in…"; }
         const email    = document.getElementById("login-email")?.value?.trim();
         const password = document.getElementById("login-password")?.value;
-        if (!sbClient) { renderLoginScreen("Supabase is not configured."); return; }
-        const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+        const client = getSupabaseClient();
+        if (!client) { renderLoginScreen("Supabase is not configured."); return; }
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
         if (error || !data?.user) {
           renderLoginScreen(error?.message || "Sign in failed. Please try again.");
           return;
@@ -2935,16 +2945,18 @@
     `;
     portal.innerHTML = "";
     document.getElementById("deny-signout")?.addEventListener("click", async () => {
-      await sbClient?.auth.signOut();
+      const client = getSupabaseClient();
+      await client?.auth.signOut();
       renderLoginScreen();
     });
   }
 
   async function bootWithSession(session) {
-    if (!session?.user) { renderLoginScreen(); return; }
+    const client = getSupabaseClient();
+    if (!session?.user || !client) { renderLoginScreen(); return; }
     authUser = session.user;
     // Fetch profile to check role
-    const { data: profile } = await sbClient.from("profiles")
+    const { data: profile } = await client.from("profiles")
       .select("app_role")
       .eq("id", authUser.id)
       .maybeSingle();
@@ -2955,7 +2967,7 @@
     }
     authRole = role;
     // Update current user name from auth metadata
-    const displayName = authUser.user_metadata?.display_name || authUser.email?.split("@")[0] || "User";
+    const displayName = authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User";
     state.employees[0] = {
       ...state.employees[0],
       id: authUser.id,
@@ -2972,30 +2984,33 @@
   }
 
   async function boot() {
-    if (!sbClient) {
-      // No Supabase configured — run in local-only mode (useful for dev)
-      console.warn("AkiHQ: Supabase not configured. Running in local-only mode.");
-      applySettings();
-      render();
+    const client = getSupabaseClient();
+    if (!client) {
+      // Supabase JS client not loaded yet, wait briefly and retry
+      setTimeout(() => {
+        if (getSupabaseClient()) boot();
+        else renderLoginScreen("Connecting to authentication server…");
+      }, 300);
+      renderLoginScreen();
       return;
     }
     applySettings();
-    // Show a minimal loading state while we check auth
+    appRoot.className = "login-mode";
     appRoot.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--muted);font-size:13px">Loading AkiHQ…</div>`;
-    const { data: { session } } = await sbClient.auth.getSession();
+    const { data: { session } } = await client.auth.getSession();
     if (!session) {
       renderLoginScreen();
       return;
     }
     await bootWithSession(session);
-    // Listen for auth state changes (token refresh, sign out from another tab)
-    sbClient.auth.onAuthStateChange(async (event, newSession) => {
+    // Listen for auth state changes (OAuth redirects, token refresh, sign out)
+    client.auth.onAuthStateChange(async (event, newSession) => {
       if (event === "SIGNED_OUT" || !newSession) {
         authUser = null;
         authRole = null;
         renderLoginScreen();
-      } else if (event === "TOKEN_REFRESHED" && newSession) {
-        authUser = newSession.user;
+      } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        if (newSession) await bootWithSession(newSession);
       }
     });
   }
