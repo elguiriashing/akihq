@@ -103,7 +103,7 @@
     en: {
       dashboard: "Dashboard", crm: "CRM", inbox: "Inbox", tasks: "Tasks & Projects", calendar: "Calendar",
       inventory: "Inventory", sales: "Sales & Billing", marketing: "Marketing", sites: "Sites & Forms",
-      automation: "Automation", collaboration: "Collaboration", employees: "People", knowledge: "Knowledge",
+      automation: "Automation", collaboration: "Team Chat", employees: "People", knowledge: "Knowledge",
       analytics: "Analytics", integrations: "Integrations", settings: "Settings", create: "Create", search: "Search everything…",
       collapse: "Collapse", allSystems: "Business operating system", newRecord: "New record", board: "Board", list: "List",
       deals: "Deals", leads: "Leads", contacts: "Contacts", companies: "Companies", save: "Save", cancel: "Cancel",
@@ -112,7 +112,7 @@
     es: {
       dashboard: "Resumen", crm: "CRM", inbox: "Bandeja", tasks: "Tareas y proyectos", calendar: "Calendario",
       inventory: "Inventario", sales: "Ventas y facturación", marketing: "Marketing", sites: "Webs y formularios",
-      automation: "Automatización", collaboration: "Colaboración", employees: "Equipo", knowledge: "Conocimiento",
+      automation: "Automatización", collaboration: "Chat de Equipo", employees: "Equipo", knowledge: "Conocimiento",
       analytics: "Analítica", integrations: "Integraciones", settings: "Ajustes", create: "Crear", search: "Buscar en todo…",
       collapse: "Contraer", allSystems: "Sistema operativo empresarial", newRecord: "Nuevo registro", board: "Tablero", list: "Lista",
       deals: "Negocios", leads: "Prospectos", contacts: "Contactos", companies: "Empresas", save: "Guardar", cancel: "Cancelar",
@@ -1079,6 +1079,12 @@
       return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("inbox")}</div><h2>Your shared inbox is empty</h2><p>Connect Resend, Gmail, Outlook, WhatsApp or another channel from Integrations.</p><button class="action-btn primary" data-action="navigate" data-route="integrations">Open integrations</button></div></section>`;
     }
     return `
+      <div style="margin-bottom:12px;padding:10px 14px;background:rgba(124,140,255,.08);border:1px solid rgba(124,140,255,.2);border-radius:var(--radius);display:flex;align-items:center;gap:12px">
+        <div style="font-size:11px;color:var(--text);flex:1">
+          💬 <strong>Shared Customer Inbox</strong> — This view displays external customer conversations (WhatsApp, Email & Webhooks). Looking for internal staff channels & DMs?
+        </div>
+        <button class="action-btn primary" data-action="navigate" data-route="collaboration" style="height:28px;font-size:10px;padding:0 12px">Go to Team Chat →</button>
+      </div>
       <section class="panel inbox-layout ${ui.mobileChatOpen ? "chat-open" : ""}">
         <div class="conversation-list">
           <div class="conversation-search"><input type="search" data-conversation-search placeholder="Search conversations…" /></div>
