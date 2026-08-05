@@ -1331,37 +1331,60 @@
     state.teamChat ||= {
       activeChannelId: "ch_general",
       channels: [
-        { id: "ch_general", name: "general", description: "General CRM announcements & staff discussions", icon: "#", unread: 0 },
-        { id: "ch_deals", name: "crm-deals", description: "Sales pipeline wins, lead updates, and venue claims", icon: "#", unread: 2 },
-        { id: "ch_operations", name: "operations", description: "Venue verification, onboarding & customer ops", icon: "#", unread: 0 },
-        { id: "ch_dev", name: "dev-tech", description: "Cloudflare Worker, Supabase DB & API updates", icon: "#", unread: 0 },
-        { id: "ch_random", name: "random", description: "Watercooler, social, & casual chatter", icon: "#", unread: 0 }
+        { id: "ch_general", name: "general", description: "General staff announcements & all-hands chatter", icon: "#", unread: 0 },
+        { id: "ch_crm_sales", name: "crm-sales", description: "CRM deals, sales pipeline & lead management", icon: "#", unread: 2 },
+        { id: "ch_inventory", name: "inventory", description: "Inventory stock, catalog & venue supplies", icon: "#", unread: 0 },
+        { id: "ch_billing", name: "sales-billing", description: "Invoicing, quote approvals & payment processing", icon: "#", unread: 0 },
+        { id: "ch_marketing", name: "marketing", description: "Marketing campaigns, email outreach & promo", icon: "#", unread: 0 },
+        { id: "ch_sites", name: "sites-forms", description: "Landing pages, Web forms & lead capture", icon: "#", unread: 0 },
+        { id: "ch_automation", name: "automation", description: "Workflow triggers, Telegram bot & Cloudflare Workers", icon: "#", unread: 0 },
+        { id: "ch_people", name: "people-hr", description: "Team roster, role assignments & leave management", icon: "#", unread: 0 }
       ],
       messages: {
         "ch_general": [
-          { id: "cm_01", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Welcome to the AkiHQ CRM Team Chat! All CRM staff members can communicate here in real-time.", at: new Date(Date.now() - 86400000).toISOString(), reactions: { "🚀": 4, "👏": 3 } },
-          { id: "cm_02", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "Awesome! The new Telegram bot integration and Supabase sync are looking super clean.", at: new Date(Date.now() - 3600000 * 5).toISOString(), reactions: { "🔥": 2 } },
-          { id: "cm_03", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Role security is now fully enforced across the app and database. Only authenticated staff can log into AkiHQ.", at: new Date(Date.now() - 3600000 * 2).toISOString(), reactions: { "👍": 5, "❤️": 2 } }
+          { id: "cm_01", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Welcome to the Bitrix24-style AkiHQ CRM Team Chat! Staff members can communicate here across all operation categories in real-time.", at: new Date(Date.now() - 86400000).toISOString(), reactions: { "🚀": 4, "👏": 3 } },
+          { id: "cm_02", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "Awesome! Each operation category has its dedicated discussion channel.", at: new Date(Date.now() - 3600000 * 5).toISOString(), reactions: { "🔥": 2 } },
+          { id: "cm_03", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Security rules are strictly enforced: only users with valid CRM Staff or Administrator access can log into the workspace and chat.", at: new Date(Date.now() - 3600000 * 2).toISOString(), reactions: { "👍": 5, "❤️": 2 } }
         ],
-        "ch_deals": [
-          { id: "cm_10", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "New lead added: Soho House London (€4,500 pipeline value). Assigned to Alex.", at: new Date(Date.now() - 3600000 * 3).toISOString(), reactions: { "🎉": 3 } },
-          { id: "cm_11", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Great win! Following up with their general manager now.", at: new Date(Date.now() - 3600000).toISOString(), reactions: { "🚀": 2 } }
+        "ch_crm_sales": [
+          { id: "cm_10", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "New lead created in CRM: Soho House London (€4,500 pipeline value). Assigned to Alex Ashing.", at: new Date(Date.now() - 3600000 * 3).toISOString(), reactions: { "🎉": 3 } },
+          { id: "cm_11", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Following up with their general manager today.", at: new Date(Date.now() - 3600000).toISOString(), reactions: { "🚀": 2 } }
         ],
-        "ch_operations": [
-          { id: "cm_20", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "12 new venues auto-synced from AkiPasa database into CRM Companies section.", at: new Date(Date.now() - 3600000 * 6).toISOString(), reactions: { "✅": 3 } }
+        "ch_inventory": [
+          { id: "cm_20", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Catalogue items updated. Stock quantities synced across all active locations.", at: new Date(Date.now() - 3600000 * 6).toISOString(), reactions: { "📦": 3 } }
         ],
-        "ch_dev": [
-          { id: "cm_30", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Cloudflare Pages deployment healthy at crm.akipasa.com.", at: new Date(Date.now() - 3600000 * 8).toISOString(), reactions: { "💻": 2 } }
+        "ch_billing": [
+          { id: "cm_30", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "Invoice INV-1014 generated for Pacha Ibiza operations.", at: new Date(Date.now() - 3600000 * 8).toISOString(), reactions: { "💳": 2 } }
         ],
-        "ch_random": [
-          { id: "cm_40", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "Coffee break time! ☕", at: new Date(Date.now() - 3600000 * 4).toISOString(), reactions: { "☕": 4 } }
+        "ch_marketing": [
+          { id: "cm_40", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Summer venue promotion campaign sent to 1,200 active contacts.", at: new Date(Date.now() - 3600000 * 12).toISOString(), reactions: { "📈": 4 } }
+        ],
+        "ch_sites": [
+          { id: "cm_50", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "New VIP booking lead form published at /forms/vip-booking.", at: new Date(Date.now() - 3600000 * 14).toISOString(), reactions: { "🌐": 2 } }
+        ],
+        "ch_automation": [
+          { id: "cm_60", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Telegram bot command `/stats` and `/backup` webhook response endpoints active.", at: new Date(Date.now() - 3600000 * 10).toISOString(), reactions: { "⚡": 3 } }
+        ],
+        "ch_people": [
+          { id: "cm_70", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Updated staff member roles and permissions in Supabase profile database.", at: new Date(Date.now() - 3600000 * 16).toISOString(), reactions: { "👔": 3 } }
         ]
       }
     };
 
     const activeChanId = ui.activeTeamChannel || state.teamChat.activeChannelId || "ch_general";
     ui.activeTeamChannel = activeChanId;
-    const currentChan = state.teamChat.channels.find(c => c.id === activeChanId) || state.teamChat.channels[0];
+    
+    let currentChan = state.teamChat.channels.find(c => c.id === activeChanId);
+    let isDm = false;
+    let dmUser = null;
+    if (!currentChan && activeChanId.startsWith("dm_")) {
+      isDm = true;
+      const dmUserId = activeChanId.replace(/^dm_/, "");
+      dmUser = state.employees.find(e => e.id === dmUserId);
+      currentChan = { name: dmUser ? dmUser.name : "Direct Message", description: dmUser ? `Private 1-on-1 staff chat with ${dmUser.name} (${dmUser.role})` : "Private message" };
+    }
+    currentChan ||= state.teamChat.channels[0];
+
     const chanMessages = state.teamChat.messages[activeChanId] || [];
     const staffMembers = state.employees;
     const onlineStaff = staffMembers.filter(isUserOnline);
@@ -1369,14 +1392,14 @@
     return `
       <div class="team-chat-suite panel" style="display:grid;grid-template-columns:260px minmax(0,1fr) 240px;height:calc(100vh - 160px);overflow:hidden;border-radius:var(--radius);border:1px solid var(--border)">
         
-        <!-- LEFT NAVIGATION COL: Channels & DMs -->
+        <!-- LEFT NAVIGATION COL: Operation Channels & Staff DMs -->
         <div style="background:var(--surface-2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden">
           <div style="padding:12px;border-bottom:1px solid var(--border)">
             <input class="toolbar-input" style="width:100%;height:32px" data-team-chat-search placeholder="Search channels & DMs…" value="${escapeHtml(ui.teamChatSearch || "")}" />
           </div>
           <div style="flex:1;overflow-y:auto;padding:12px 8px">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px 8px;font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em">
-              <span>CHANNELS</span>
+              <span>OPERATION CHANNELS</span>
               <button class="mini-btn ghost" data-action="create-team-channel" title="Create channel" style="height:20px;width:20px;padding:0;min-width:auto">${icon("plus")}</button>
             </div>
             ${state.teamChat.channels.map(chan => `
@@ -1388,12 +1411,13 @@
             `).join("")}
 
             <div style="margin-top:20px;padding:4px 8px 8px;font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em">
-              <span>DIRECT MESSAGES</span>
+              <span>STAFF DIRECT MESSAGES</span>
             </div>
             ${staffMembers.map(emp => {
               const isOnline = isUserOnline(emp);
+              const dmId = `dm_${emp.id}`;
               return `
-                <button class="nav-item ${ui.activeTeamDm === emp.id ? "active" : ""}" data-action="select-team-dm" data-id="${emp.id}" style="height:34px;margin:2px 0;font-size:11px;justify-content:flex-start">
+                <button class="nav-item ${activeChanId === dmId ? "active" : ""}" data-action="select-team-dm" data-id="${emp.id}" style="height:34px;margin:2px 0;font-size:11px;justify-content:flex-start">
                   <span style="width:8px;height:8px;border-radius:50%;background:${isOnline ? "var(--success)" : "var(--muted)"};margin-right:8px;flex:0 0 8px"></span>
                   <span class="nav-text">${escapeHtml(emp.name)}</span>
                 </button>
@@ -1406,10 +1430,10 @@
         <div style="display:grid;grid-template-rows:54px minmax(0,1fr) auto;overflow:hidden;background:var(--surface)">
           <!-- HEADER -->
           <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.02)">
-            <div style="font-size:18px;font-weight:800;color:var(--accent-2)">#</div>
+            <div style="font-size:18px;font-weight:800;color:var(--accent-2)">${isDm ? "@" : "#"}</div>
             <div>
-              <strong style="font-size:13px;display:block">${escapeHtml(currentChan?.name || "general")}</strong>
-              <span style="font-size:10px;color:var(--subtle)">${escapeHtml(currentChan?.description || "CRM Team Channel")}</span>
+              <strong style="font-size:13px;display:block">${escapeHtml(currentChan?.name)}</strong>
+              <span style="font-size:10px;color:var(--subtle)">${escapeHtml(currentChan?.description)}</span>
             </div>
             <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
               <span class="status-pill success" style="font-size:9px">● ${onlineStaff.length} Staff Online</span>
@@ -1427,35 +1451,36 @@
                     <span class="status-pill ${msg.role === "Administrator" ? "info" : ""}" style="font-size:8px;padding:2px 6px">${escapeHtml(msg.role || "Staff")}</span>
                     <span style="font-size:9px;color:var(--subtle);margin-left:auto">${escapeHtml(relativeTime(msg.at))}</span>
                   </div>
-                  <div style="font-size:12px;line-height:1.5;color:var(--text);background:var(--surface-2);padding:10px 12px;border-radius:0 12px 12px 12px;border:1px solid var(--border);max-width:min(640px,90%)">
-                    ${escapeHtml(msg.text)}
+                  <div style="font-size:12px;line-height:1.5;color:var(--text);background:var(--surface-2);padding:10px 12px;border-radius:0 12px 12px 12px;border:1px solid var(--border);max-width:min(640px,90%);white-space:pre-wrap">
+                    ${markdown(msg.text)}
                   </div>
-                  <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">
+                  <div style="display:flex;gap:4px;margin-top:6px;align-items:center;flex-wrap:wrap">
                     ${Object.entries(msg.reactions || {}).map(([emoji, cnt]) => `
                       <button class="chip" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="${escapeHtml(emoji)}" style="height:22px;padding:0 7px;font-size:10px">${escapeHtml(emoji)} ${cnt}</button>
                     `).join("")}
                     <button class="chip" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="👏" style="height:22px;padding:0 7px;font-size:10px">+ 👏</button>
                     <button class="chip" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="🔥" style="height:22px;padding:0 7px;font-size:10px">+ 🔥</button>
                     <button class="chip" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="👍" style="height:22px;padding:0 7px;font-size:10px">+ 👍</button>
+                    <button class="mini-btn ghost" data-action="reply-team-msg" data-msg-id="${msg.id}" style="height:22px;font-size:10px;margin-left:4px;padding:0 6px">${icon("send")} Reply</button>
                   </div>
                 </div>
               </div>
-            `).join("") || `<div class="panel-empty"><div><strong>No messages in #${escapeHtml(currentChan?.name || "general")} yet</strong><span>Be the first to post an update!</span></div></div>`}
+            `).join("") || `<div class="panel-empty"><div><strong>No messages in ${isDm ? "@" + escapeHtml(currentChan?.name) : "#" + escapeHtml(currentChan?.name)} yet</strong><span>Be the first to post an update!</span></div></div>`}
           </div>
 
           <!-- COMPOSER -->
           <form class="composer" data-form="team-chat" style="padding:12px;border-top:1px solid var(--border);background:var(--surface-2)">
-            <textarea name="text" required placeholder="Message #${escapeHtml(currentChan?.name || "general")}…" style="min-height:42px;max-height:100px;font-size:12px"></textarea>
+            <textarea name="text" required placeholder="Message ${isDm ? "@" + escapeHtml(currentChan?.name) : "#" + escapeHtml(currentChan?.name)}…" style="min-height:42px;max-height:100px;font-size:12px"></textarea>
             <button class="action-btn primary" type="submit">${icon("send")} Send</button>
           </form>
         </div>
 
         <!-- RIGHT INFO PANEL -->
         <div style="background:var(--surface-2);border-left:1px solid var(--border);padding:14px;overflow-y:auto">
-          <h3 style="font-size:12px;font-weight:800;margin:0 0 6px"># ${escapeHtml(currentChan?.name || "general")}</h3>
-          <p style="font-size:10px;color:var(--subtle);margin:0 0 16px;line-height:1.4">${escapeHtml(currentChan?.description || "Team discussion space")}</p>
+          <h3 style="font-size:12px;font-weight:800;margin:0 0 6px">${isDm ? "@" : "#"} ${escapeHtml(currentChan?.name)}</h3>
+          <p style="font-size:10px;color:var(--subtle);margin:0 0 16px;line-height:1.4">${escapeHtml(currentChan?.description)}</p>
 
-          <div style="font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em;margin-bottom:8px">MEMBERS (${staffMembers.length})</div>
+          <div style="font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em;margin-bottom:8px">CRM STAFF MEMBERS (${staffMembers.length})</div>
           <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
             ${staffMembers.map(emp => `
               <div style="display:flex;align-items:center;gap:8px;font-size:11px">
@@ -1470,8 +1495,8 @@
 
           <div style="font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em;margin-bottom:8px">PINNED RESOURCES</div>
           <div style="font-size:11px;color:var(--muted);line-height:1.4;background:var(--surface);padding:10px;border-radius:8px;border:1px solid var(--border)">
-            📌 <strong>CRM Knowledge Base</strong><br>
-            <span style="font-size:9px;color:var(--subtle)">Internal guides, API keys, and staff SOPs.</span>
+            📌 <strong>Staff Knowledge Base</strong><br>
+            <span style="font-size:9px;color:var(--subtle)">SOPs, operation guides & database rules.</span>
           </div>
         </div>
 
@@ -2760,10 +2785,19 @@
         ui.activeTeamDm = null;
         render();
         break;
-      case "select-team-dm":
-        ui.activeTeamDm = target.dataset.id;
+      case "select-team-dm": {
+        const dmUserId = target.dataset.id;
+        const dmChanId = `dm_${dmUserId}`;
+        state.teamChat ||= { channels: [], messages: {} };
+        const emp = state.employees.find(e => e.id === dmUserId);
+        ui.activeTeamChannel = dmChanId;
+        ui.activeTeamDm = dmUserId;
+        state.teamChat.messages[dmChanId] ||= [
+          { id: uid("cm"), authorId: dmUserId, authorName: emp?.name || "Team Member", role: emp?.role || "Staff", text: `Direct message conversation started with ${emp?.name || "Staff Member"}.`, at: isoNow(), reactions: {} }
+        ];
         render();
         break;
+      }
       case "create-team-channel": {
         const name = prompt("Enter new channel name (e.g. sales-wins):");
         if (name) {
@@ -2786,7 +2820,23 @@
         if (msg) {
           msg.reactions ||= {};
           msg.reactions[emoji] = (msg.reactions[emoji] || 0) + 1;
-          persist();
+          persist(false);
+          render();
+        }
+        break;
+      }
+      case "reply-team-msg": {
+        const msgId = target.dataset.msgId;
+        const activeChanId = ui.activeTeamChannel || "ch_general";
+        const chanMsgs = state.teamChat?.messages?.[activeChanId] || [];
+        const msg = chanMsgs.find(m => m.id === msgId);
+        if (msg) {
+          const textarea = document.querySelector('form[data-form="team-chat"] textarea');
+          if (textarea) {
+            textarea.value = `> @${msg.authorName}: "${msg.text.slice(0, 60)}${msg.text.length > 60 ? "..." : ""}"\n\n`;
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+          }
         }
         break;
       }
