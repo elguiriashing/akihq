@@ -310,14 +310,32 @@
       const { data: statsRows } = await sbClient.rpc("crm_dashboard_stats");
       if (statsRows?.[0]) liveStats = statsRows[0];
 
-      // Contacts — all profiles
-      const { data: contactRows } = await sbClient.rpc("crm_list_contacts", { p_limit: 500 });
+      // Contacts — all profiles (RPC first, direct table select fallback)
+      let contactRows = null;
+      try {
+        const { data } = await sbClient.rpc("crm_list_contacts", { p_limit: 500 });
+        if (data?.length) contactRows = data;
+      } catch (e) {}
+
+      if (!contactRows) {
+        const { data: profiles } = await sbClient.from("profiles").select("id, display_name, app_role, created_at").limit(500);
+        if (profiles?.length) {
+          contactRows = profiles.map(p => ({
+            profile_id: p.id,
+            display_name: p.display_name,
+            app_role: p.app_role || "consumer",
+            primary_email: "",
+            created_at: p.created_at
+          }));
+        }
+      }
+
       if (contactRows?.length) {
         state.contacts = contactRows.map(row => ({
           id: row.profile_id,
-          name: row.display_name || row.primary_email || "Unknown",
+          name: row.display_name || row.primary_email || `User (${row.profile_id.slice(0, 6)})`,
           email: row.primary_email || "",
-          role: row.app_role,
+          role: row.app_role || "consumer",
           phone: "",
           companyId: null,
           source: "AkiPasa",
@@ -1277,11 +1295,12 @@
   function renderEmployees() {
     const departments = [...new Set(state.employees.map(employee => employee.department))];
     const staffCount = liveStats ? liveStats.staff_users : state.employees.length;
+    const totalUsers = liveStats ? liveStats.total_users : state.contacts.length;
     return `<div class="page-grid">
       <div class="page-grid grid-4">
         ${renderMetric("Team members", String(staffCount), `${departments.length} departments · staff & admins`, "employees", "#7c8cff")}
         ${renderMetric("Online now", String(state.employees.filter(employee => employee.status === "Online").length), "available in AkiHQ", "activity", "#49d7a0")}
-        ${renderMetric("Leave balance", `${state.employees.reduce((sum, employee) => sum + Number(employee.leaveBalance || 0), 0)} days`, "across the whole team", "calendar", "#52d9e9")}
+        ${renderMetric("AkiPasa Users", String(totalUsers), "registered database profiles", "user", "#52d9e9")}
         ${renderMetric("Open assignments", String(state.tasks.filter(task => task.status !== "done").length), "tasks assigned", "tasks", "#ffbd55")}
       </div>
       <div class="cards-grid">
@@ -1289,7 +1308,7 @@
           const openTasks = state.tasks.filter(task => task.assigneeId === employee.id && task.status !== "done").length;
           return `<article class="entity-card" data-action="view-entity" data-entity="employee" data-id="${employee.id}" role="button" tabindex="0">
             <div class="entity-card-top"><div class="entity-logo">${initials(employee.name)}</div><div class="entity-card-copy"><h3>${escapeHtml(employee.name)}</h3><p>${escapeHtml(employee.role)} · ${escapeHtml(employee.location)}</p></div><span class="status-pill ${employee.status === "Online" ? "success" : employee.status === "Away" ? "warning" : ""}">${escapeHtml(employee.status)}</span></div>
-            <div class="entity-card-stats"><div class="entity-stat"><span>Department</span><strong>${escapeHtml(employee.department)}</strong></div><div class="entity-stat"><span>Open tasks</span><strong>${openTasks}</strong></div><div class="entity-stat"><span>Leave</span><strong>${Number(employee.leaveBalance || 0)} days</strong></div><div class="entity-stat"><span>Joined</span><strong>${escapeHtml(formatDate(employee.joinedAt, { year: false }))}</strong></div></div>
+            <div class="entity-card-stats"><div class="entity-stat"><span>Department</span><strong>${escapeHtml(employee.department)}</strong></div><div class="entity-stat"><span>Open tasks</span><strong>${openTasks}</strong></div><div class="entity-stat"><span>Status</span><strong>${escapeHtml(employee.status)}</strong></div><div class="entity-stat"><span>Joined</span><strong>${escapeHtml(formatDate(employee.joinedAt, { year: false }))}</strong></div></div>
           </article>`;
         }).join("")}
       </div>
@@ -1674,8 +1693,7 @@
           { name: "name", label: "Full name", required: true }, { name: "email", label: "Work email", type: "email", required: true },
           { name: "role", label: "Role", required: true }, { name: "department", label: "Department", value: "Operations" },
           { name: "status", label: "Status", type: "select", options: ["Online", "Away", "Offline"], value: "Offline" },
-          { name: "location", label: "Location", value: "Remote" }, { name: "phone", label: "Phone" },
-          { name: "leaveBalance", label: "Leave balance", type: "number", min: 0, value: 20 }
+          { name: "location", label: "Location", value: "Remote" }, { name: "phone", label: "Phone" }
         ]
       }
     };
@@ -1822,7 +1840,27 @@
     </section>`;
   }
 
+  function renderPickerHtml(contacts) {
+    if (!contacts || !contacts.length) {
+      return `<div style="font-size:11px;color:var(--muted);text-align:center;padding:14px">Searching AkiPasa database…</div>`;
+    }
+    return contacts.map(user => `
+      <div class="user-picker-item" data-search="${escapeHtml(`${user.name} ${user.email} ${user.role}`.toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+        <div class="table-avatar" style="width:28px;height:28px;font-size:11px">${initials(user.name)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.name)}</div>
+          <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.email || "Registered AkiPasa User")}</div>
+        </div>
+        <span class="status-pill ${user.role === "administrator" ? "danger" : user.role === "moderator" ? "warning" : "info"}" style="font-size:9px">${escapeHtml(user.role || "consumer")}</span>
+        <button type="button" class="mini-btn primary" data-action="select-picker-user" data-id="${user.id}" data-name="${escapeHtml(user.name)}" data-email="${escapeHtml(user.email)}" data-role="${escapeHtml(user.role)}" style="padding:4px 10px;font-size:10px">
+          Select
+        </button>
+      </div>
+    `).join("");
+  }
+
   function renderUserPickerSection() {
+    setTimeout(() => window._loadPickerUsers?.(""), 10);
     const contacts = state.contacts || [];
     return `
       <div class="user-picker-box" style="margin-bottom:18px;background:var(--surface-2);border:1.5px solid var(--border-strong);border-radius:12px;padding:14px">
@@ -1836,79 +1874,71 @@
           oninput="window._filterUserPicker(this.value)"
           style="width:100%;background:var(--bg);border:1.5px solid var(--border-strong);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);margin-bottom:10px;outline:none" />
         <div class="user-picker-list" id="user-picker-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin">
-          ${contacts.length ? contacts.map(user => `
-            <div class="user-picker-item" data-search="${escapeHtml(`${user.name} ${user.email} ${user.role}`.toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
-              <div class="table-avatar" style="width:28px;height:28px;font-size:11px">${initials(user.name)}</div>
-              <div style="flex:1;min-width:0">
-                <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.name)}</div>
-                <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.email || "No email address")}</div>
-              </div>
-              <span class="status-pill ${user.role === "administrator" ? "danger" : user.role === "moderator" ? "warning" : "info"}" style="font-size:9px">${escapeHtml(user.role || "consumer")}</span>
-              <button type="button" class="mini-btn primary" data-action="select-picker-user" data-id="${user.id}" data-name="${escapeHtml(user.name)}" data-email="${escapeHtml(user.email)}" data-role="${escapeHtml(user.role)}" style="padding:4px 10px;font-size:10px">
-                Select
-              </button>
-            </div>
-          `).join("") : `<div style="font-size:11px;color:var(--muted);text-align:center;padding:12px">Type to search AkiPasa database users…</div>`}
+          ${renderPickerHtml(contacts)}
         </div>
       </div>
     `;
   }
 
   let _searchDebounce = null;
+  window._loadPickerUsers = async function(query = "") {
+    const q = (query || "").trim().toLowerCase();
+    const list = document.getElementById("user-picker-list");
+    const countEl = document.getElementById("user-picker-count");
+    const sbClient = getSupabaseClient();
+
+    if (!sbClient) return;
+
+    try {
+      let results = [];
+      const { data: rpcData } = await sbClient.rpc("crm_search_users", { p_query: q });
+      if (rpcData?.length) {
+        results = rpcData.map(u => ({
+          id: u.profile_id,
+          name: u.display_name || u.primary_email || `User (${u.profile_id.slice(0,6)})`,
+          email: u.primary_email || "",
+          role: u.app_role || "consumer"
+        }));
+      } else {
+        let req = sbClient.from("profiles").select("id, display_name, app_role, created_at").limit(100);
+        if (q) req = req.ilike("display_name", `%${q}%`);
+        const { data: profileData } = await req;
+        if (profileData?.length) {
+          results = profileData.map(p => ({
+            id: p.id,
+            name: p.display_name || `User (${p.id.slice(0,6)})`,
+            email: "",
+            role: p.app_role || "consumer"
+          }));
+        }
+      }
+
+      if (results.length) {
+        results.forEach(r => {
+          if (!state.contacts.some(c => c.id === r.id)) state.contacts.push(r);
+        });
+        if (countEl) countEl.textContent = `${state.contacts.length} registered profiles`;
+        if (list) list.innerHTML = renderPickerHtml(state.contacts);
+      } else if (list && !state.contacts?.length) {
+        list.innerHTML = `<div style="font-size:11px;color:var(--muted);text-align:center;padding:12px">No matching profiles found in database.</div>`;
+      }
+    } catch (e) {
+      console.warn("User picker fetch error:", e);
+    }
+  };
+
   window._filterUserPicker = function(query) {
     const q = (query || "").trim().toLowerCase();
     const list = document.getElementById("user-picker-list");
     if (!list) return;
     const items = list.querySelectorAll(".user-picker-item");
-    let visible = 0;
     items.forEach(item => {
       const match = !q || (item.dataset.search || "").includes(q);
       item.style.display = match ? "flex" : "none";
-      if (match) visible++;
     });
 
-    if (q.length >= 2) {
-      clearTimeout(_searchDebounce);
-      _searchDebounce = setTimeout(async () => {
-        const client = getSupabaseClient();
-        if (!client) return;
-        const { data: dbUsers } = await client.rpc("crm_search_users", { p_query: q });
-        if (dbUsers?.length) {
-          let added = false;
-          dbUsers.forEach(u => {
-            if (!state.contacts.some(c => c.id === u.profile_id)) {
-              state.contacts.push({
-                id: u.profile_id,
-                name: u.display_name || u.primary_email || "Unknown",
-                email: u.primary_email || "",
-                role: u.app_role || "consumer",
-                phone: "", companyId: null, source: "AkiPasa", updatedAt: u.created_at, createdAt: u.created_at
-              });
-              added = true;
-            }
-          });
-          if (added) {
-            const countEl = document.getElementById("user-picker-count");
-            if (countEl) countEl.textContent = `${state.contacts.length} registered profiles`;
-            // Re-render items inside list container without destroying search input focus
-            list.innerHTML = state.contacts.map(user => `
-              <div class="user-picker-item" data-search="${escapeHtml(`${user.name} ${user.email} ${user.role}`.toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
-                <div class="table-avatar" style="width:28px;height:28px;font-size:11px">${initials(user.name)}</div>
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.name)}</div>
-                  <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.email || "No email address")}</div>
-                </div>
-                <span class="status-pill ${user.role === "administrator" ? "danger" : user.role === "moderator" ? "warning" : "info"}" style="font-size:9px">${escapeHtml(user.role || "consumer")}</span>
-                <button type="button" class="mini-btn primary" data-action="select-picker-user" data-id="${user.id}" data-name="${escapeHtml(user.name)}" data-email="${escapeHtml(user.email)}" data-role="${escapeHtml(user.role)}" style="padding:4px 10px;font-size:10px">
-                  Select
-                </button>
-              </div>
-            `).join("");
-            window._filterUserPicker(query);
-          }
-        }
-      }, 200);
-    }
+    clearTimeout(_searchDebounce);
+    _searchDebounce = setTimeout(() => window._loadPickerUsers(query), 200);
   };
 
   function renderEntityFormModal() {
