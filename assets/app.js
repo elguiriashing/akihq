@@ -1824,24 +1824,20 @@
 
   function renderUserPickerSection() {
     const contacts = state.contacts || [];
-    const searchVal = ui.userPickerQuery || "";
-    const filtered = searchVal.trim()
-      ? contacts.filter(c => `${c.name} ${c.email} ${c.role}`.toLowerCase().includes(searchVal.trim().toLowerCase()))
-      : contacts.slice(0, 8);
-
     return `
       <div class="user-picker-box" style="margin-bottom:18px;background:var(--surface-2);border:1.5px solid var(--border-strong);border-radius:12px;padding:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <strong style="font-size:12px;display:flex;align-items:center;gap:6px;color:var(--accent-2)">
             ${icon("user")} Select from AkiPasa database
           </strong>
-          <span style="font-size:10px;color:var(--muted)">${contacts.length} registered profiles</span>
+          <span style="font-size:10px;color:var(--muted)" id="user-picker-count">${contacts.length} registered profiles</span>
         </div>
-        <input type="search" id="user-picker-search" placeholder="Search registered user by name or email…" value="${escapeHtml(searchVal)}"
-          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);margin-bottom:10px;outline:none" />
-        <div class="user-picker-list" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
-          ${filtered.length ? filtered.map(user => `
-            <div class="user-picker-item" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+        <input type="search" id="user-picker-search" placeholder="Search registered user by name or email…"
+          oninput="window._filterUserPicker(this.value)"
+          style="width:100%;background:var(--bg);border:1.5px solid var(--border-strong);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);margin-bottom:10px;outline:none" />
+        <div class="user-picker-list" id="user-picker-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin">
+          ${contacts.length ? contacts.map(user => `
+            <div class="user-picker-item" data-search="${escapeHtml(`${user.name} ${user.email} ${user.role}`.toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
               <div class="table-avatar" style="width:28px;height:28px;font-size:11px">${initials(user.name)}</div>
               <div style="flex:1;min-width:0">
                 <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.name)}</div>
@@ -1852,11 +1848,68 @@
                 Select
               </button>
             </div>
-          `).join("") : `<div style="font-size:11px;color:var(--muted);text-align:center;padding:12px">No matching profiles in database.</div>`}
+          `).join("") : `<div style="font-size:11px;color:var(--muted);text-align:center;padding:12px">Type to search AkiPasa database users…</div>`}
         </div>
       </div>
     `;
   }
+
+  let _searchDebounce = null;
+  window._filterUserPicker = function(query) {
+    const q = (query || "").trim().toLowerCase();
+    const list = document.getElementById("user-picker-list");
+    if (!list) return;
+    const items = list.querySelectorAll(".user-picker-item");
+    let visible = 0;
+    items.forEach(item => {
+      const match = !q || (item.dataset.search || "").includes(q);
+      item.style.display = match ? "flex" : "none";
+      if (match) visible++;
+    });
+
+    if (q.length >= 2) {
+      clearTimeout(_searchDebounce);
+      _searchDebounce = setTimeout(async () => {
+        const client = getSupabaseClient();
+        if (!client) return;
+        const { data: dbUsers } = await client.rpc("crm_search_users", { p_query: q });
+        if (dbUsers?.length) {
+          let added = false;
+          dbUsers.forEach(u => {
+            if (!state.contacts.some(c => c.id === u.profile_id)) {
+              state.contacts.push({
+                id: u.profile_id,
+                name: u.display_name || u.primary_email || "Unknown",
+                email: u.primary_email || "",
+                role: u.app_role || "consumer",
+                phone: "", companyId: null, source: "AkiPasa", updatedAt: u.created_at, createdAt: u.created_at
+              });
+              added = true;
+            }
+          });
+          if (added) {
+            const countEl = document.getElementById("user-picker-count");
+            if (countEl) countEl.textContent = `${state.contacts.length} registered profiles`;
+            // Re-render items inside list container without destroying search input focus
+            list.innerHTML = state.contacts.map(user => `
+              <div class="user-picker-item" data-search="${escapeHtml(`${user.name} ${user.email} ${user.role}`.toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+                <div class="table-avatar" style="width:28px;height:28px;font-size:11px">${initials(user.name)}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.name)}</div>
+                  <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.email || "No email address")}</div>
+                </div>
+                <span class="status-pill ${user.role === "administrator" ? "danger" : user.role === "moderator" ? "warning" : "info"}" style="font-size:9px">${escapeHtml(user.role || "consumer")}</span>
+                <button type="button" class="mini-btn primary" data-action="select-picker-user" data-id="${user.id}" data-name="${escapeHtml(user.name)}" data-email="${escapeHtml(user.email)}" data-role="${escapeHtml(user.role)}" style="padding:4px 10px;font-size:10px">
+                  Select
+                </button>
+              </div>
+            `).join("");
+            window._filterUserPicker(query);
+          }
+        }
+      }, 200);
+    }
+  };
 
   function renderEntityFormModal() {
     const { entity: type, id } = ui.modal;
@@ -2389,13 +2442,6 @@
   }
 
   function handleInput(target) {
-    if (target.id === "user-picker-search") {
-      ui.userPickerQuery = target.value;
-      renderPortal();
-      const input = $("#user-picker-search");
-      if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
-      return;
-    }
     if (target.matches("[data-global-search]")) {
       ui.searchQuery = target.value;
       renderPortal();
