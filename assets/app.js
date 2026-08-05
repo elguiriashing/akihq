@@ -393,7 +393,8 @@
     commandQuery: "",
     toasts: [],
     drag: null,
-    formDefaults: {}
+    formDefaults: {},
+    userPickerQuery: ""
   };
 
   function t(key) {
@@ -1821,6 +1822,42 @@
     </section>`;
   }
 
+  function renderUserPickerSection() {
+    const contacts = state.contacts || [];
+    const searchVal = ui.userPickerQuery || "";
+    const filtered = searchVal.trim()
+      ? contacts.filter(c => `${c.name} ${c.email} ${c.role}`.toLowerCase().includes(searchVal.trim().toLowerCase()))
+      : contacts.slice(0, 8);
+
+    return `
+      <div class="user-picker-box" style="margin-bottom:18px;background:var(--surface-2);border:1.5px solid var(--border-strong);border-radius:12px;padding:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <strong style="font-size:12px;display:flex;align-items:center;gap:6px;color:var(--accent-2)">
+            ${icon("user")} Select from AkiPasa database
+          </strong>
+          <span style="font-size:10px;color:var(--muted)">${contacts.length} registered profiles</span>
+        </div>
+        <input type="search" id="user-picker-search" placeholder="Search registered user by name or email…" value="${escapeHtml(searchVal)}"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);margin-bottom:10px;outline:none" />
+        <div class="user-picker-list" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+          ${filtered.length ? filtered.map(user => `
+            <div class="user-picker-item" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+              <div class="table-avatar" style="width:28px;height:28px;font-size:11px">${initials(user.name)}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.name)}</div>
+                <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.email || "No email address")}</div>
+              </div>
+              <span class="status-pill ${user.role === "administrator" ? "danger" : user.role === "moderator" ? "warning" : "info"}" style="font-size:9px">${escapeHtml(user.role || "consumer")}</span>
+              <button type="button" class="mini-btn primary" data-action="select-picker-user" data-id="${user.id}" data-name="${escapeHtml(user.name)}" data-email="${escapeHtml(user.email)}" data-role="${escapeHtml(user.role)}" style="padding:4px 10px;font-size:10px">
+                Select
+              </button>
+            </div>
+          `).join("") : `<div style="font-size:11px;color:var(--muted);text-align:center;padding:12px">No matching profiles in database.</div>`}
+        </div>
+      </div>
+    `;
+  }
+
   function renderEntityFormModal() {
     const { entity: type, id } = ui.modal;
     const existing = id ? getEntity(type, id) : null;
@@ -1829,7 +1866,10 @@
     return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${["automation", "article"].includes(type) ? "wide" : ""}" role="dialog" aria-modal="true">
       <header class="modal-head"><div class="entity-logo" style="width:36px;height:36px">${icon(config.icon)}</div><div><h2>${existing ? `Edit ${escapeHtml(config.label)}` : `New ${escapeHtml(config.label)}`}</h2><p>${existing ? "Changes are saved to the local workspace" : "Create a persistent record"}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
       <form data-form="entity" data-entity="${type}" data-id="${id || ""}" style="display:contents">
-        <div class="modal-body"><div class="form-grid">${config.fields.map(field => renderField(field, existing)).join("")}</div></div>
+        <div class="modal-body">
+          ${type === "employee" && !existing ? renderUserPickerSection() : ""}
+          <div class="form-grid">${config.fields.map(field => renderField(field, existing)).join("")}</div>
+        </div>
         <footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">${escapeHtml(t("cancel"))}</button><button type="submit" class="action-btn primary">${icon("check")} ${escapeHtml(t("save"))}</button></footer>
       </form>
     </section>`;
@@ -2194,6 +2234,17 @@
       case "bitrix-import":
         beginBitrixImport();
         break;
+      case "select-picker-user": {
+        const { name, email, role } = target.dataset;
+        const nameInput = document.querySelector('form[data-entity="employee"] input[name="name"]');
+        const emailInput = document.querySelector('form[data-entity="employee"] input[name="email"]');
+        const roleSelect = document.querySelector('form[data-entity="employee"] select[name="role"], form[data-entity="employee"] input[name="role"]');
+        if (nameInput) nameInput.value = name || "";
+        if (emailInput) emailInput.value = email || "";
+        if (roleSelect) roleSelect.value = role === "administrator" ? "Administrator" : "Moderator / Staff";
+        toast("User selected", `Auto-filled details for ${name}`);
+        break;
+      }
       case "cloud-signout":
         cloudSession = null; localStorage.removeItem(SESSION_KEY); render(); toast("Signed out", "Local workspace data remains on this device.", "info");
         break;
@@ -2253,6 +2304,13 @@
   }
 
   function handleInput(target) {
+    if (target.id === "user-picker-search") {
+      ui.userPickerQuery = target.value;
+      renderPortal();
+      const input = $("#user-picker-search");
+      if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+      return;
+    }
     if (target.matches("[data-global-search]")) {
       ui.searchQuery = target.value;
       renderPortal();
@@ -2320,7 +2378,22 @@
     if (type === "page") Object.assign(data, { visitors: existing?.visitors || 0, conversions: existing?.conversions || 0 });
     if (type === "form") Object.assign(data, { submissions: existing?.submissions || 0, conversionRate: existing?.conversionRate || 0 });
     if (type === "automation") Object.assign(data, { runs: existing?.runs || 0, failures: existing?.failures || 0 });
-    if (type === "employee") data.joinedAt = existing?.joinedAt || now;
+    if (type === "employee") {
+      data.joinedAt = existing?.joinedAt || now;
+      if (data.email) {
+        const matchedContact = state.contacts.find(c => c.email && c.email.toLowerCase() === data.email.toLowerCase());
+        if (matchedContact && matchedContact.id) {
+          data.id = matchedContact.id;
+          const client = getSupabaseClient();
+          if (client) {
+            const newRole = data.role === "Administrator" ? "administrator" : "moderator";
+            client.rpc("crm_promote_user", { target_profile: matchedContact.id, new_role: newRole })
+              .then(() => toast("Role updated in Supabase", `${data.name} promoted to ${newRole}.`))
+              .catch(err => console.warn("Supabase promotion error:", err));
+          }
+        }
+      }
+    }
     if (type === "article") data.authorId ||= state.currentUserId;
 
     if (existing) {
