@@ -2496,13 +2496,19 @@
         break;
       }
       case "cloud-signout":
-        cloudSession = null; localStorage.removeItem(SESSION_KEY); render(); toast("Signed out", "Local workspace data remains on this device.", "info");
-        break;
-      case "crm-signout":
+      case "crm-signout": {
         ui.dropdown = null;
-        if (sbClient) sbClient.auth.signOut();
-        else renderLoginScreen();
+        renderPortal();
+        const client = getSupabaseClient();
+        if (client) {
+          client.auth.signOut().catch(err => console.warn("Sign out error:", err));
+        }
+        authUser = null;
+        authRole = null;
+        renderLoginScreen();
+        toast("Signed out", "You have been logged out of AkiHQ CRM.", "info");
         break;
+      }
       case "cloud-push":
         cloudPush();
         break;
