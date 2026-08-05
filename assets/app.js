@@ -3276,24 +3276,28 @@
     appRoot.className = "login-mode";
     appRoot.innerHTML = `
       <div class="login-screen">
-        <div class="login-card">
-          <div class="brand" style="justify-content:center;margin-bottom:28px">
-            <img src="assets/logo.svg" alt="" style="width:36px;height:36px" />
-            <div class="brand-copy"><div class="brand-name">AkiHQ</div></div>
+        <div class="login-card" style="max-width:420px;text-align:center">
+          <div class="brand" style="justify-content:center;margin-bottom:24px">
+            <img src="assets/logo.svg" alt="" style="width:38px;height:38px" />
+            <div class="brand-copy"><div class="brand-name">AkiHQ CRM</div></div>
           </div>
-          <div class="empty-state-icon" style="margin:0 auto 16px">${icon("lock")}</div>
-          <h1 style="font-size:18px;font-weight:700;margin:0 0 8px;text-align:center">Access denied</h1>
-          <p style="font-size:12px;color:var(--muted);text-align:center;margin:0 0 24px">
-            <strong>${escapeHtml(email || "Your account")}</strong> does not have moderator or administrator access.
+          <div class="empty-state-icon" style="margin:0 auto 16px;width:48px;height:48px;border-radius:12px;background:rgba(255,111,133,.15);color:var(--danger);display:grid;place-items:center">${icon("lock")}</div>
+          <h1 style="font-size:18px;font-weight:700;margin:0 0 8px">Access restricted</h1>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 16px;line-height:1.5">
+            <strong>${escapeHtml(email || "Your account")}</strong> is registered as a standard consumer profile.
           </p>
-          <button class="action-btn" style="width:100%;justify-content:center" id="deny-signout">Sign out</button>
+          <div style="background:rgba(255,111,133,.08);border:1px solid rgba(255,111,133,.2);border-radius:10px;padding:12px;margin-bottom:20px;font-size:11px;color:var(--danger);line-height:1.4">
+            Only designated <strong>Staff Members</strong> and <strong>Administrators</strong> in the AkiPasa database are authorized to access AkiHQ CRM.
+          </div>
+          <button class="action-btn primary" style="width:100%;justify-content:center" id="deny-signout">Sign out & Back to Login</button>
         </div>
       </div>
     `;
     portal.innerHTML = "";
     document.getElementById("deny-signout")?.addEventListener("click", async () => {
       const client = getSupabaseClient();
-      await client?.auth.signOut();
+      if (client) { try { await client.auth.signOut(); } catch {} }
+      authUser = null; authRole = null;
       renderLoginScreen();
     });
   }
@@ -3301,17 +3305,29 @@
   async function bootWithSession(session) {
     const client = getSupabaseClient();
     if (!session?.user || !client) { renderLoginScreen(); return; }
-    authUser = session.user;
-    // Fetch profile to check role
-    const { data: profile } = await client.from("profiles")
-      .select("app_role")
-      .eq("id", authUser.id)
-      .maybeSingle();
-    const role = profile?.app_role;
+    
+    // Fetch profile to check role strictly
+    let role = null;
+    try {
+      const { data: profile } = await client.from("profiles")
+        .select("app_role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      role = profile?.app_role;
+    } catch (e) {
+      console.warn("Profile check error:", e);
+    }
+
+    // STRICT SECURITY GUARD: Only allow staff/moderator or administrator roles
     if (!role || !["moderator", "administrator"].includes(role)) {
-      renderAccessDenied(authUser.email);
+      try { await client.auth.signOut(); } catch {}
+      authUser = null;
+      authRole = null;
+      renderAccessDenied(session.user?.email);
       return;
     }
+    
+    authUser = session.user;
     authRole = role;
     // Clean OAuth tokens from address bar if present
     if (window.location.search || window.location.hash.includes("access_token=")) {
