@@ -1,0 +1,24 @@
+name = "akihq-integration-gateway"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+workers_dev = true
+
+# Public/non-secret configuration only. Override these for your deployment.
+[vars]
+ALLOWED_ORIGINS = "http://127.0.0.1:8080"
+OUTBOUND_WEBHOOK_HOSTS = ""
+SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
+
+# Add secrets with commands such as:
+#   npx wrangler secret put AKIHQ_API_TOKEN
+#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   npx wrangler secret put WEBHOOK_INGEST_SECRET
+#   npx wrangler secret put OUTBOUND_WEBHOOK_SECRET
+#   npx wrangler secret put RESEND_API_KEY
+#   npx wrangler secret put SLACK_WEBHOOK_URL
+#   npx wrangler secret put DISCORD_WEBHOOK_URL
+#   npx wrangler secret put TELEGRAM_BOT_TOKEN
+#   npx wrangler secret put TELEGRAM_CHAT_ID
+#   npx wrangler secret put TWILIO_ACCOUNT_SID
+#   npx wrangler secret put TWILIO_AUTH_TOKEN
+#   npx wrangler secret put TWILIO_FROM_NUMBER

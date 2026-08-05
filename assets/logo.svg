@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AkiHQ logo">
+  <defs>
+    <linearGradient id="g" x1="16" y1="12" x2="110" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#68e0ff"/>
+      <stop offset=".48" stop-color="#8b7bff"/>
+      <stop offset="1" stop-color="#ff68bb"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="#11162f"/>
+  <path d="M24 91 54 30h18l32 61H84l-7-15H48l-7 15H24Zm31-31h15l-8-17-7 17Z" fill="url(#g)"/>
+  <path d="M78 33h21v17H86v12h11v16H78V33Z" fill="#eaf1ff" opacity=".9"/>
+</svg>

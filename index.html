@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="comfortable">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#10142b" />
+  <meta name="description" content="AkiHQ — an open-source, local-first business operating system." />
+  <title>AkiHQ</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <noscript>AkiHQ needs JavaScript enabled.</noscript>
+  <div id="app" class="app-shell" aria-live="polite"></div>
+  <div id="portal"></div>
+  <input id="import-file" type="file" accept="application/json" hidden />
+  <script src="config.js" onerror="this.remove()"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
