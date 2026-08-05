@@ -2905,9 +2905,19 @@
     document.getElementById("google-login-btn")?.addEventListener("click", async () => {
       const client = getSupabaseClient();
       if (!client) { renderLoginScreen("Supabase client not initialized. Please refresh."); return; }
+      const btn = document.getElementById("google-login-btn");
+      if (btn) {
+        btn.disabled = true;
+        const span = btn.querySelector("span");
+        if (span) span.textContent = "Redirecting to Google…";
+      }
+      const redirectTarget = window.location.origin + "/";
       const { error } = await client.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: window.location.origin }
+        options: {
+          redirectTo: redirectTarget,
+          queryParams: { prompt: "select_account" }
+        }
       });
       if (error) renderLoginScreen(error.message || "Google sign in failed.");
     });
