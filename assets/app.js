@@ -522,13 +522,25 @@
     document.body.classList.toggle("reduced-motion", Boolean(state.settings.reducedMotion));
   }
 
+  function renderToastStack() {
+    let container = document.getElementById("toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "toast-container";
+      container.className = "toast-stack";
+      container.style.cssText = "position:fixed;bottom:18px;right:18px;z-index:200;display:flex;flex-direction:column-reverse;gap:8px;pointer-events:auto";
+      document.body.appendChild(container);
+    }
+    container.innerHTML = ui.toasts.map(renderToast).join("");
+  }
+
   function toast(title, message = "", kind = "success") {
     const item = { id: uid("toast"), title, message, kind };
     ui.toasts.push(item);
-    renderPortal();
+    renderToastStack();
     setTimeout(() => {
       ui.toasts = ui.toasts.filter(toastItem => toastItem.id !== item.id);
-      renderPortal();
+      renderToastStack();
     }, 3600);
   }
 
@@ -1702,7 +1714,8 @@
       employee: {
         label: "Team member", icon: "employees", fields: [
           { name: "name", label: "Full name", required: true }, { name: "email", label: "Work email", type: "email", required: true },
-          { name: "role", label: "Role", required: true, value: "Staff" }, { name: "department", label: "Department", value: "Operations" },
+          { name: "role", label: "Role", required: true, type: "select", options: ["Consumer", "Organiser", "Staff", "Admin"], value: "Staff" },
+          { name: "department", label: "Department", type: "select", options: ["Operations", "Engineering", "Marketing", "Sales", "Finance", "Human Resources", "Customer Support", "Design", "Legal", "Management"], value: "Operations" },
           { name: "location", label: "Location", value: "Remote" }, { name: "phone", label: "Phone" }
         ]
       }
@@ -1750,7 +1763,7 @@
     if (ui.dropdown) parts.push(renderDropdown());
     if (ui.searchQuery.trim()) parts.push(renderSearchResults());
     if (ui.commandOpen) parts.push(renderCommandPalette());
-    if (ui.toasts.length) parts.push(`<div class="toast-stack">${ui.toasts.map(renderToast).join("")}</div>`);
+    // Toasts now render into a separate #toast-container to avoid modal flicker
     portal.innerHTML = parts.join("");
     requestAnimationFrame(() => {
       const messages = $("#messages");
@@ -2455,7 +2468,9 @@
         const { name, email, role, id: pickedId } = target.dataset;
         const resolvedEmail = email || (name && name.includes("@") ? name : "");
         const resolvedName = name && !name.startsWith("User (") && !name.startsWith("Member (") ? name : (resolvedEmail ? resolvedEmail.split("@")[0] : name);
-        const resolvedRole = role === "administrator" ? "Administrator" : role === "moderator" ? "Moderator / Staff" : "Staff";
+        // Map database roles to dropdown values
+        const roleMap = { administrator: "Admin", moderator: "Staff", organiser: "Organiser", consumer: "Consumer" };
+        const resolvedRole = roleMap[role] || "Staff";
 
         // Store in formDefaults so values survive portal re-renders
         ui.formDefaults = {
@@ -2466,22 +2481,16 @@
           _pickedUserId: pickedId || ""
         };
 
-        // Re-render the portal so the form fields pick up the new formDefaults
-        renderPortal();
-
-        // Apply green highlight to filled fields after re-render
-        requestAnimationFrame(() => {
-          const form = document.querySelector('form[data-entity="employee"]');
-          if (form) {
-            ["name", "email", "role"].forEach(fieldName => {
-              const input = form.querySelector(`[name="${fieldName}"]`);
-              if (input && input.value) {
-                input.style.borderColor = "var(--success)";
-                input.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)";
-              }
-            });
-          }
-        });
+        // Update DOM inputs directly — no renderPortal() call, zero flicker
+        const form = document.querySelector('form[data-entity="employee"]');
+        if (form) {
+          const nameInput = form.querySelector('[name="name"]');
+          const emailInput = form.querySelector('[name="email"]');
+          const roleInput = form.querySelector('[name="role"]');
+          if (nameInput) { nameInput.value = resolvedName || ""; nameInput.style.borderColor = "var(--success)"; nameInput.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)"; }
+          if (emailInput) { emailInput.value = resolvedEmail || ""; emailInput.style.borderColor = "var(--success)"; emailInput.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)"; }
+          if (roleInput) { roleInput.value = resolvedRole; roleInput.style.borderColor = "var(--success)"; roleInput.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)"; }
+        }
 
         toast("User selected", `Auto-filled details for ${resolvedName || resolvedEmail}`);
         break;
@@ -2624,7 +2633,8 @@
           data.id = matchedContact.id;
           const client = getSupabaseClient();
           if (client) {
-            const newRole = data.role === "Administrator" ? "administrator" : "moderator";
+            const roleToDb = { Admin: "administrator", Staff: "moderator", Organiser: "moderator", Consumer: "consumer" };
+            const newRole = roleToDb[data.role] || "moderator";
             client.rpc("crm_promote_user", { target_profile: matchedContact.id, new_role: newRole })
               .then(() => toast("Role updated in Supabase", `${data.name} promoted to ${newRole}.`))
               .catch(err => console.warn("Supabase promotion error:", err));

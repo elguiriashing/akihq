@@ -560,6 +560,10 @@ html[data-theme="light"] .tag { color: #4f5b9c; }
 .form-field input, .form-field select { height: 42px; }
 .form-field textarea { min-height: 100px; resize: vertical; padding-top: 10px; line-height: 1.5; }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,140,255,.20); background: rgba(255,255,255,.07); }
+.form-field select { appearance: auto; -webkit-appearance: auto; cursor: pointer; color: var(--text); background-color: var(--surface-2); }
+.form-field select option { background: var(--bg); color: var(--text); padding: 8px; }
+html[data-theme="light"] .form-field select { background-color: #fff; color: #17203a; }
+html[data-theme="light"] .form-field select option { background: #fff; color: #17203a; }
 .form-help { margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .form-error { color: var(--danger); font-size: 9px; margin-top: 5px; }
 .quick-create-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
