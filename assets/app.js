@@ -274,9 +274,88 @@
 
   const store = new StateStore(STORAGE_KEY);
   let state = store.load();
-  let cloudSession = (() => {
-    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
-  })();
+
+  // ── Supabase client ────────────────────────────────────────────────────────
+  const cfg = window.AKIHQ_CONFIG || {};
+  const sbClient = (window.supabase && cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY)
+    ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
+    : null;
+
+  // Auth state — populated after boot
+  let authUser = null;   // supabase user object
+  let authRole = null;   // 'moderator' | 'administrator' | null
+  let liveStats = null;  // crm_dashboard_stats() result
+
+  // ── Live data loader ───────────────────────────────────────────────────────
+  async function loadLiveData() {
+    if (!sbClient || !authUser) return;
+    try {
+      // Dashboard stats
+      const { data: statsRows } = await sbClient.rpc("crm_dashboard_stats");
+      if (statsRows?.[0]) liveStats = statsRows[0];
+
+      // Contacts — all profiles
+      const { data: contactRows } = await sbClient.rpc("crm_list_contacts", { p_limit: 500 });
+      if (contactRows?.length) {
+        state.contacts = contactRows.map(row => ({
+          id: row.profile_id,
+          name: row.display_name || row.primary_email || "Unknown",
+          email: row.primary_email || "",
+          role: row.app_role,
+          phone: "",
+          companyId: null,
+          source: "AkiPasa",
+          updatedAt: row.created_at,
+          createdAt: row.created_at
+        }));
+      }
+
+      // Companies — venues
+      const { data: venueRows } = await sbClient.rpc("crm_list_venues", { p_limit: 500 });
+      if (venueRows?.length) {
+        state.companies = venueRows.map(row => ({
+          id: row.venue_id,
+          name: row.venue_name,
+          email: row.owner_email || "",
+          website: `https://akipasa.com/venue/${row.venue_slug}`,
+          type: "Venue",
+          city: row.city_name,
+          address: row.address || "",
+          status: row.verified ? "Customer" : (row.status === "pending" ? "Prospect" : "Partner"),
+          employees: Number(row.member_count || 0),
+          ownerId: state.currentUserId,
+          source: "AkiPasa",
+          createdAt: row.created_at
+        }));
+      }
+
+      // People (employees section) — staff/admin profiles
+      const staffContacts = state.contacts.filter(c => ["moderator", "administrator"].includes(c.role));
+      if (staffContacts.length > 0) {
+        const existing = new Set(state.employees.map(e => e.id));
+        const newStaff = staffContacts
+          .filter(c => !existing.has(c.id))
+          .map(c => ({
+            id: c.id,
+            name: c.name,
+            email: c.email,
+            role: c.role === "administrator" ? "Administrator" : "Moderator / Staff",
+            department: c.role === "administrator" ? "Leadership" : "Operations",
+            status: "Online",
+            location: "Spain",
+            phone: "",
+            joinedAt: c.createdAt,
+            leaveBalance: 20
+          }));
+        state.employees = [...state.employees, ...newStaff];
+      }
+
+      store.save(state);
+      render();
+    } catch (err) {
+      console.warn("AkiHQ live data load error:", err);
+    }
+  }
 
   const ui = {
     route: location.hash.replace(/^#\/?/, "") || "dashboard",
@@ -676,10 +755,10 @@
     return `
       <div class="page-grid">
         <div class="page-grid grid-4">
-          ${renderMetric("Open pipeline", formatMoney(pipelineValue, true), `${openDeals.length} active opportunities`, "crm", "#7c8cff", "+12.4%")}
-          ${renderMetric("Collected revenue", formatMoney(paidRevenue, true), "paid invoices in this workspace", "money", "#49d7a0", "+8.1%")}
-          ${renderMetric("Tasks due soon", String(dueTasks), "within the next three days", "tasks", "#ffbd55", dueTasks ? "Needs focus" : "Clear")}
-          ${renderMetric("Unclaimed venues", "76", "of the first 100 imported", "building", "#e96fb7", "24 claimed")}
+          ${renderMetric("Total venues", liveStats ? String(liveStats.total_venues) : String(state.companies.length), liveStats ? `${liveStats.verified_venues} verified` : "from Supabase", "building", "#7c8cff")}
+          ${renderMetric("Platform users", liveStats ? String(liveStats.total_users) : String(state.contacts.length), liveStats ? `${liveStats.new_users_30d} joined this month` : "from Supabase", "crm", "#49d7a0")}
+          ${renderMetric("Pending claims", liveStats ? String(liveStats.pending_claims) : "—", "venue claims awaiting review", "warning", "#ffbd55", liveStats?.pending_claims > 0 ? "Needs review" : "Clear")}
+          ${renderMetric("Staff members", liveStats ? String(liveStats.staff_users) : String(state.employees.length), "moderators and administrators", "employees", "#e96fb7")}
         </div>
         <div class="page-grid grid-main">
           <section class="panel">
@@ -840,7 +919,7 @@
   function renderContacts() {
     return `
       <section class="panel table-panel">
-        <div class="panel-header"><div><h2>Contacts</h2><p>${state.contacts.length} people across ${state.companies.length} companies</p></div></div>
+        <div class="panel-header"><div><h2>Contacts</h2><p>${state.contacts.length} people across ${state.companies.length} venues · synced from AkiPasa database</p></div></div>
         <div class="table-scroll">
           <table class="data-table">
             <thead><tr><th>Contact</th><th>Company</th><th>Role</th><th>Phone</th><th>Source</th><th>Updated</th><th></th></tr></thead>
@@ -863,7 +942,7 @@
   function renderCompanies() {
     return `
       <section class="panel table-panel">
-        <div class="panel-header"><div><h2>Companies</h2><p>Venue, partner and customer accounts</p></div></div>
+        <div class="panel-header"><div><h2>Venues</h2><p>${state.companies.length} venue${state.companies.length !== 1 ? "s" : ""} · synced live from AkiPasa database</p></div></div>
         <div class="table-scroll">
           <table class="data-table">
             <thead><tr><th>Company</th><th>Type</th><th>City</th><th>Status</th><th>Owner</th><th>Employees</th><th></th></tr></thead>
@@ -1093,13 +1172,13 @@
           </article>`;
         }).join("")}
       </div>
-      <section class="panel"><div class="panel-header"><div><h2>Audience segments</h2><p>Dynamic groups used by campaigns and automations</p></div></div><div class="panel-body cards-grid">
+      <section class="panel"><div class="panel-header"><div><h2>Audience segments</h2><p>Dynamic groups sourced from the AkiPasa database</p></div></div><div class="panel-body cards-grid">
         ${[
-          ["Unclaimed Fuengirola venues", 76, "Venue city is Fuengirola AND claim status is unclaimed"],
-          ["Claimed free venues", 24, "Claimed AND current plan is Free"],
-          ["Málaga nightlife audience", 1840, "Interest includes Nightlife AND city radius is Málaga"],
-          ["Active consumers", 6320, "Opened app in the last 30 days"]
-        ].map(([name, count, rule]) => `<div class="entity-card"><div class="entity-card-top"><div class="entity-logo">${icon("filter")}</div><div class="entity-card-copy"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(rule)}</p></div></div><div class="entity-card-stats"><div class="entity-stat"><span>Members</span><strong>${Number(count).toLocaleString()}</strong></div><div class="entity-stat"><span>Refresh</span><strong>Live</strong></div></div></div>`).join("")}
+          ["All registered users", liveStats ? liveStats.total_users : state.contacts.length, "All profiles in the AkiPasa database"],
+          ["New this month", liveStats ? liveStats.new_users_30d : 0, "Signed up in the last 30 days"],
+          ["Unverified venues", liveStats ? (liveStats.total_venues - liveStats.verified_venues) : 0, "Venue is registered but not yet verified"],
+          ["Pending claim reviews", liveStats ? liveStats.pending_claims : 0, "Venue claim submitted and awaiting decision"]
+        ].map(([name, count, rule]) => `<div class="entity-card"><div class="entity-card-top"><div class="entity-logo">${icon("filter")}</div><div class="entity-card-copy"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(rule)}</p></div></div><div class="entity-card-stats"><div class="entity-stat"><span>Members</span><strong>${Number(count||0).toLocaleString()}</strong></div><div class="entity-stat"><span>Refresh</span><strong>Live</strong></div></div></div>`).join("")}
       </div></section>
     </div>`;
   }
@@ -1180,9 +1259,10 @@
 
   function renderEmployees() {
     const departments = [...new Set(state.employees.map(employee => employee.department))];
+    const staffCount = liveStats ? liveStats.staff_users : state.employees.length;
     return `<div class="page-grid">
       <div class="page-grid grid-4">
-        ${renderMetric("Team members", String(state.employees.length), `${departments.length} departments`, "employees", "#7c8cff")}
+        ${renderMetric("Team members", String(staffCount), `${departments.length} departments · staff & admins`, "employees", "#7c8cff")}
         ${renderMetric("Online now", String(state.employees.filter(employee => employee.status === "Online").length), "available in AkiHQ", "activity", "#49d7a0")}
         ${renderMetric("Leave balance", `${state.employees.reduce((sum, employee) => sum + Number(employee.leaveBalance || 0), 0)} days`, "across the whole team", "calendar", "#52d9e9")}
         ${renderMetric("Open assignments", String(state.tasks.filter(task => task.status !== "done").length), "tasks assigned", "tasks", "#ffbd55")}
@@ -1798,6 +1878,7 @@
         <div class="dropdown-item" data-action="set-theme" data-theme="${state.settings.theme === "dark" ? "light" : "dark"}"><div class="activity-icon">${icon("sparkles")}</div><div class="dropdown-copy"><strong>Switch to ${state.settings.theme === "dark" ? "light" : "dark"} theme</strong><br>Change appearance instantly</div></div>
         <div class="dropdown-item" data-action="navigate" data-route="settings"><div class="activity-icon">${icon("settings")}</div><div class="dropdown-copy"><strong>Settings</strong><br>Workspace, data and cloud sync</div></div>
         <div class="dropdown-item" data-action="export-data"><div class="activity-icon">${icon("download")}</div><div class="dropdown-copy"><strong>Download backup</strong><br>Export the complete workspace</div></div>
+        <div class="dropdown-item" data-action="crm-signout"><div class="activity-icon">${icon("lock")}</div><div class="dropdown-copy"><strong>Sign out</strong><br>Log out of AkiHQ CRM</div></div>
       </div>`;
     }
     if (ui.dropdown === "workspace") {
@@ -2099,6 +2180,11 @@
         break;
       case "cloud-signout":
         cloudSession = null; localStorage.removeItem(SESSION_KEY); render(); toast("Signed out", "Local workspace data remains on this device.", "info");
+        break;
+      case "crm-signout":
+        ui.dropdown = null;
+        if (sbClient) sbClient.auth.signOut();
+        else renderLoginScreen();
         break;
       case "cloud-push":
         cloudPush();
@@ -2748,6 +2834,149 @@
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(error => console.warn("Service worker registration failed", error)));
   }
 
-  applySettings();
-  render();
+  // ── Auth gate boot sequence ────────────────────────────────────────────────
+  function renderLoginScreen(errorMsg) {
+    applySettings();
+    appRoot.innerHTML = `
+      <div class="login-screen">
+        <div class="login-card">
+          <div class="brand" style="justify-content:center;margin-bottom:28px">
+            <img src="assets/logo.svg" alt="" style="width:36px;height:36px" />
+            <div class="brand-copy">
+              <div class="brand-name">AkiHQ</div>
+              <div class="brand-tag">Business operating system</div>
+            </div>
+          </div>
+          <h1 style="font-size:18px;font-weight:700;margin:0 0 6px">Staff sign in</h1>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 24px">Only moderator and administrator accounts can access the CRM.</p>
+          ${errorMsg ? `<div class="toast-item danger" style="margin-bottom:16px;border-radius:10px;padding:10px 14px;font-size:12px">${escapeHtml(errorMsg)}</div>` : ""}
+          <form id="login-form" style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-size:11px;font-weight:600;color:var(--muted)" for="login-email">Email address</label>
+              <input id="login-email" name="email" type="email" required autocomplete="email"
+                style="background:var(--surface-2);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text);outline:none"
+                placeholder="you@akipasa.com" />
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-size:11px;font-weight:600;color:var(--muted)" for="login-password">Password</label>
+              <input id="login-password" name="password" type="password" required autocomplete="current-password"
+                style="background:var(--surface-2);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text);outline:none"
+                placeholder="••••••••" />
+            </div>
+            <button type="submit" class="action-btn primary" style="margin-top:6px;justify-content:center" id="login-submit">
+              Sign in to CRM
+            </button>
+          </form>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin:20px 0 0">
+            Staff accounts are managed via <a href="https://akipasa.com" target="_blank" rel="noopener" style="color:var(--accent-blue)">akipasa.com</a>
+          </p>
+        </div>
+      </div>
+    `;
+    portal.innerHTML = "";
+    const form = document.getElementById("login-form");
+    if (form) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("login-submit");
+        if (btn) { btn.disabled = true; btn.textContent = "Signing in…"; }
+        const email    = document.getElementById("login-email")?.value?.trim();
+        const password = document.getElementById("login-password")?.value;
+        if (!sbClient) { renderLoginScreen("Supabase is not configured."); return; }
+        const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+        if (error || !data?.user) {
+          renderLoginScreen(error?.message || "Sign in failed. Please try again.");
+          return;
+        }
+        await bootWithSession(data.session);
+      });
+    }
+  }
+
+  function renderAccessDenied(email) {
+    applySettings();
+    appRoot.innerHTML = `
+      <div class="login-screen">
+        <div class="login-card">
+          <div class="brand" style="justify-content:center;margin-bottom:28px">
+            <img src="assets/logo.svg" alt="" style="width:36px;height:36px" />
+            <div class="brand-copy"><div class="brand-name">AkiHQ</div></div>
+          </div>
+          <div class="empty-state-icon" style="margin:0 auto 16px">${icon("lock")}</div>
+          <h1 style="font-size:18px;font-weight:700;margin:0 0 8px;text-align:center">Access denied</h1>
+          <p style="font-size:12px;color:var(--muted);text-align:center;margin:0 0 24px">
+            <strong>${escapeHtml(email || "Your account")}</strong> does not have moderator or administrator access.
+          </p>
+          <button class="action-btn" style="width:100%;justify-content:center" id="deny-signout">Sign out</button>
+        </div>
+      </div>
+    `;
+    portal.innerHTML = "";
+    document.getElementById("deny-signout")?.addEventListener("click", async () => {
+      await sbClient?.auth.signOut();
+      renderLoginScreen();
+    });
+  }
+
+  async function bootWithSession(session) {
+    if (!session?.user) { renderLoginScreen(); return; }
+    authUser = session.user;
+    // Fetch profile to check role
+    const { data: profile } = await sbClient.from("profiles")
+      .select("app_role")
+      .eq("id", authUser.id)
+      .maybeSingle();
+    const role = profile?.app_role;
+    if (!role || !["moderator", "administrator"].includes(role)) {
+      renderAccessDenied(authUser.email);
+      return;
+    }
+    authRole = role;
+    // Update current user name from auth metadata
+    const displayName = authUser.user_metadata?.display_name || authUser.email?.split("@")[0] || "User";
+    state.employees[0] = {
+      ...state.employees[0],
+      id: authUser.id,
+      name: displayName,
+      email: authUser.email,
+      role: role === "administrator" ? "Administrator" : "Moderator / Staff",
+      status: "Online"
+    };
+    state.currentUserId = authUser.id;
+    applySettings();
+    render();
+    // Load live data asynchronously after the UI is visible
+    loadLiveData();
+  }
+
+  async function boot() {
+    if (!sbClient) {
+      // No Supabase configured — run in local-only mode (useful for dev)
+      console.warn("AkiHQ: Supabase not configured. Running in local-only mode.");
+      applySettings();
+      render();
+      return;
+    }
+    applySettings();
+    // Show a minimal loading state while we check auth
+    appRoot.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--muted);font-size:13px">Loading AkiHQ…</div>`;
+    const { data: { session } } = await sbClient.auth.getSession();
+    if (!session) {
+      renderLoginScreen();
+      return;
+    }
+    await bootWithSession(session);
+    // Listen for auth state changes (token refresh, sign out from another tab)
+    sbClient.auth.onAuthStateChange(async (event, newSession) => {
+      if (event === "SIGNED_OUT" || !newSession) {
+        authUser = null;
+        authRole = null;
+        renderLoginScreen();
+      } else if (event === "TOKEN_REFRESHED" && newSession) {
+        authUser = newSession.user;
+      }
+    });
+  }
+
+  boot();
 })();
