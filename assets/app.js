@@ -1702,8 +1702,7 @@
       employee: {
         label: "Team member", icon: "employees", fields: [
           { name: "name", label: "Full name", required: true }, { name: "email", label: "Work email", type: "email", required: true },
-          { name: "role", label: "Role", required: true }, { name: "department", label: "Department", value: "Operations" },
-          { name: "status", label: "Status", type: "select", options: ["Online", "Away", "Offline"], value: "Offline" },
+          { name: "role", label: "Role", required: true, value: "Staff" }, { name: "department", label: "Department", value: "Operations" },
           { name: "location", label: "Location", value: "Remote" }, { name: "phone", label: "Phone" }
         ]
       }
@@ -1991,14 +1990,17 @@
   function renderEntityFormModal() {
     const { entity: type, id } = ui.modal;
     const existing = id ? getEntity(type, id) : null;
+    // For new employee forms, use formDefaults as a virtual record so picker selections survive re-renders
+    const record = existing || (type === "employee" && Object.keys(ui.formDefaults).length ? ui.formDefaults : null);
     const config = entityFormConfig(type, existing);
     if (!config) return "";
+    const hasPickerSelection = type === "employee" && !existing && ui.formDefaults.name;
     return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${["automation", "article"].includes(type) ? "wide" : ""}" role="dialog" aria-modal="true">
       <header class="modal-head"><div class="entity-logo" style="width:36px;height:36px">${icon(config.icon)}</div><div><h2>${existing ? `Edit ${escapeHtml(config.label)}` : `New ${escapeHtml(config.label)}`}</h2><p>${existing ? "Changes are saved to the local workspace" : "Create a persistent record"}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
       <form data-form="entity" data-entity="${type}" data-id="${id || ""}" style="display:contents">
         <div class="modal-body">
           ${type === "employee" && !existing ? renderUserPickerSection() : ""}
-          <div class="form-grid">${config.fields.map(field => renderField(field, existing)).join("")}</div>
+          <div class="form-grid">${config.fields.map(field => renderField(field, record)).join("")}</div>
         </div>
         <footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">${escapeHtml(t("cancel"))}</button><button type="submit" class="action-btn primary">${icon("check")} ${escapeHtml(t("save"))}</button></footer>
       </form>
@@ -2450,28 +2452,36 @@
         beginBitrixImport();
         break;
       case "select-picker-user": {
-        const { name, email, role } = target.dataset;
-        const nameInput = document.querySelector('input[name="name"]');
-        const emailInput = document.querySelector('input[name="email"]');
-        const roleInput = document.querySelector('input[name="role"], select[name="role"]');
-
+        const { name, email, role, id: pickedId } = target.dataset;
         const resolvedEmail = email || (name && name.includes("@") ? name : "");
-        const resolvedName = name && !name.startsWith("User (") ? name : (resolvedEmail ? resolvedEmail.split("@")[0] : name);
+        const resolvedName = name && !name.startsWith("User (") && !name.startsWith("Member (") ? name : (resolvedEmail ? resolvedEmail.split("@")[0] : name);
+        const resolvedRole = role === "administrator" ? "Administrator" : role === "moderator" ? "Moderator / Staff" : "Staff";
 
-        if (nameInput) {
-          nameInput.value = resolvedName || "";
-          nameInput.style.borderColor = "var(--success)";
-          nameInput.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)";
-        }
-        if (emailInput) {
-          emailInput.value = resolvedEmail || "";
-          emailInput.style.borderColor = "var(--success)";
-          emailInput.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)";
-        }
-        if (roleInput) {
-          roleInput.value = role === "administrator" ? "Administrator" : role === "moderator" ? "Moderator / Staff" : "Consumer / Staff";
-          roleInput.style.borderColor = "var(--success)";
-        }
+        // Store in formDefaults so values survive portal re-renders
+        ui.formDefaults = {
+          ...ui.formDefaults,
+          name: resolvedName || "",
+          email: resolvedEmail || "",
+          role: resolvedRole,
+          _pickedUserId: pickedId || ""
+        };
+
+        // Re-render the portal so the form fields pick up the new formDefaults
+        renderPortal();
+
+        // Apply green highlight to filled fields after re-render
+        requestAnimationFrame(() => {
+          const form = document.querySelector('form[data-entity="employee"]');
+          if (form) {
+            ["name", "email", "role"].forEach(fieldName => {
+              const input = form.querySelector(`[name="${fieldName}"]`);
+              if (input && input.value) {
+                input.style.borderColor = "var(--success)";
+                input.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)";
+              }
+            });
+          }
+        });
 
         toast("User selected", `Auto-filled details for ${resolvedName || resolvedEmail}`);
         break;
@@ -2604,6 +2614,10 @@
     if (type === "automation") Object.assign(data, { runs: existing?.runs || 0, failures: existing?.failures || 0 });
     if (type === "employee") {
       data.joinedAt = existing?.joinedAt || now;
+      // Use the picked Supabase user ID if available
+      if (ui.formDefaults._pickedUserId) {
+        data.id = ui.formDefaults._pickedUserId;
+      }
       if (data.email) {
         const matchedContact = state.contacts.find(c => c.email && c.email.toLowerCase() === data.email.toLowerCase());
         if (matchedContact && matchedContact.id) {
