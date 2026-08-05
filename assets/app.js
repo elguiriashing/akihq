@@ -1856,20 +1856,23 @@
       return `<div style="font-size:11px;color:var(--muted);text-align:center;padding:14px">Searching AkiPasa database…</div>`;
     }
     return contacts.map(user => {
-      const email = user.email || (user.name && user.name.includes("@") ? user.name : "");
-      const name = user.name && !user.name.startsWith("User (") ? user.name : (email ? email.split("@")[0] : `User (${user.id.slice(0,6)})`);
-      const subTitle = email || `ID: ${user.id.slice(0,8)}`;
+      let email = user.email || (user.name && user.name.includes("@") ? user.name : "");
+      if (!email && authUser && user.id === authUser.id) email = authUser.email || "";
+      let name = user.name && !user.name.startsWith("User (") ? user.name : (email ? email.split("@")[0] : "AkiPasa Member");
+
+      const displayTitle = email || name;
+      const displaySub = (email && name && email !== name) ? email : (user.id ? `AkiPasa Account` : "Registered User");
       const searchStr = `${name} ${email} ${user.role} ${user.id}`.toLowerCase();
 
       return `
         <div class="user-picker-item" data-search="${escapeHtml(searchStr)}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
-          <div class="table-avatar" style="width:28px;height:28px;font-size:11px">${initials(name)}</div>
+          <div class="table-avatar" style="width:28px;height:28px;font-size:11px">${initials(displayTitle)}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)">${escapeHtml(name)}</div>
-            <div style="font-size:10px;color:var(--accent-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(subTitle)}</div>
+            <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)">${escapeHtml(displayTitle)}</div>
+            <div style="font-size:10px;color:var(--accent-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(displaySub)}</div>
           </div>
           <span class="status-pill ${user.role === "administrator" ? "danger" : user.role === "moderator" ? "warning" : "info"}" style="font-size:9px">${escapeHtml(user.role || "consumer")}</span>
-          <button type="button" class="mini-btn primary" data-action="select-picker-user" data-id="${user.id}" data-name="${escapeHtml(name)}" data-email="${escapeHtml(email)}" data-role="${escapeHtml(user.role)}" style="padding:4px 10px;font-size:10px">
+          <button type="button" class="mini-btn primary" data-action="select-picker-user" data-id="${user.id}" data-name="${escapeHtml(name)}" data-email="${escapeHtml(email || displayTitle)}" data-role="${escapeHtml(user.role)}" style="padding:4px 10px;font-size:10px">
             Select
           </button>
         </div>
@@ -1909,25 +1912,44 @@
 
     try {
       let results = [];
+      // 1. Try rpc crm_search_users
       const { data: rpcData } = await sbClient.rpc("crm_search_users", { p_query: q });
       if (rpcData?.length) {
         results = rpcData.map(u => ({
           id: u.profile_id,
-          name: u.display_name || u.primary_email || `User (${u.profile_id.slice(0,6)})`,
+          name: u.display_name || u.primary_email || `Member (${u.profile_id.slice(0,6)})`,
           email: u.primary_email || (u.display_name && u.display_name.includes("@") ? u.display_name : ""),
           role: u.app_role || "consumer"
         }));
       } else {
-        let req = sbClient.from("profiles").select("id, display_name, app_role, created_at").limit(100);
-        if (q) req = req.ilike("display_name", `%${q}%`);
-        const { data: profileData } = await req;
-        if (profileData?.length) {
-          results = profileData.map(p => ({
-            id: p.id,
-            name: p.display_name || `User (${p.id.slice(0,6)})`,
-            email: p.display_name && p.display_name.includes("@") ? p.display_name : "",
-            role: p.app_role || "consumer"
+        // 2. Try crm_users_view directly
+        let reqView = sbClient.from("crm_users_view").select("id, display_name, email, app_role").limit(100);
+        if (q) reqView = reqView.or(`email.ilike.%${q}%,display_name.ilike.%${q}%`);
+        const { data: viewData } = await reqView;
+        if (viewData?.length) {
+          results = viewData.map(v => ({
+            id: v.id,
+            name: v.display_name || v.email || `Member (${v.id.slice(0,6)})`,
+            email: v.email || (v.display_name && v.display_name.includes("@") ? v.display_name : ""),
+            role: v.app_role || "consumer"
           }));
+        } else {
+          // 3. Fallback to profiles
+          let req = sbClient.from("profiles").select("id, display_name, app_role, created_at").limit(100);
+          if (q) req = req.ilike("display_name", `%${q}%`);
+          const { data: profileData } = await req;
+          if (profileData?.length) {
+            results = profileData.map(p => {
+              const email = (p.display_name && p.display_name.includes("@")) ? p.display_name : (authUser && p.id === authUser.id ? authUser.email : "");
+              const name = p.display_name && !p.display_name.startsWith("User (") ? p.display_name : (email ? email.split("@")[0] : "AkiPasa Member");
+              return {
+                id: p.id,
+                name: name,
+                email: email,
+                role: p.app_role || "consumer"
+              };
+            });
+          }
         }
       }
 
@@ -1949,6 +1971,8 @@
       console.warn("User picker fetch error:", e);
     }
   };
+
+
 
   window._filterUserPicker = function(query) {
     const q = (query || "").trim().toLowerCase();
