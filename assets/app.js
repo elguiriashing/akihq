@@ -253,7 +253,11 @@
       ],
       feed: [],
       activities: [],
-      notifications: [],
+      notifications: [
+        { id: "n1", title: "New Lead Created", body: "Soho House London added to CRM sales pipeline (€4,500).", route: "crm", icon: "sales", seen: false, at: new Date(Date.now() - 3600000 * 2).toISOString() },
+        { id: "n2", title: "Telegram Chat Backup Complete", body: "Automated 24h backup saved snapshot to CRM Telegram tab.", route: "telegram", icon: "telegram", seen: false, at: new Date(Date.now() - 3600000 * 5).toISOString() },
+        { id: "n3", title: "Supabase User Promotion", body: "User alex@akipasa.com verified as CRM Administrator.", route: "employees", icon: "user", seen: false, at: new Date(Date.now() - 3600000 * 24).toISOString() }
+      ],
       integrations: {
         "akipasa": { status: "connected", label: "Connected to akipasa.com", config: { siteUrl: "https://akipasa.com" }, connectedAt: isoNow() },
         "generic-webhook": { status: "ready", label: "Not configured", config: {}, connectedAt: null },
@@ -2661,7 +2665,12 @@
         break;
       }
       case "open-notifications":
-        ui.dropdown = ui.dropdown === "notifications" ? null : "notifications"; renderPortal();
+        ui.dropdown = ui.dropdown === "notifications" ? null : "notifications";
+        if (ui.dropdown === "notifications") {
+          state.notifications.forEach(n => { n.seen = true; });
+          persist(false);
+        }
+        renderPortal();
         break;
       case "profile-menu":
         ui.dropdown = ui.dropdown === "profile" ? null : "profile"; renderPortal();
@@ -2670,27 +2679,18 @@
         ui.dropdown = ui.dropdown === "workspace" ? null : "workspace"; renderPortal();
         break;
       case "mark-notifications":
-        state.notifications.forEach(notification => { notification.seen = true; }); persist();
+        state.notifications.forEach(notification => { notification.seen = true; });
+        persist(false);
+        renderPortal();
         break;
       case "open-notification": {
         const notification = state.notifications.find(item => item.id === target.dataset.id);
         if (!notification) break;
         notification.seen = true;
         ui.dropdown = null;
-        store.save(state);
-        if (notification.entityType && notification.entityId) {
-          const route = routeForEntity(notification.entityType);
-          ui.route = route;
-          location.hash = `#/${route}`;
-          if (notification.entityType === "conversation") {
-            ui.selectedConversationId = notification.entityId;
-            render();
-          } else {
-            render();
-            ui.drawer = { type: notification.entityType, id: notification.entityId };
-            renderPortal();
-          }
-        } else render();
+        persist(false);
+        if (notification.route) setRoute(notification.route);
+        else renderPortal();
         break;
       }
       case "timer-toggle":
@@ -2786,11 +2786,25 @@
       case "delete-feed-post":
         state.feed = state.feed.filter(item => item.id !== target.dataset.id); persist();
         break;
-      case "select-team-channel":
-        ui.activeTeamChannel = target.dataset.id;
+      case "select-team-channel": {
+        const id = target.dataset.id;
+        ui.activeTeamChannel = id;
         ui.activeTeamDm = null;
+        const chan = state.teamChat?.channels?.find(c => c.id === id);
+        if (chan) chan.unread = 0;
+        persist(false);
         render();
         break;
+      }
+      case "select-conversation": {
+        const id = target.dataset.id;
+        ui.selectedConversationId = id;
+        const conv = state.conversations?.find(c => c.id === id);
+        if (conv) conv.unread = 0;
+        persist(false);
+        render();
+        break;
+      }
       case "select-team-dm": {
         const dmUserId = target.dataset.id;
         const dmChanId = `dm_${dmUserId}`;
@@ -3044,6 +3058,15 @@
       render();
       const input = $("[data-telegram-search]");
       if (input) { input.focus(); input.setSelectionRange(position, position); }
+      return;
+    }
+    if (target.matches("[data-team-chat-search]")) {
+      const query = target.value.trim().toLowerCase();
+      ui.teamChatSearch = target.value;
+      $$(".team-chat-suite .nav-item").forEach(item => {
+        const text = item.textContent.trim().toLowerCase();
+        item.style.display = (query && !text.includes(query)) ? "none" : "";
+      });
       return;
     }
     if (target.matches("[data-conversation-search]")) {
