@@ -395,22 +395,26 @@
       // People (employees section) — staff/admin profiles
       const staffContacts = state.contacts.filter(c => ["moderator", "administrator"].includes(c.role));
       if (staffContacts.length > 0) {
-        const existing = new Set(state.employees.map(e => e.id));
-        const newStaff = staffContacts
-          .filter(c => !existing.has(c.id))
-          .map(c => ({
-            id: c.id,
-            name: c.name,
-            email: c.email,
-            role: c.role === "administrator" ? "Administrator" : "Moderator / Staff",
-            department: c.role === "administrator" ? "Leadership" : "Operations",
-            status: "Online",
-            location: "Spain",
-            phone: "",
-            joinedAt: c.createdAt,
-            leaveBalance: 20
-          }));
-        state.employees = [...state.employees, ...newStaff];
+        const existingMap = new Map();
+        state.employees.forEach(e => existingMap.set((e.email || e.id || e.name).toLowerCase(), e));
+        staffContacts.forEach(c => {
+          const key = (c.email || c.id || c.name).toLowerCase();
+          if (!existingMap.has(key)) {
+            existingMap.set(key, {
+              id: c.id,
+              name: c.name,
+              email: c.email,
+              role: c.role === "administrator" ? "Administrator" : "Moderator / Staff",
+              department: c.role === "administrator" ? "Leadership" : "Operations",
+              status: "Online",
+              location: "Spain",
+              phone: "",
+              joinedAt: c.createdAt,
+              leaveBalance: 20
+            });
+          }
+        });
+        state.employees = Array.from(existingMap.values());
       }
 
       store.save(state);
@@ -1337,6 +1341,12 @@
     </div>`;
   }
 
+  function getDmKey(idA, idB) {
+    if (!idA || !idB) return null;
+    const sorted = [String(idA), String(idB)].sort();
+    return `dm_${sorted[0]}_${sorted[1]}`;
+  }
+
   function renderCollaboration() {
     state.teamChat ||= {
       activeChannelId: "ch_general",
@@ -1381,21 +1391,42 @@
       }
     };
 
-    const activeChanId = ui.activeTeamChannel || state.teamChat.activeChannelId || "ch_general";
-    ui.activeTeamChannel = activeChanId;
+    const myUser = currentUser();
+    const myUserId = authUser?.id || myUser.id || state.currentUserId;
+    const myUserEmail = (authUser?.email || myUser.email || "").toLowerCase();
+
+    // Deduplicate staff for DMs and exclude currently logged-in user
+    const uniqueStaffDms = [];
+    const seenDmKeys = new Set();
+    for (const emp of state.employees) {
+      const empEmail = (emp.email || "").toLowerCase();
+      const isMe = emp.id === myUserId || (myUserEmail && empEmail && empEmail === myUserEmail);
+      if (isMe) continue;
+      const key = (empEmail || emp.id || emp.name).toLowerCase();
+      if (!seenDmKeys.has(key)) {
+        seenDmKeys.add(key);
+        uniqueStaffDms.push(emp);
+      }
+    }
+
+    const activeKey = ui.activeTeamChannel || state.teamChat.activeChannelId || "ch_general";
+    ui.activeTeamChannel = activeKey;
     
-    let currentChan = state.teamChat.channels.find(c => c.id === activeChanId);
+    let currentChan = state.teamChat.channels.find(c => c.id === activeKey);
     let isDm = false;
-    let dmUser = null;
-    if (!currentChan && activeChanId.startsWith("dm_")) {
+    let dmOtherUser = null;
+    if (!currentChan && activeKey.startsWith("dm_")) {
       isDm = true;
-      const dmUserId = activeChanId.replace(/^dm_/, "");
-      dmUser = state.employees.find(e => e.id === dmUserId);
-      currentChan = { name: dmUser ? dmUser.name : "Direct Message", description: dmUser ? `Private 1-on-1 staff chat with ${dmUser.name} (${dmUser.role})` : "Private message" };
+      const parts = activeKey.replace(/^dm_/, "").split("_");
+      const otherUserId = parts.find(id => id !== myUserId) || ui.activeTeamDm || parts[0];
+      dmOtherUser = state.employees.find(e => e.id === otherUserId || (e.email && e.email.toLowerCase() === otherUserId.toLowerCase()));
+      const otherName = dmOtherUser ? dmOtherUser.name : "Staff Member";
+      const otherRole = dmOtherUser ? dmOtherUser.role : "Staff";
+      currentChan = { name: otherName, description: `Private 1-on-1 staff DM with ${otherName} (${otherRole})` };
     }
     currentChan ||= state.teamChat.channels[0];
 
-    const chanMessages = state.teamChat.messages[activeChanId] || [];
+    const chanMessages = state.teamChat.messages[activeKey] || [];
     const staffMembers = state.employees;
     const onlineStaff = staffMembers.filter(isUserOnline);
 
@@ -1413,7 +1444,7 @@
               <button class="mini-btn ghost" data-action="create-team-channel" title="Create channel" style="height:20px;width:20px;padding:0;min-width:auto">${icon("plus")}</button>
             </div>
             ${state.teamChat.channels.map(chan => `
-              <button class="nav-item ${chan.id === activeChanId ? "active" : ""}" data-action="select-team-channel" data-id="${chan.id}" style="height:34px;margin:2px 0;font-size:12px;justify-content:flex-start">
+              <button class="nav-item ${chan.id === activeKey ? "active" : ""}" data-action="select-team-channel" data-id="${chan.id}" style="height:34px;margin:2px 0;font-size:12px;justify-content:flex-start">
                 <span style="color:var(--accent-2);font-weight:800;margin-right:6px">#</span>
                 <span class="nav-text">${escapeHtml(chan.name)}</span>
                 ${chan.unread ? `<span class="nav-badge">${chan.unread}</span>` : ""}
@@ -1423,11 +1454,12 @@
             <div style="margin-top:20px;padding:4px 8px 8px;font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em">
               <span>STAFF DIRECT MESSAGES</span>
             </div>
-            ${staffMembers.map(emp => {
+            ${uniqueStaffDms.map(emp => {
               const isOnline = isUserOnline(emp);
-              const dmId = `dm_${emp.id}`;
+              const canonicalDmKey = getDmKey(myUserId, emp.id);
+              const isActive = activeKey === canonicalDmKey;
               return `
-                <button class="nav-item ${activeChanId === dmId ? "active" : ""}" data-action="select-team-dm" data-id="${emp.id}" style="height:34px;margin:2px 0;font-size:11px;justify-content:flex-start">
+                <button class="nav-item ${isActive ? "active" : ""}" data-action="select-team-dm" data-id="${emp.id}" style="height:34px;margin:2px 0;font-size:11px;justify-content:flex-start">
                   <span style="width:8px;height:8px;border-radius:50%;background:${isOnline ? "var(--success)" : "var(--muted)"};margin-right:8px;flex:0 0 8px"></span>
                   <span class="nav-text">${escapeHtml(emp.name)}</span>
                 </button>
@@ -2806,14 +2838,25 @@
         break;
       }
       case "select-team-dm": {
-        const dmUserId = target.dataset.id;
-        const dmChanId = `dm_${dmUserId}`;
+        const otherUserId = target.dataset.id;
+        const myUserId = authUser?.id || currentUser().id || state.currentUserId;
+        const canonicalDmKey = getDmKey(myUserId, otherUserId);
+        ui.activeTeamChannel = canonicalDmKey;
+        ui.activeTeamDm = otherUserId;
+
         state.teamChat ||= { channels: [], messages: {} };
-        const emp = state.employees.find(e => e.id === dmUserId);
-        ui.activeTeamChannel = dmChanId;
-        ui.activeTeamDm = dmUserId;
-        state.teamChat.messages[dmChanId] ||= [
-          { id: uid("cm"), authorId: dmUserId, authorName: emp?.name || "Team Member", role: emp?.role || "Staff", text: `Direct message conversation started with ${emp?.name || "Staff Member"}.`, at: isoNow(), reactions: {} }
+        state.teamChat.messages ||= {};
+        const otherEmp = state.employees.find(e => e.id === otherUserId);
+        state.teamChat.messages[canonicalDmKey] ||= [
+          {
+            id: uid("cm"),
+            authorId: otherUserId,
+            authorName: otherEmp?.name || "Staff Member",
+            role: otherEmp?.role || "Staff",
+            text: `Private 1-on-1 staff DM channel initialized with ${otherEmp?.name || "Staff Member"}.`,
+            at: isoNow(),
+            reactions: {}
+          }
         ];
         render();
         break;
