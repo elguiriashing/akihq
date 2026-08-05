@@ -281,9 +281,17 @@
     const cfg = window.AKIHQ_CONFIG || {};
     const url = cfg.SUPABASE_URL || "https://vhpbvcfkcteswlsdjrfl.supabase.co";
     const key = cfg.SUPABASE_ANON_KEY || "sb_publishable_Mm4CJvGyIaLOWbU3g1sxIQ_Wv2jrKt1";
-    if (window.supabase && url && key) {
-      window._sbClientInstance = window.supabase.createClient(url, key);
-      return window._sbClientInstance;
+    const sbObj = window.supabase || window.Supabase;
+    if (sbObj && url && key) {
+      const createFn = typeof sbObj.createClient === "function" ? sbObj.createClient : (typeof sbObj === "function" ? sbObj : null);
+      if (createFn) {
+        try {
+          window._sbClientInstance = createFn(url, key);
+          return window._sbClientInstance;
+        } catch (e) {
+          console.error("Supabase initialization error:", e);
+        }
+      }
     }
     return null;
   }
@@ -2983,27 +2991,21 @@
     loadLiveData();
   }
 
-  async function boot() {
-    const client = getSupabaseClient();
-    if (!client) {
-      // Supabase JS client not loaded yet, wait briefly and retry
-      setTimeout(() => {
-        if (getSupabaseClient()) boot();
-        else renderLoginScreen("Connecting to authentication server…");
-      }, 300);
-      renderLoginScreen();
-      return;
-    }
+  async function finishBoot(client) {
     applySettings();
     appRoot.className = "login-mode";
-    appRoot.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--muted);font-size:13px">Loading AkiHQ…</div>`;
-    const { data: { session } } = await client.auth.getSession();
+    let session = null;
+    try {
+      const { data } = await client.auth.getSession();
+      session = data?.session;
+    } catch (err) {
+      console.warn("getSession error:", err);
+    }
     if (!session) {
       renderLoginScreen();
       return;
     }
     await bootWithSession(session);
-    // Listen for auth state changes (OAuth redirects, token refresh, sign out)
     client.auth.onAuthStateChange(async (event, newSession) => {
       if (event === "SIGNED_OUT" || !newSession) {
         authUser = null;
@@ -3013,6 +3015,27 @@
         if (newSession) await bootWithSession(newSession);
       }
     });
+  }
+
+  async function boot() {
+    let client = getSupabaseClient();
+    if (!client) {
+      renderLoginScreen();
+      let count = 0;
+      const timer = setInterval(async () => {
+        count++;
+        client = getSupabaseClient();
+        if (client) {
+          clearInterval(timer);
+          await finishBoot(client);
+        } else if (count >= 15) {
+          clearInterval(timer);
+          renderLoginScreen("Authentication script load failed. Please refresh the page.");
+        }
+      }, 200);
+      return;
+    }
+    await finishBoot(client);
   }
 
   boot();

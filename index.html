@@ -8,15 +8,15 @@
   <title>AkiHQ</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="stylesheet" href="assets/styles.css?v=3" />
 </head>
 <body>
   <noscript>AkiHQ needs JavaScript enabled.</noscript>
   <div id="app" class="app-shell" aria-live="polite"></div>
   <div id="portal"></div>
   <input id="import-file" type="file" accept="application/json" hidden />
-  <script src="config.js" onerror="this.remove()"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="assets/app.js"></script>
+  <script src="config.js?v=3" onerror="this.remove()"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="this.src='https://unpkg.com/@supabase/supabase-js@2'"></script>
+  <script src="assets/app.js?v=3"></script>
 </body>
 </html>
