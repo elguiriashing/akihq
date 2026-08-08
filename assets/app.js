@@ -471,7 +471,8 @@
         if (status === "SUBSCRIBED") {
           await channel.track({
             user_id: authUser.id,
-            email: authUser.email || "",
+            email: (authUser.email || "").toLowerCase(),
+            name: (authUser._profileDisplayName || authUser.email || "").toLowerCase(),
             online_at: new Date().toISOString()
           });
         }
@@ -486,7 +487,7 @@
     if (!sbClient || window._chatRealtimeSub) return;
     try {
       window._chatRealtimeSub = sbClient.channel("crm-chat-room")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "crm_team_messages" }, payload => {
+        .on("postgres_changes", { event: "*", schema: "public", table: "crm_team_messages" }, payload => {
           if (payload.new) {
             const msg = payload.new;
             const chanId = msg.channel_id;
@@ -494,22 +495,25 @@
             state.teamChat.messages ||= {};
             state.teamChat.messages[chanId] ||= [];
 
-            const existing = state.teamChat.messages[chanId].find(m => m.id === msg.id);
-            if (!existing) {
-              state.teamChat.messages[chanId].push({
-                id: msg.id,
-                authorId: msg.author_id,
-                authorName: msg.author_name,
-                role: msg.role || "Staff",
-                text: msg.text,
-                at: msg.created_at,
-                reactions: msg.reactions || {}
-              });
-              store.save(state);
-              if (ui.route === "collaboration") {
-                render();
-                scrollChatToBottom(true);
-              }
+            const formatted = {
+              id: msg.id,
+              authorId: msg.author_id,
+              authorName: msg.author_name,
+              role: msg.role || "Staff",
+              text: msg.text,
+              at: msg.created_at,
+              reactions: msg.reactions || {}
+            };
+
+            const existingIndex = state.teamChat.messages[chanId].findIndex(m => m.id === msg.id);
+            if (existingIndex >= 0) {
+              state.teamChat.messages[chanId][existingIndex] = formatted;
+            } else {
+              state.teamChat.messages[chanId].push(formatted);
+            }
+            store.save(state);
+            if (ui.route === "collaboration") {
+              render();
             }
           }
         })
@@ -727,6 +731,12 @@
 
   function render() {
     applySettings();
+    const chatEl = document.getElementById("team-chat-messages");
+    const savedScrollTop = chatEl ? chatEl.scrollTop : null;
+    const wasNearBottom = chatEl ? (chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 150) : true;
+    const channelChanged = window._lastChatChannel !== ui.activeTeamChannel;
+    window._lastChatChannel = ui.activeTeamChannel;
+
     const collapsed = state.settings.sidebarCollapsed ? "sidebar-collapsed" : "";
     appRoot.className = `app-shell ${collapsed}`;
     appRoot.innerHTML = `
@@ -742,6 +752,16 @@
       </main>`;
     renderPortal();
     attachAfterRender();
+
+    const newChatEl = document.getElementById("team-chat-messages");
+    if (newChatEl) {
+      if (window._forceScrollBottom || channelChanged || wasNearBottom) {
+        newChatEl.scrollTop = newChatEl.scrollHeight;
+        window._forceScrollBottom = false;
+      } else if (savedScrollTop !== null) {
+        newChatEl.scrollTop = savedScrollTop;
+      }
+    }
   }
 
   function renderSidebar() {
@@ -3398,6 +3418,7 @@
       state.teamChat.messages[channelId].push(newMsg);
       form.reset();
       persist(false);
+      window._forceScrollBottom = true;
       render();
 
       // Broadcast to live Supabase DB for instant multi-user sync
