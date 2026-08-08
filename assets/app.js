@@ -1,7 +1,8 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "akihq_state_v1";
+  const GLOBAL_STORAGE_KEY = "akihq_state_v1";
+  const STORAGE_KEY_PREFIX = "akihq_state_v1_";
   const SESSION_KEY = "akihq_supabase_session_v1";
   const APP_VERSION = "0.1.0";
   const appRoot = document.getElementById("app");
@@ -301,7 +302,7 @@
     }
   }
 
-  const store = new StateStore(STORAGE_KEY);
+  let store = new StateStore(GLOBAL_STORAGE_KEY);
   let state = store.load();
 
   // ── Supabase client helper ──────────────────────────────────────────────────
@@ -456,7 +457,26 @@
   }
 
   function currentUser() {
-    return state.employees.find(person => person.id === state.currentUserId) || state.employees[0] || { name: "Alex" };
+    if (authUser) {
+      const userEmail = (authUser.email || "").toLowerCase();
+      let match = state.employees.find(p => p.id === authUser.id || (userEmail && p.email && p.email.toLowerCase() === userEmail));
+      if (match) return match;
+
+      const displayName = authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User";
+      return {
+        id: authUser.id,
+        name: displayName,
+        email: authUser.email,
+        role: authRole === "administrator" ? "Administrator" : "Moderator / Staff",
+        department: authRole === "administrator" ? "Leadership" : "Operations",
+        status: "Online",
+        location: "Spain",
+        phone: "",
+        joinedAt: isoNow(),
+        leaveBalance: 20
+      };
+    }
+    return state.employees.find(person => person.id === state.currentUserId) || state.employees[0] || { name: "Staff Member", role: "Staff" };
   }
 
   function employeeName(id) {
@@ -1845,7 +1865,7 @@
         <div class="setting-row"><div class="setting-copy"><strong>Restore demo workspace</strong><span>Deletes local changes and restores the original AkiPasa demo data.</span></div><button class="action-btn danger" data-action="confirm-reset">${icon("trash")} Reset</button></div>
       </section>
       <section class="panel settings-section"><h2>Storage</h2><p>Browser storage usage is approximate and varies by browser.</p>
-        <div class="detail-grid"><div class="detail-block"><div class="detail-label">Serialized size</div><div class="detail-value">${(new Blob([JSON.stringify(state)]).size / 1024).toFixed(1)} KB</div></div><div class="detail-block"><div class="detail-label">Storage key</div><div class="detail-value"><code>${STORAGE_KEY}</code></div></div></div>
+        <div class="detail-grid"><div class="detail-block"><div class="detail-label">Serialized size</div><div class="detail-value">${(new Blob([JSON.stringify(state)]).size / 1024).toFixed(1)} KB</div></div><div class="detail-block"><div class="detail-label">Storage key</div><div class="detail-value"><code>${store.key}</code></div></div></div>
       </section>`;
     }
     if (ui.settingsTab === "cloud") {
@@ -2526,8 +2546,8 @@
     if (ui.dropdown === "profile") {
       const user = currentUser();
       return `<div class="dropdown" style="right:14px;top:58px">
-        <div class="dropdown-head"><strong>${escapeHtml(user.name)}</strong></div>
-        <div class="dropdown-item" data-action="navigate" data-route="employees"><div class="activity-icon">${icon("user")}</div><div class="dropdown-copy"><strong>My profile</strong><br>${escapeHtml(user.role)}</div></div>
+        <div class="dropdown-head"><strong>${escapeHtml(user.name)}</strong><br><span style="font-size:10px;color:var(--subtle);margin-top:2px;display:block">${escapeHtml(user.email || "")}</span></div>
+        <div class="dropdown-item" data-action="navigate" data-route="employees"><div class="activity-icon">${icon("user")}</div><div class="dropdown-copy"><strong>My profile</strong><br>${escapeHtml(user.role)} · ${escapeHtml(user.department || "Staff")}</div></div>
         <div class="dropdown-item" data-action="set-theme" data-theme="${state.settings.theme === "dark" ? "light" : "dark"}"><div class="activity-icon">${icon("sparkles")}</div><div class="dropdown-copy"><strong>Switch to ${state.settings.theme === "dark" ? "light" : "dark"} theme</strong><br>Change appearance instantly</div></div>
         <div class="dropdown-item" data-action="navigate" data-route="settings"><div class="activity-icon">${icon("settings")}</div><div class="dropdown-copy"><strong>Settings</strong><br>Workspace, data and cloud sync</div></div>
         <div class="dropdown-item" data-action="export-data"><div class="activity-icon">${icon("download")}</div><div class="dropdown-copy"><strong>Download backup</strong><br>Export the complete workspace</div></div>
@@ -3889,21 +3909,53 @@
     
     authUser = session.user;
     authRole = role;
+    
+    // Switch to user-specific store
+    store = new StateStore(STORAGE_KEY_PREFIX + authUser.id);
+    state = store.load();
+    state.currentUserId = authUser.id;
+
     // Clean OAuth tokens from address bar if present
     if (window.location.search || window.location.hash.includes("access_token=")) {
       try { history.replaceState(null, "", window.location.pathname + "#/" + (ui.route || "dashboard")); } catch {}
     }
-    // Update current user name from auth metadata
+
+    // Ensure authenticated user has their own unique employee entry in state.employees
+    const userEmail = (authUser.email || "").toLowerCase();
     const displayName = authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User";
-    state.employees[0] = {
-      ...state.employees[0],
-      id: authUser.id,
-      name: displayName,
-      email: authUser.email,
-      role: role === "administrator" ? "Administrator" : "Moderator / Staff",
-      status: "Online"
-    };
-    state.currentUserId = authUser.id;
+
+    let existingIndex = state.employees.findIndex(e => e.id === authUser.id || (userEmail && e.email && e.email.toLowerCase() === userEmail));
+    if (existingIndex >= 0) {
+      state.employees[existingIndex] = {
+        ...state.employees[existingIndex],
+        id: authUser.id,
+        email: authUser.email,
+        name: (state.employees[existingIndex].name && !state.employees[existingIndex].name.startsWith("User (")) ? state.employees[existingIndex].name : displayName,
+        role: role === "administrator" ? "Administrator" : "Moderator / Staff",
+        status: "Online"
+      };
+    } else {
+      state.employees.push({
+        id: authUser.id,
+        name: displayName,
+        email: authUser.email,
+        role: role === "administrator" ? "Administrator" : "Moderator / Staff",
+        department: role === "administrator" ? "Leadership" : "Operations",
+        status: "Online",
+        location: "Spain",
+        phone: "",
+        joinedAt: isoNow(),
+        leaveBalance: 20
+      });
+    }
+
+    // Deduplicate employees array
+    const empMap = new Map();
+    state.employees.forEach(emp => {
+      const k = (emp.email || emp.id || emp.name).toLowerCase();
+      if (!empMap.has(k)) empMap.set(k, emp);
+    });
+    state.employees = Array.from(empMap.values());
     applySettings();
     render();
     // Load live data asynchronously after the UI is visible
@@ -3929,6 +3981,8 @@
       if (event === "SIGNED_OUT" || !newSession) {
         authUser = null;
         authRole = null;
+        store = new StateStore(GLOBAL_STORAGE_KEY);
+        state = seedState();
         renderLoginScreen();
       } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
         if (newSession) await bootWithSession(newSession);
