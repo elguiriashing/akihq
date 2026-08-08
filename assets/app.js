@@ -319,62 +319,45 @@
     const sbClient = getSupabaseClient();
     if (!sbClient || !authUser) return;
     try {
-      // Dashboard stats
-      const { data: statsRows } = await sbClient.rpc("crm_dashboard_stats");
-      if (statsRows?.[0]) liveStats = statsRows[0];
+      // Contacts — all staff & profiles directly from Supabase profiles table
+      const { data: profiles } = await sbClient.from("profiles")
+        .select("id, display_name, app_role, created_at")
+        .limit(500);
 
-      // Contacts — all profiles (RPC first, direct table select fallback)
-      let contactRows = null;
-      try {
-        const { data } = await sbClient.rpc("crm_list_contacts", { p_limit: 500 });
-        if (data?.length) contactRows = data;
-      } catch (e) {}
-
-      if (!contactRows) {
-        const { data: profiles } = await sbClient.from("profiles").select("id, display_name, app_role, created_at").limit(500);
-        if (profiles?.length) {
-          contactRows = profiles.map(p => ({
-            profile_id: p.id,
-            display_name: p.display_name,
-            app_role: p.app_role || "consumer",
-            primary_email: "",
-            created_at: p.created_at
-          }));
-        }
-      }
-
-      if (contactRows?.length) {
-        state.contacts = contactRows.map(row => ({
-          id: row.profile_id,
-          name: row.display_name || row.primary_email || `User (${row.profile_id.slice(0, 6)})`,
-          email: row.primary_email || "",
-          role: row.app_role || "consumer",
+      if (profiles?.length) {
+        state.contacts = profiles.map(p => ({
+          id: p.id,
+          name: p.display_name || `User (${p.id.slice(0, 6)})`,
+          email: "",
+          role: p.app_role || "consumer",
           phone: "",
           companyId: null,
           source: "AkiPasa",
-          updatedAt: row.created_at,
-          createdAt: row.created_at
+          updatedAt: p.created_at,
+          createdAt: p.created_at
         }));
       }
 
-      // Companies — venues
-      const { data: venueRows } = await sbClient.rpc("crm_list_venues", { p_limit: 500 });
-      if (venueRows?.length) {
-        state.companies = venueRows.map(row => ({
-          id: row.venue_id,
-          name: row.venue_name,
-          email: row.owner_email || "",
-          website: `https://akipasa.com/venue/${row.venue_slug}`,
-          type: "Venue",
-          city: row.city_name,
-          address: row.address || "",
-          status: row.verified ? "Customer" : (row.status === "pending" ? "Prospect" : "Partner"),
-          employees: Number(row.member_count || 0),
-          ownerId: state.currentUserId,
-          source: "AkiPasa",
-          createdAt: row.created_at
-        }));
-      }
+      // Companies — venues directly from Supabase venues table
+      try {
+        const { data: venueRows } = await sbClient.from("venues").select("*").limit(500);
+        if (venueRows?.length) {
+          state.companies = venueRows.map(row => ({
+            id: row.id,
+            name: row.name || row.venue_name || "Venue",
+            email: row.email || "",
+            website: row.website || "",
+            type: "Venue",
+            city: row.city || "",
+            address: row.address || "",
+            status: "Customer",
+            employees: 1,
+            ownerId: state.currentUserId,
+            source: "AkiPasa",
+            createdAt: row.created_at || isoNow()
+          }));
+        }
+      } catch (e) {}
 
       // People (employees section) — staff/admin profiles
       const staffContacts = state.contacts.filter(c => ["moderator", "administrator"].includes(c.role));
