@@ -802,3 +802,101 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
   padding: 0 10px;
 }
 .accent-blue { color: var(--info); }
+
+/* ── Modern Responsive Mobile & Team Chat Suite Styles ── */
+.team-chat-suite {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 240px;
+  height: calc(100vh - 120px);
+  max-height: calc(100dvh - 100px);
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+}
+
+.team-chat-sidebar-left {
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.team-chat-sidebar-right {
+  background: var(--surface-2);
+  border-left: 1px solid var(--border);
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.team-chat-main-pane {
+  display: grid;
+  grid-template-rows: 54px minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.mobile-chat-toggle {
+  display: none;
+}
+
+/* Tablet screens: Hide right info panel */
+@media (max-width: 992px) {
+  .team-chat-suite {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+  .team-chat-sidebar-right {
+    display: none !important;
+  }
+}
+
+/* Mobile screens (< 768px): Single pane view with drawer/toggle */
+@media (max-width: 768px) {
+  .team-chat-suite {
+    grid-template-columns: 1fr;
+    height: calc(100dvh - 70px);
+    margin: -8px -8px 0 -8px;
+    border-radius: 0;
+    border: none;
+  }
+  
+  .mobile-chat-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .team-chat-sidebar-left {
+    display: none;
+  }
+
+  .team-chat-suite.mobile-show-channels .team-chat-sidebar-left {
+    display: flex !important;
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+  }
+
+  .team-chat-suite.mobile-show-channels .team-chat-main-pane {
+    display: none !important;
+  }
+  
+  /* Mobile grid & form responsiveness */
+  .grid-4, .grid-3, .grid-2, .grid-main {
+    grid-template-columns: 1fr !important;
+  }
+
+  .page-grid {
+    gap: 12px;
+  }
+
+  .top-bar {
+    padding: 8px 12px;
+  }
+
+  .main-layout {
+    padding: 8px;
+  }
+}

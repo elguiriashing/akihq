@@ -461,6 +461,47 @@
     } catch (e) {}
   }
 
+  function setupRealtimeChat() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || window._chatRealtimeSub) return;
+    try {
+      window._chatRealtimeSub = sbClient.channel("crm-chat-room")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "crm_team_messages" }, payload => {
+          if (payload.new) {
+            const msg = payload.new;
+            const chanId = msg.channel_id;
+            state.teamChat ||= { channels: [], messages: {} };
+            state.teamChat.messages ||= {};
+            state.teamChat.messages[chanId] ||= [];
+
+            const existing = state.teamChat.messages[chanId].find(m => m.id === msg.id);
+            if (!existing) {
+              state.teamChat.messages[chanId].push({
+                id: msg.id,
+                authorId: msg.author_id,
+                authorName: msg.author_name,
+                role: msg.role || "Staff",
+                text: msg.text,
+                at: msg.created_at,
+                reactions: msg.reactions || {}
+              });
+              store.save(state);
+              if (ui.route === "collaboration") {
+                render();
+                requestAnimationFrame(() => {
+                  const el = document.getElementById("team-chat-messages");
+                  if (el) el.scrollTop = el.scrollHeight;
+                });
+              }
+            }
+          }
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn("Realtime chat error:", e);
+    }
+  }
+
   const ui = {
     route: location.hash.replace(/^#\/?/, "") || "dashboard",
     crmTab: "deals",
@@ -1487,12 +1528,13 @@
     const onlineStaff = staffMembers.filter(isUserOnline);
 
     return `
-      <div class="team-chat-suite panel" style="display:grid;grid-template-columns:260px minmax(0,1fr) 240px;height:calc(100vh - 160px);overflow:hidden;border-radius:var(--radius);border:1px solid var(--border)">
+      <div class="team-chat-suite panel">
         
         <!-- LEFT NAVIGATION COL: Operation Channels & Staff DMs -->
-        <div style="background:var(--surface-2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden">
-          <div style="padding:12px;border-bottom:1px solid var(--border)">
-            <input class="toolbar-input" style="width:100%;height:32px" data-team-chat-search placeholder="Search channels & DMs…" value="${escapeHtml(ui.teamChatSearch || "")}" />
+        <div class="team-chat-sidebar-left">
+          <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <input class="toolbar-input" style="flex:1;height:32px" data-team-chat-search placeholder="Search channels & DMs…" value="${escapeHtml(ui.teamChatSearch || "")}" />
+            <button class="mini-btn mobile-chat-toggle" data-action="toggle-mobile-chat-channels" style="height:32px;padding:0 8px">${icon("check")}</button>
           </div>
           <div style="flex:1;overflow-y:auto;padding:12px 8px">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px 8px;font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em">
@@ -1525,16 +1567,17 @@
         </div>
 
         <!-- CENTER CHAT PANE -->
-        <div style="display:grid;grid-template-rows:54px minmax(0,1fr) auto;overflow:hidden;background:var(--surface)">
+        <div class="team-chat-main-pane">
           <!-- HEADER -->
           <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.02)">
+            <button class="mini-btn mobile-chat-toggle" data-action="toggle-mobile-chat-channels" style="height:28px;padding:0 8px;font-size:11px;margin-right:4px">${icon("filter")} Channels</button>
             <div style="font-size:18px;font-weight:800;color:var(--accent-2)">${isDm ? "@" : "#"}</div>
             <div>
               <strong style="font-size:13px;display:block">${escapeHtml(currentChan?.name)}</strong>
               <span style="font-size:10px;color:var(--subtle)">${escapeHtml(currentChan?.description)}</span>
             </div>
             <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-              <span class="status-pill success" style="font-size:9px">● ${onlineStaff.length} Staff Online</span>
+              <span class="status-pill success" style="font-size:9px">● ${onlineStaff.length} Online</span>
             </div>
           </div>
 
@@ -1574,7 +1617,8 @@
         </div>
 
         <!-- RIGHT INFO PANEL -->
-        <div style="background:var(--surface-2);border-left:1px solid var(--border);padding:14px;overflow-y:auto">
+        <div class="team-chat-sidebar-right">
+
           <h3 style="font-size:12px;font-weight:800;margin:0 0 6px">${isDm ? "@" : "#"} ${escapeHtml(currentChan?.name)}</h3>
           <p style="font-size:10px;color:var(--subtle);margin:0 0 16px;line-height:1.4">${escapeHtml(currentChan?.description)}</p>
 
@@ -2874,12 +2918,19 @@
       case "delete-feed-post":
         state.feed = state.feed.filter(item => item.id !== target.dataset.id); persist();
         break;
+      case "toggle-mobile-chat-channels": {
+        const suite = document.querySelector(".team-chat-suite");
+        if (suite) suite.classList.toggle("mobile-show-channels");
+        break;
+      }
       case "select-team-channel": {
         const id = target.dataset.id;
         ui.activeTeamChannel = id;
         ui.activeTeamDm = null;
         const chan = state.teamChat?.channels?.find(c => c.id === id);
         if (chan) chan.unread = 0;
+        const suite = document.querySelector(".team-chat-suite");
+        if (suite) suite.classList.remove("mobile-show-channels");
         persist(false);
         render();
         break;
@@ -4013,9 +4064,10 @@
     applySettings();
     render();
 
-    // Start background chat polling every 4 seconds for live multi-device messaging
+    // Start background chat polling and Realtime WebSockets for instant multi-device messaging
+    setupRealtimeChat();
     if (!window._chatSyncInterval) {
-      window._chatSyncInterval = setInterval(syncTeamMessages, 4000);
+      window._chatSyncInterval = setInterval(syncTeamMessages, 3000);
     }
 
     // Load live data asynchronously after the UI is visible
