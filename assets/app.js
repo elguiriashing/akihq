@@ -420,17 +420,26 @@
       remoteMsgs.forEach(msg => {
         const chanId = msg.channel_id;
         state.teamChat.messages[chanId] ||= [];
-        const existing = state.teamChat.messages[chanId].find(m => m.id === msg.id);
-        if (!existing) {
-          state.teamChat.messages[chanId].push({
-            id: msg.id,
-            authorId: msg.author_id,
-            authorName: msg.author_name,
-            role: msg.role || "Staff",
-            text: msg.text,
-            at: msg.created_at,
-            reactions: msg.reactions || {}
-          });
+        const existingIndex = state.teamChat.messages[chanId].findIndex(m => m.id === msg.id);
+        const formatted = {
+          id: msg.id,
+          authorId: msg.author_id,
+          authorName: msg.author_name,
+          role: msg.role || "Staff",
+          text: msg.text,
+          at: msg.created_at,
+          reactions: msg.reactions || {}
+        };
+
+        if (existingIndex >= 0) {
+          const oldStr = JSON.stringify(state.teamChat.messages[chanId][existingIndex].reactions || {});
+          const newStr = JSON.stringify(formatted.reactions || {});
+          if (oldStr !== newStr) {
+            state.teamChat.messages[chanId][existingIndex].reactions = formatted.reactions;
+            hasNew = true;
+          }
+        } else {
+          state.teamChat.messages[chanId].push(formatted);
           hasNew = true;
         }
       });
@@ -439,9 +448,18 @@
         store.save(state);
         if (ui.route === "collaboration") {
           render();
-          scrollChatToBottom();
         }
       }
+    } catch (e) {}
+  }
+
+  function sendPresenceHeartbeat() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) return;
+    try {
+      sbClient.from("profiles").update({ updated_at: isoNow() }).eq("id", authUser.id).then(({ error }) => {
+        if (error) console.warn("Presence heartbeat error:", error);
+      });
     } catch (e) {}
   }
 
@@ -1699,9 +1717,30 @@
 
   function isUserOnline(employee) {
     if (!employee) return false;
-    if (authUser && (employee.id === authUser.id || (authUser.email && employee.email && employee.email.toLowerCase() === authUser.email.toLowerCase()))) {
+    const myId = authUser?.id || state.currentUserId;
+    const myEmail = (authUser?.email || "").toLowerCase();
+    const empEmail = (employee.email || "").toLowerCase();
+    const empName = (employee.name || "").toLowerCase();
+
+    // 1. Current logged in user is always online
+    if (myId && (employee.id === myId || (empEmail && myEmail && empEmail === myEmail))) {
       return true;
     }
+
+    // 2. Supabase Realtime WebSocket presence set
+    if (window._onlineUserIds) {
+      if (employee.id && window._onlineUserIds.has(employee.id)) return true;
+      if (empEmail && window._onlineUserIds.has(empEmail)) return true;
+      if (empName && window._onlineUserIds.has(empName)) return true;
+    }
+
+    // 3. Database activity heartbeat timestamp from profiles table
+    const contact = state.contacts.find(c => c.id === employee.id || (c.name && c.name.toLowerCase() === empName));
+    if (contact && contact.updatedAt) {
+      const diffSec = (Date.now() - new Date(contact.updatedAt).getTime()) / 1000;
+      if (diffSec < 120) return true;
+    }
+
     return false;
   }
 
@@ -4151,8 +4190,12 @@
     // Start background chat polling, Realtime Presence & WebSockets for instant multi-device messaging
     setupPresence();
     setupRealtimeChat();
+    sendPresenceHeartbeat();
     if (!window._chatSyncInterval) {
       window._chatSyncInterval = setInterval(syncTeamMessages, 3000);
+    }
+    if (!window._presenceHeartbeatInterval) {
+      window._presenceHeartbeatInterval = setInterval(sendPresenceHeartbeat, 15000);
     }
 
     // Load live data asynchronously after the UI is visible
