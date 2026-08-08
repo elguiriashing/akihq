@@ -409,11 +409,56 @@
         state.employees = Array.from(existingMap.values());
       }
 
+      // Live multi-user chat & DM sync
+      await syncTeamMessages();
+
       store.save(state);
       render();
     } catch (err) {
       console.warn("AkiHQ live data load error:", err);
     }
+  }
+
+  async function syncTeamMessages() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) return;
+    try {
+      const { data: remoteMsgs, error } = await sbClient.from("crm_team_messages")
+        .select("*")
+        .order("created_at", { ascending: true })
+        .limit(1000);
+
+      if (error || !Array.isArray(remoteMsgs)) return;
+
+      state.teamChat ||= { channels: [], messages: {} };
+      state.teamChat.messages ||= {};
+
+      let hasNew = false;
+      remoteMsgs.forEach(msg => {
+        const chanId = msg.channel_id;
+        state.teamChat.messages[chanId] ||= [];
+        const existing = state.teamChat.messages[chanId].find(m => m.id === msg.id);
+        if (!existing) {
+          state.teamChat.messages[chanId].push({
+            id: msg.id,
+            authorId: msg.author_id,
+            authorName: msg.author_name,
+            role: msg.role || "Staff",
+            text: msg.text,
+            at: msg.created_at,
+            reactions: msg.reactions || {}
+          });
+          hasNew = true;
+        }
+      });
+
+      if (hasNew) {
+        store.save(state);
+        if (ui.route === "collaboration") {
+          render();
+        }
+      }
+    } catch (e) {}
   }
 
   const ui = {
@@ -3240,6 +3285,23 @@
       form.reset();
       persist(false);
       render();
+
+      // Broadcast to live Supabase DB for instant multi-user sync
+      const client = getSupabaseClient();
+      if (client && authUser) {
+        client.from("crm_team_messages").insert([{
+          id: newMsg.id,
+          channel_id: channelId,
+          author_id: authUser.id,
+          author_name: newMsg.authorName,
+          role: newMsg.role,
+          text: newMsg.text,
+          reactions: newMsg.reactions
+        }]).then(({ error }) => {
+          if (error) console.warn("Live chat push:", error);
+        });
+      }
+
       requestAnimationFrame(() => {
         const el = document.getElementById("team-chat-messages");
         if (el) el.scrollTop = el.scrollHeight;
@@ -3942,7 +4004,7 @@
       });
     }
 
-    // Deduplicate employees array
+    // deduplicate employees array
     const empMap = new Map();
     state.employees.forEach(emp => {
       if (emp.id) empMap.set(emp.id, emp);
@@ -3950,6 +4012,12 @@
     state.employees = Array.from(empMap.values());
     applySettings();
     render();
+
+    // Start background chat polling every 4 seconds for live multi-device messaging
+    if (!window._chatSyncInterval) {
+      window._chatSyncInterval = setInterval(syncTeamMessages, 4000);
+    }
+
     // Load live data asynchronously after the UI is visible
     loadLiveData();
   }

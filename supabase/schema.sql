@@ -89,4 +89,32 @@ create unique index if not exists integration_events_provider_external_unique
   on public.integration_events (provider, external_event_id)
   where external_event_id is not null;
 
+-- Live Team Chat & Staff DM Sync
+create table if not exists public.crm_team_messages (
+  id text primary key,
+  channel_id text not null,
+  author_id uuid references auth.users(id) on delete cascade,
+  author_name text not null,
+  role text not null default 'Staff',
+  text text not null,
+  reactions jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table public.crm_team_messages enable row level security;
+
+drop policy if exists "Authenticated users can read team messages" on public.crm_team_messages;
+drop policy if exists "Authenticated users can insert team messages" on public.crm_team_messages;
+
+create policy "Authenticated users can read team messages"
+on public.crm_team_messages for select
+to authenticated using (true);
+
+create policy "Authenticated users can insert team messages"
+on public.crm_team_messages for insert
+to authenticated with check (auth.uid() = author_id);
+
+create index if not exists crm_team_messages_channel_created_idx
+  on public.crm_team_messages (channel_id, created_at asc);
+
 commit;
