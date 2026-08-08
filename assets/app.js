@@ -386,14 +386,19 @@
         });
         
         staffContacts.forEach(c => {
-          if (!existingMap.has(c.id)) {
+          if (existingMap.has(c.id)) {
+            const existing = existingMap.get(c.id);
+            if (c.name && c.name.trim()) {
+              existing.name = c.name.trim();
+            }
+          } else {
             existingMap.set(c.id, {
               id: c.id,
-              name: c.name,
-              email: c.email,
+              name: c.name || "Staff Member",
+              email: c.email || "",
               role: c.role === "administrator" ? "Administrator" : "Moderator / Staff",
               department: c.role === "administrator" ? "Leadership" : "Operations",
-              status: "Online",
+              status: "Offline",
               location: "Spain",
               phone: "",
               joinedAt: c.createdAt,
@@ -3877,11 +3882,11 @@
     let profileName = null;
     try {
       const { data: profile } = await client.from("profiles")
-        .select("app_role")
+        .select("app_role, display_name")
         .eq("id", session.user.id)
         .maybeSingle();
       role = profile?.app_role;
-      profileName = null;
+      profileName = profile?.display_name;
     } catch (e) {
       console.warn("Profile check error:", e);
     }
@@ -3910,7 +3915,7 @@
 
     // Ensure authenticated user has their own unique employee entry in state.employees
     const userEmail = (authUser.email || "").toLowerCase();
-    const displayName = profileName || authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User";
+    const displayName = (profileName && profileName.trim()) ? profileName.trim() : (authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User");
 
     let existingIndex = state.employees.findIndex(e => e.id === authUser.id || (userEmail && e.email && e.email.toLowerCase() === userEmail));
     if (existingIndex >= 0) {
@@ -3918,7 +3923,7 @@
         ...state.employees[existingIndex],
         id: authUser.id,
         email: authUser.email,
-        name: (state.employees[existingIndex].name && !state.employees[existingIndex].name.startsWith("User (")) ? state.employees[existingIndex].name : displayName,
+        name: displayName,
         role: role === "administrator" ? "Administrator" : "Moderator / Staff",
         status: "Online"
       };
