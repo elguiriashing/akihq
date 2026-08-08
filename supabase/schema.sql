@@ -14,14 +14,14 @@ end;
 $$;
 
 create table if not exists public.workspace_snapshots (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  workspace_id text not null,
+  workspace_id text primary key,
+  updated_by uuid references auth.users(id) on delete set null,
   data jsonb not null check (jsonb_typeof(data) = 'object'),
   updated_at timestamptz not null default now()
 );
 
 comment on table public.workspace_snapshots is
-  'One local-first AkiHQ workspace snapshot per authenticated user.';
+  'Shared AkiHQ workspace snapshot accessible by all authenticated workspace staff.';
 
 alter table public.workspace_snapshots enable row level security;
 
@@ -30,31 +30,21 @@ drop policy if exists "Users can read their own AkiHQ snapshot" on public.worksp
 drop policy if exists "Users can create their own AkiHQ snapshot" on public.workspace_snapshots;
 drop policy if exists "Users can update their own AkiHQ snapshot" on public.workspace_snapshots;
 drop policy if exists "Users can delete their own AkiHQ snapshot" on public.workspace_snapshots;
+drop policy if exists "Authenticated users can read workspace snapshots" on public.workspace_snapshots;
+drop policy if exists "Authenticated users can insert workspace snapshots" on public.workspace_snapshots;
+drop policy if exists "Authenticated users can update workspace snapshots" on public.workspace_snapshots;
 
-create policy "Users can read their own AkiHQ snapshot"
-on public.workspace_snapshots
-for select
-to authenticated
-using (auth.uid() = user_id);
+create policy "Authenticated users can read workspace snapshots"
+on public.workspace_snapshots for select
+to authenticated using (true);
 
-create policy "Users can create their own AkiHQ snapshot"
-on public.workspace_snapshots
-for insert
-to authenticated
-with check (auth.uid() = user_id);
+create policy "Authenticated users can insert workspace snapshots"
+on public.workspace_snapshots for insert
+to authenticated with check (true);
 
-create policy "Users can update their own AkiHQ snapshot"
-on public.workspace_snapshots
-for update
-to authenticated
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
-
-create policy "Users can delete their own AkiHQ snapshot"
-on public.workspace_snapshots
-for delete
-to authenticated
-using (auth.uid() = user_id);
+create policy "Authenticated users can update workspace snapshots"
+on public.workspace_snapshots for update
+to authenticated using (true) with check (true);
 
 create index if not exists workspace_snapshots_updated_at_idx
   on public.workspace_snapshots (updated_at desc);

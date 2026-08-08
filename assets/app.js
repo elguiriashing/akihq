@@ -314,11 +314,118 @@
   let authRole = null;   // 'moderator' | 'administrator' | null
   let liveStats = null;  // crm_dashboard_stats() result
 
+  let isSyncingWorkspace = false;
+  let lastRemoteWorkspaceUpdate = null;
+
+  async function syncCloudWorkspacePull() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser || isSyncingWorkspace) return;
+    isSyncingWorkspace = true;
+    try {
+      const wsId = state.workspace?.id || "ws_akipasa";
+      const { data: snapshot, error } = await sbClient
+        .from("workspace_snapshots")
+        .select("data, updated_at, updated_by")
+        .eq("workspace_id", wsId)
+        .maybeSingle();
+
+      if (!error && snapshot && snapshot.data) {
+        if (snapshot.updated_at !== lastRemoteWorkspaceUpdate) {
+          lastRemoteWorkspaceUpdate = snapshot.updated_at;
+          const remote = snapshot.data;
+          
+          const arrayKeys = [
+            "tasks", "projects", "contacts", "companies", "deals", "leads",
+            "events", "products", "invoices", "campaigns", "pages", "forms",
+            "automations", "knowledge", "conversations", "feed", "activities", "audit"
+          ];
+          
+          let stateChanged = false;
+          arrayKeys.forEach(key => {
+            if (Array.isArray(remote[key])) {
+              const remoteList = remote[key];
+              const localList = state[key] || [];
+              const itemMap = new Map();
+              localList.forEach(item => { if (item && item.id) itemMap.set(item.id, item); });
+              remoteList.forEach(item => { if (item && item.id) itemMap.set(item.id, item); });
+              const merged = Array.from(itemMap.values());
+              if (JSON.stringify(merged) !== JSON.stringify(state[key])) {
+                state[key] = merged;
+                stateChanged = true;
+              }
+            }
+          });
+
+          if (remote.integrations && typeof remote.integrations === "object") {
+            const oldStr = JSON.stringify(state.integrations || {});
+            const newStr = JSON.stringify({ ...state.integrations, ...remote.integrations });
+            if (oldStr !== newStr) {
+              state.integrations = { ...state.integrations, ...remote.integrations };
+              stateChanged = true;
+            }
+          }
+
+          if (remote.workspace && typeof remote.workspace === "object" && remote.workspace.name) {
+            state.workspace = { ...state.workspace, ...remote.workspace };
+            stateChanged = true;
+          }
+
+          if (stateChanged) {
+            store.save(state);
+            render();
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Workspace snapshot pull error:", e);
+    } finally {
+      isSyncingWorkspace = false;
+    }
+  }
+
+  let pushWorkspaceTimer = null;
+  async function syncCloudWorkspacePush() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) return;
+    if (pushWorkspaceTimer) clearTimeout(pushWorkspaceTimer);
+    pushWorkspaceTimer = setTimeout(async () => {
+      try {
+        const wsId = state.workspace?.id || "ws_akipasa";
+        const cleanState = JSON.parse(JSON.stringify(state));
+        const nowStr = isoNow();
+        lastRemoteWorkspaceUpdate = nowStr;
+        await sbClient.from("workspace_snapshots").upsert({
+          workspace_id: wsId,
+          updated_by: authUser.id,
+          data: cleanState,
+          updated_at: nowStr
+        }, { onConflict: "workspace_id" });
+      } catch (e) {
+        console.warn("Workspace snapshot push error:", e);
+      }
+    }, 400);
+  }
+
+  function setupRealtimeWorkspaceSync() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || window._workspaceSyncSub) return;
+    try {
+      window._workspaceSyncSub = sbClient.channel("workspace-snapshots-room")
+        .on("postgres_changes", { event: "*", schema: "public", table: "workspace_snapshots" }, () => {
+          syncCloudWorkspacePull();
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn("Realtime workspace sync error:", e);
+    }
+  }
+
   // ── Live data loader ───────────────────────────────────────────────────────
   async function loadLiveData() {
     const sbClient = getSupabaseClient();
     if (!sbClient || !authUser) return;
     try {
+      await syncCloudWorkspacePull();
       // Contacts — all staff & profiles directly from Supabase profiles table
       const { data: profiles } = await sbClient.from("profiles")
         .select("id, display_name, app_role, created_at")
@@ -683,6 +790,7 @@
     state.version = APP_VERSION;
     store.save(state);
     applySettings();
+    syncCloudWorkspacePush();
     if (renderAfter) render();
   }
 
@@ -3865,15 +3973,16 @@
       const session = await ensureCloudSession();
       const userId = session.user?.id || cloudSession?.user?.id;
       if (!userId) throw new Error("Supabase did not return a user ID.");
-      await supabaseRequest("/rest/v1/workspace_snapshots?on_conflict=user_id", {
+      const wsId = state.workspace?.id || "ws_akipasa";
+      await supabaseRequest("/rest/v1/workspace_snapshots?on_conflict=workspace_id", {
         method: "POST",
         token: session.access_token,
         headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: [{ user_id: userId, workspace_id: state.workspace.id, data: state, updated_at: isoNow() }]
+        body: [{ workspace_id: wsId, updated_by: userId, data: state, updated_at: isoNow() }]
       });
-      addAudit("cloud.snapshot_pushed", { userId });
+      addAudit("cloud.snapshot_pushed", { userId, workspaceId: wsId });
       store.save(state);
-      toast("Cloud snapshot uploaded", "This device is now backed up to Supabase.");
+      toast("Cloud snapshot uploaded", "This workspace is now backed up to Supabase database.");
     } catch (error) {
       console.error(error);
       toast("Cloud push failed", error.message, "danger");
@@ -3885,9 +3994,10 @@
       const session = await ensureCloudSession();
       const userId = session.user?.id || cloudSession?.user?.id;
       if (!userId) throw new Error("Supabase did not return a user ID.");
-      const rows = await supabaseRequest(`/rest/v1/workspace_snapshots?user_id=eq.${encodeURIComponent(userId)}&select=data,updated_at&limit=1`, { token: session.access_token });
+      const wsId = state.workspace?.id || "ws_akipasa";
+      const rows = await supabaseRequest(`/rest/v1/workspace_snapshots?workspace_id=eq.${encodeURIComponent(wsId)}&select=data,updated_at&limit=1`, { token: session.access_token });
       const snapshot = Array.isArray(rows) ? rows[0] : null;
-      if (!snapshot?.data?.workspace) throw new Error("No cloud snapshot exists for this account yet.");
+      if (!snapshot?.data?.workspace) throw new Error("No shared cloud snapshot exists for this workspace yet.");
       state = snapshot.data;
       store.save(state);
       ui.route = "dashboard";
@@ -4190,9 +4300,13 @@
     // Start background chat polling, Realtime Presence & WebSockets for instant multi-device messaging
     setupPresence();
     setupRealtimeChat();
+    setupRealtimeWorkspaceSync();
     sendPresenceHeartbeat();
     if (!window._chatSyncInterval) {
       window._chatSyncInterval = setInterval(syncTeamMessages, 3000);
+    }
+    if (!window._workspaceSyncInterval) {
+      window._workspaceSyncInterval = setInterval(syncCloudWorkspacePull, 4000);
     }
     if (!window._presenceHeartbeatInterval) {
       window._presenceHeartbeatInterval = setInterval(sendPresenceHeartbeat, 15000);
