@@ -46,6 +46,16 @@ create policy "Authenticated users can update workspace snapshots"
 on public.workspace_snapshots for update
 to authenticated using (true) with check (true);
 
+grant select, insert, update, delete on public.workspace_snapshots to authenticated;
+grant select, update on public.profiles to authenticated;
+
+drop policy if exists "Users can update their own profile" on public.profiles;
+create policy "Users can update their own profile"
+on public.profiles for update
+to authenticated
+using (auth.uid() = id)
+with check (auth.uid() = id);
+
 create index if not exists workspace_snapshots_updated_at_idx
   on public.workspace_snapshots (updated_at desc);
 

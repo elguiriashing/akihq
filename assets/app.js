@@ -316,10 +316,50 @@
 
   let isSyncingWorkspace = false;
   let lastRemoteWorkspaceUpdate = null;
+  let hasWorkspaceSnapshotsTable = true;
+
+  function applyRemoteStateSnapshot(remote, updatedAt) {
+    if (!remote || typeof remote !== "object") return;
+    if (updatedAt && updatedAt === lastRemoteWorkspaceUpdate) return;
+    if (updatedAt) lastRemoteWorkspaceUpdate = updatedAt;
+
+    const arrayKeys = [
+      "tasks", "projects", "contacts", "companies", "deals", "leads",
+      "events", "products", "invoices", "campaigns", "pages", "forms",
+      "automations", "knowledge", "conversations", "feed", "activities", "audit"
+    ];
+
+    let stateChanged = false;
+    arrayKeys.forEach(key => {
+      if (Array.isArray(remote[key])) {
+        if (JSON.stringify(state[key] || []) !== JSON.stringify(remote[key])) {
+          state[key] = remote[key];
+          stateChanged = true;
+        }
+      }
+    });
+
+    if (remote.integrations && typeof remote.integrations === "object") {
+      if (JSON.stringify(state.integrations || {}) !== JSON.stringify(remote.integrations)) {
+        state.integrations = remote.integrations;
+        stateChanged = true;
+      }
+    }
+
+    if (remote.workspace && typeof remote.workspace === "object" && remote.workspace.name) {
+      state.workspace = { ...state.workspace, ...remote.workspace };
+      stateChanged = true;
+    }
+
+    if (stateChanged) {
+      store.save(state);
+      render();
+    }
+  }
 
   async function syncCloudWorkspacePull() {
     const sbClient = getSupabaseClient();
-    if (!sbClient || !authUser || isSyncingWorkspace) return;
+    if (!sbClient || !authUser || isSyncingWorkspace || !hasWorkspaceSnapshotsTable) return;
     isSyncingWorkspace = true;
     try {
       const wsId = state.workspace?.id || "ws_akipasa";
@@ -329,52 +369,19 @@
         .eq("workspace_id", wsId)
         .maybeSingle();
 
-      if (!error && snapshot && snapshot.data) {
-        if (snapshot.updated_at !== lastRemoteWorkspaceUpdate) {
-          lastRemoteWorkspaceUpdate = snapshot.updated_at;
-          const remote = snapshot.data;
-          
-          const arrayKeys = [
-            "tasks", "projects", "contacts", "companies", "deals", "leads",
-            "events", "products", "invoices", "campaigns", "pages", "forms",
-            "automations", "knowledge", "conversations", "feed", "activities", "audit"
-          ];
-          
-          let stateChanged = false;
-          arrayKeys.forEach(key => {
-            if (Array.isArray(remote[key])) {
-              const remoteList = remote[key];
-              const localList = state[key] || [];
-              const itemMap = new Map();
-              localList.forEach(item => { if (item && item.id) itemMap.set(item.id, item); });
-              remoteList.forEach(item => { if (item && item.id) itemMap.set(item.id, item); });
-              const merged = Array.from(itemMap.values());
-              if (JSON.stringify(merged) !== JSON.stringify(state[key])) {
-                state[key] = merged;
-                stateChanged = true;
-              }
-            }
-          });
-
-          if (remote.integrations && typeof remote.integrations === "object") {
-            const oldStr = JSON.stringify(state.integrations || {});
-            const newStr = JSON.stringify({ ...state.integrations, ...remote.integrations });
-            if (oldStr !== newStr) {
-              state.integrations = { ...state.integrations, ...remote.integrations };
-              stateChanged = true;
-            }
+      if (error) {
+        if (error.code === "PGRST205" || error.status === 404 || (error.message && error.message.includes("Could not find table"))) {
+          if (hasWorkspaceSnapshotsTable) {
+            hasWorkspaceSnapshotsTable = false;
+            console.info("AkiHQ Info: 'workspace_snapshots' table is not created in Supabase yet. Run migration 0032 in Supabase SQL editor to activate cross-device database sync.");
           }
-
-          if (remote.workspace && typeof remote.workspace === "object" && remote.workspace.name) {
-            state.workspace = { ...state.workspace, ...remote.workspace };
-            stateChanged = true;
-          }
-
-          if (stateChanged) {
-            store.save(state);
-            render();
-          }
+          return;
         }
+      }
+
+      if (!error && snapshot && snapshot.data) {
+        hasWorkspaceSnapshotsTable = true;
+        applyRemoteStateSnapshot(snapshot.data, snapshot.updated_at);
       }
     } catch (e) {
       console.warn("Workspace snapshot pull error:", e);
@@ -394,25 +401,58 @@
         const cleanState = JSON.parse(JSON.stringify(state));
         const nowStr = isoNow();
         lastRemoteWorkspaceUpdate = nowStr;
-        await sbClient.from("workspace_snapshots").upsert({
+        const { error } = await sbClient.from("workspace_snapshots").upsert({
           workspace_id: wsId,
           updated_by: authUser.id,
           data: cleanState,
           updated_at: nowStr
         }, { onConflict: "workspace_id" });
+        if (!error) {
+          hasWorkspaceSnapshotsTable = true;
+        } else if (error.code === "PGRST205" || error.status === 404) {
+          hasWorkspaceSnapshotsTable = false;
+        }
       } catch (e) {
         console.warn("Workspace snapshot push error:", e);
       }
-    }, 400);
+    }, 100);
+  }
+
+  function broadcastWorkspaceState() {
+    if (window._workspaceSyncSub && authUser) {
+      try {
+        window._workspaceSyncSub.send({
+          type: "broadcast",
+          event: "state_change",
+          payload: {
+            data: JSON.parse(JSON.stringify(state)),
+            updatedAt: isoNow(),
+            senderId: authUser.id
+          }
+        });
+      } catch (e) {}
+    }
   }
 
   function setupRealtimeWorkspaceSync() {
     const sbClient = getSupabaseClient();
     if (!sbClient || window._workspaceSyncSub) return;
     try {
-      window._workspaceSyncSub = sbClient.channel("workspace-snapshots-room")
-        .on("postgres_changes", { event: "*", schema: "public", table: "workspace_snapshots" }, () => {
-          syncCloudWorkspacePull();
+      const channel = sbClient.channel("workspace-live-sync");
+      window._workspaceSyncSub = channel;
+
+      channel
+        .on("broadcast", { event: "state_change" }, payload => {
+          if (payload && payload.payload && payload.payload.senderId !== authUser?.id) {
+            applyRemoteStateSnapshot(payload.payload.data, payload.payload.updatedAt);
+          }
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "workspace_snapshots" }, payload => {
+          if (payload?.new?.data && payload.new.updated_by !== authUser?.id) {
+            applyRemoteStateSnapshot(payload.new.data, payload.new.updated_at);
+          } else {
+            syncCloudWorkspacePull();
+          }
         })
         .subscribe();
     } catch (e) {
@@ -565,8 +605,10 @@
     if (!sbClient || !authUser) return;
     try {
       sbClient.from("profiles").update({ updated_at: isoNow() }).eq("id", authUser.id).then(({ error }) => {
-        if (error) console.warn("Presence heartbeat error:", error);
-      });
+        if (error && error.code !== "42501" && error.code !== "PGRST301") {
+          console.warn("Presence heartbeat info:", error.message || error);
+        }
+      }).catch(() => {});
     } catch (e) {}
   }
 
@@ -790,6 +832,7 @@
     state.version = APP_VERSION;
     store.save(state);
     applySettings();
+    broadcastWorkspaceState();
     syncCloudWorkspacePush();
     if (renderAfter) render();
   }
