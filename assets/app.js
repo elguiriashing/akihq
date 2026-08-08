@@ -439,9 +439,46 @@
         store.save(state);
         if (ui.route === "collaboration") {
           render();
+          scrollChatToBottom();
         }
       }
     } catch (e) {}
+  }
+
+  function setupPresence() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser || window._presenceSub) return;
+    try {
+      const channel = sbClient.channel("online-presence");
+      window._presenceSub = channel;
+
+      channel.on("presence", { event: "sync" }, () => {
+        const stateState = channel.presenceState();
+        const onlineUserIds = new Set();
+        Object.values(stateState).forEach(presences => {
+          presences.forEach(p => {
+            if (p.user_id) onlineUserIds.add(p.user_id);
+            if (p.email) onlineUserIds.add(p.email.toLowerCase());
+          });
+        });
+        window._onlineUserIds = onlineUserIds;
+        if (ui.route === "collaboration" || ui.route === "employees" || ui.route === "dashboard") {
+          render();
+        }
+      });
+
+      channel.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            user_id: authUser.id,
+            email: authUser.email || "",
+            online_at: new Date().toISOString()
+          });
+        }
+      });
+    } catch (e) {
+      console.warn("Presence setup error:", e);
+    }
   }
 
   function setupRealtimeChat() {
@@ -471,10 +508,7 @@
               store.save(state);
               if (ui.route === "collaboration") {
                 render();
-                requestAnimationFrame(() => {
-                  const el = document.getElementById("team-chat-messages");
-                  if (el) el.scrollTop = el.scrollHeight;
-                });
+                scrollChatToBottom(true);
               }
             }
           }
@@ -1578,14 +1612,28 @@
                   <div style="font-size:12px;line-height:1.5;color:var(--text);background:var(--surface-2);padding:10px 12px;border-radius:0 12px 12px 12px;border:1px solid var(--border);max-width:min(640px,90%);white-space:pre-wrap">
                     ${markdown(msg.text)}
                   </div>
-                  <div style="display:flex;gap:4px;margin-top:6px;align-items:center;flex-wrap:wrap">
-                    ${Object.entries(msg.reactions || {}).map(([emoji, cnt]) => `
-                      <button class="chip" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="${escapeHtml(emoji)}" style="height:22px;padding:0 7px;font-size:10px">${escapeHtml(emoji)} ${cnt}</button>
-                    `).join("")}
-                    <button class="chip" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="👏" style="height:22px;padding:0 7px;font-size:10px">+ 👏</button>
-                    <button class="chip" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="🔥" style="height:22px;padding:0 7px;font-size:10px">+ 🔥</button>
-                    <button class="chip" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="👍" style="height:22px;padding:0 7px;font-size:10px">+ 👍</button>
+                  <div style="display:flex;gap:4px;margin-top:6px;align-items:center;flex-wrap:wrap;position:relative">
+                    ${Object.entries(msg.reactions || {}).map(([emoji, val]) => {
+                      const userList = Array.isArray(val) ? val : (val > 0 ? ["legacy"] : []);
+                      const count = userList.length;
+                      if (count === 0) return "";
+                      const hasReacted = userList.includes(myUserId);
+                      return `
+                        <button class="chip ${hasReacted ? "active" : ""}" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="${escapeHtml(emoji)}" style="height:22px;padding:0 7px;font-size:10px;${hasReacted ? "background:rgba(99,120,255,.2);border-color:var(--accent);color:#fff;font-weight:700" : ""}">
+                          ${escapeHtml(emoji)} ${count}
+                        </button>
+                      `;
+                    }).join("")}
+                    <button class="chip ghost" data-action="toggle-reaction-picker" data-msg-id="${msg.id}" style="height:22px;padding:0 7px;font-size:10px" title="Add reaction">+ 😊</button>
                     <button class="mini-btn ghost" data-action="reply-team-msg" data-msg-id="${msg.id}" style="height:22px;font-size:10px;margin-left:4px;padding:0 6px">${icon("send")} Reply</button>
+                    
+                    ${ui.activeReactionPicker === msg.id ? `
+                      <div style="position:absolute;bottom:28px;left:0;z-index:30;background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:4px 8px;display:flex;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.4)">
+                        ${["👍", "🔥", "👏", "❤️", "🎉", "😂"].map(e => `
+                          <button class="mini-btn ghost" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="${e}" style="font-size:14px;padding:2px 4px;height:26px;min-width:26px">${e}</button>
+                        `).join("")}
+                      </div>
+                    ` : ""}
                   </div>
                 </div>
               </div>
@@ -2964,17 +3012,49 @@
         }
         break;
       }
+      case "toggle-reaction-picker": {
+        const msgId = target.dataset.msgId;
+        ui.activeReactionPicker = ui.activeReactionPicker === msgId ? null : msgId;
+        render();
+        break;
+      }
       case "react-team-msg": {
         const msgId = target.dataset.msgId;
         const emoji = target.dataset.emoji;
+        ui.activeReactionPicker = null;
         const activeChanId = ui.activeTeamChannel || "ch_general";
         const chanMsgs = state.teamChat?.messages?.[activeChanId] || [];
         const msg = chanMsgs.find(m => m.id === msgId);
         if (msg) {
           msg.reactions ||= {};
-          msg.reactions[emoji] = (msg.reactions[emoji] || 0) + 1;
+          const myId = authUser?.id || currentUser().id;
+          let userList = Array.isArray(msg.reactions[emoji]) ? msg.reactions[emoji] : [];
+          if (typeof msg.reactions[emoji] === "number") {
+            userList = msg.reactions[emoji] > 0 ? [myId] : [];
+          }
+          
+          if (userList.includes(myId)) {
+            userList = userList.filter(id => id !== myId);
+          } else {
+            userList.push(myId);
+          }
+
+          if (userList.length === 0) {
+            delete msg.reactions[emoji];
+          } else {
+            msg.reactions[emoji] = userList;
+          }
+
           persist(false);
           render();
+
+          // Sync reaction update to Supabase DB
+          const sbClient = getSupabaseClient();
+          if (sbClient && authUser) {
+            sbClient.from("crm_team_messages").update({ reactions: msg.reactions }).eq("id", msg.id).then(({ error }) => {
+              if (error) console.warn("Reaction sync error:", error);
+            });
+          }
         }
         break;
       }
@@ -4047,7 +4127,8 @@
     applySettings();
     render();
 
-    // Start background chat polling and Realtime WebSockets for instant multi-device messaging
+    // Start background chat polling, Realtime Presence & WebSockets for instant multi-device messaging
+    setupPresence();
     setupRealtimeChat();
     if (!window._chatSyncInterval) {
       window._chatSyncInterval = setInterval(syncTeamMessages, 3000);
