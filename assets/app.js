@@ -198,15 +198,12 @@
       { id: "won", name: "Won", color: "#4fd393" },
       { id: "lost", name: "Lost", color: "#df6679" }
     ];
-    const employees = [
-      { id: "emp_alex", name: "Alex Ashing", email: "alex@akipasa.com", role: "Founder & operator", department: "Leadership", status: "Online", location: "Fuengirola", phone: "+34 600 000 001", joinedAt: isoNow(), leaveBalance: 20 }
-    ];
     return {
       version: APP_VERSION,
       isCleanWorkspace: true,
       createdAt: isoNow(),
-      workspace: { id: "ws_akipasa", name: "AkiPasa HQ", slug: "akipasa", timezone: "Europe/Madrid", currency: "EUR", ownerId: "emp_alex" },
-      currentUserId: "emp_alex",
+      workspace: { id: "ws_akipasa", name: "AkiPasa HQ", slug: "akipasa", timezone: "Europe/Madrid", currency: "EUR", ownerId: "" },
+      currentUserId: "",
       settings: { theme: "dark", density: "comfortable", locale: "en", sidebarCollapsed: false, reducedMotion: false, notifications: true },
       pipelines: [
         { id: "venue", name: "Venue onboarding", stages: pipelineStages },
@@ -214,7 +211,7 @@
       ],
       contacts: [],
       companies: [],
-      employees,
+      employees: [],
       deals: [],
       leads: [],
       projects: [],
@@ -227,31 +224,7 @@
       forms: [],
       automations: [],
       knowledge: [],
-      conversations: [
-        {
-          id: "conv_01",
-          name: "Soho House Barcelona",
-          channel: "WhatsApp Business",
-          assignedTo: "emp_alex",
-          unread: 1,
-          messages: [
-            { id: "m1", text: "Hello! We would like to connect our venue calendar to AkiPasa.", at: new Date(Date.now() - 3600000 * 4).toISOString(), direction: "in" },
-            { id: "m2", text: "Hi! Thanks for reaching out. Let's verify your venue profile in AkiHQ.", at: new Date(Date.now() - 3600000 * 2).toISOString(), direction: "out" },
-            { id: "m3", text: "Sounds great, sending over our manager contact details.", at: new Date(Date.now() - 3600000).toISOString(), direction: "in" }
-          ]
-        },
-        {
-          id: "conv_02",
-          name: "Pacha Ibiza Operations",
-          channel: "Resend Email",
-          assignedTo: "emp_alex",
-          unread: 0,
-          messages: [
-            { id: "m4", text: "Can we request an updated invoice for the VIP package booking?", at: new Date(Date.now() - 3600000 * 12).toISOString(), direction: "in" },
-            { id: "m5", text: "Invoice INV-1014 has been generated and sent to your billing address.", at: new Date(Date.now() - 3600000 * 6).toISOString(), direction: "out" }
-          ]
-        }
-      ],
+      conversations: [],
       feed: [],
       activities: [],
       notifications: [
@@ -265,7 +238,17 @@
         "bitrix-import": { status: "ready", label: "CSV importer available", config: {}, connectedAt: null }
       },
       timer: { running: false, startedAt: null, elapsed: 0, label: "General work" },
-      audit: [{ id: "audit_init", action: "workspace.initialized", actorId: "emp_alex", at: isoNow(), meta: { version: APP_VERSION } }]
+      audit: [{ id: "audit_init", action: "workspace.initialized", actorId: "system", at: isoNow(), meta: { version: APP_VERSION } }],
+      teamChat: {
+        channels: [
+          { id: "ch_general", name: "general", description: "General staff announcements", icon: "#", unread: 0 },
+          { id: "ch_crm_sales", name: "crm-sales", description: "Sales tracking and lead conversions", icon: "#", unread: 0 },
+        ],
+        messages: {
+          "ch_general": [],
+          "ch_crm_sales": []
+        }
+      }
     };
   }
 
