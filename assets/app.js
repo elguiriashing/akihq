@@ -3877,11 +3877,11 @@
     let profileName = null;
     try {
       const { data: profile } = await client.from("profiles")
-        .select("app_role, display_name")
+        .select("app_role")
         .eq("id", session.user.id)
         .maybeSingle();
       role = profile?.app_role;
-      profileName = profile?.display_name;
+      profileName = null;
     } catch (e) {
       console.warn("Profile check error:", e);
     }
