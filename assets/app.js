@@ -397,11 +397,14 @@
       const staffContacts = state.contacts.filter(c => ["moderator", "administrator"].includes(c.role));
       if (staffContacts.length > 0) {
         const existingMap = new Map();
-        state.employees.forEach(e => existingMap.set((e.email || e.id || e.name).toLowerCase(), e));
+        // Key employees primarily by their ID to ensure strict deduplication
+        state.employees.forEach(e => {
+          if (e.id) existingMap.set(e.id, e);
+        });
+        
         staffContacts.forEach(c => {
-          const key = (c.email || c.id || c.name).toLowerCase();
-          if (!existingMap.has(key)) {
-            existingMap.set(key, {
+          if (!existingMap.has(c.id)) {
+            existingMap.set(c.id, {
               id: c.id,
               name: c.name,
               email: c.email,
@@ -3888,12 +3891,14 @@
     
     // Fetch profile to check role strictly
     let role = null;
+    let profileName = null;
     try {
       const { data: profile } = await client.from("profiles")
-        .select("app_role")
+        .select("app_role, display_name")
         .eq("id", session.user.id)
         .maybeSingle();
       role = profile?.app_role;
+      profileName = profile?.display_name;
     } catch (e) {
       console.warn("Profile check error:", e);
     }
@@ -3922,7 +3927,7 @@
 
     // Ensure authenticated user has their own unique employee entry in state.employees
     const userEmail = (authUser.email || "").toLowerCase();
-    const displayName = authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User";
+    const displayName = profileName || authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User";
 
     let existingIndex = state.employees.findIndex(e => e.id === authUser.id || (userEmail && e.email && e.email.toLowerCase() === userEmail));
     if (existingIndex >= 0) {
@@ -3952,8 +3957,7 @@
     // Deduplicate employees array
     const empMap = new Map();
     state.employees.forEach(emp => {
-      const k = (emp.email || emp.id || emp.name).toLowerCase();
-      if (!empMap.has(k)) empMap.set(k, emp);
+      if (emp.id) empMap.set(emp.id, emp);
     });
     state.employees = Array.from(empMap.values());
     applySettings();
