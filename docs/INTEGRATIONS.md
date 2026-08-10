@@ -38,7 +38,7 @@ The CRM Social tab connects Facebook Pages, Instagram professional accounts and 
 
 Provider application credentials are submitted over HTTPS, encrypted in the Worker with `SOCIAL_ENCRYPTION_KEY`, and stored in the bound `SOCIAL_STORE` namespace. Access tokens and refresh tokens use the same encrypted path. Neither credentials nor tokens are placed in local storage, workspace snapshots, logs, or API responses.
 
-Meta and TikTok developer portals must approve the requested scopes and list the exact callback URLs shown in the CRM credential form before live account authorization succeeds.
+Facebook Login, Instagram Login and TikTok each use separate credentials and callbacks. Provider developer portals must approve the requested scopes and list the exact callback URL shown in the CRM credential form before live authorization succeeds. Instagram Login uses `graph.instagram.com` and does not require a Facebook Page to be linked to the professional account.
 
 Connected accounts refresh daily through a Cloudflare Cron Trigger and can also be refreshed manually from the CRM.
 

@@ -1484,6 +1484,17 @@
     return `<article class="social-metric-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatSocialMetric(value))}</strong><small>${escapeHtml(detail)}</small></article>`;
   }
 
+  function socialCredentialProvider(value) {
+    const provider = String(value || "").toLowerCase();
+    return ["meta", "instagram", "tiktok"].includes(provider) ? provider : "meta";
+  }
+
+  function socialProviderLabel(provider) {
+    if (provider === "meta") return "Facebook";
+    if (provider === "instagram") return "Instagram";
+    return "TikTok";
+  }
+
   function renderSocialProviderCard(provider, title, configKey, mark, color, description) {
     const accounts = (socialOverview?.accounts || []).filter(account => account.provider === provider);
     const credential = socialOverview?.credentials?.[configKey] || {};
@@ -1531,7 +1542,7 @@
           ${socialMetricCard("Interactions", summary.engagements, "Likes, comments, shares and saves")}
         </div>
         <div class="social-provider-grid">
-          ${renderSocialProviderCard("instagram", "Instagram", "meta", "IG", "linear-gradient(135deg,#6f48d8,#dc3a85,#ffaf4d)", "Professional account reach, followers and Reels performance")}
+          ${renderSocialProviderCard("instagram", "Instagram", "instagram", "IG", "linear-gradient(135deg,#6f48d8,#dc3a85,#ffaf4d)", "Professional account reach, followers and Reels performance")}
           ${renderSocialProviderCard("facebook", "Facebook", "meta", "f", "linear-gradient(135deg,#1877f2,#66a7ff)", "Page audience, engagement and post performance")}
           ${renderSocialProviderCard("tiktok", "TikTok", "tiktok", "♪", "linear-gradient(135deg,#111,#27e7e7,#ff2d55)", "Profile growth and public video performance")}
         </div>
@@ -2756,8 +2767,8 @@
   }
 
   function renderSocialBusinessPickerModal() {
-    const provider = ui.modal.provider === "tiktok" ? "tiktok" : "meta";
-    const providerLabel = provider === "meta" ? "Facebook + Instagram" : "TikTok";
+    const provider = socialCredentialProvider(ui.modal.provider);
+    const providerLabel = socialProviderLabel(provider);
     const companies = Array.isArray(state.companies) ? state.companies : [];
     const businesses = companies.length ? companies : state.workspace?.id ? [{
       id: state.workspace.id,
@@ -3061,9 +3072,13 @@
   }
 
   function renderSocialCredentialsModal() {
-    const provider = ui.modal.provider === "tiktok" ? "tiktok" : "meta";
+    const provider = socialCredentialProvider(ui.modal.provider);
     const current = socialOverview?.credentials?.[provider] || {};
     const isMeta = provider === "meta";
+    const isInstagram = provider === "instagram";
+    const isGraphProvider = isMeta || isInstagram;
+    const defaultScopes = isMeta ? "pages_show_list,pages_read_engagement" : isInstagram ? "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights" : "user.info.basic,user.info.profile,user.info.stats,video.list";
+    const defaultClientId = isInstagram && !current.configured ? "1370367424537325" : "";
     return `
       <div class="modal-backdrop" data-action="close-modal"></div>
       <section class="modal social-credential-modal" role="dialog" aria-modal="true" aria-labelledby="social-credential-title">
@@ -3076,23 +3091,25 @@
           <div class="modal-body">
             <div class="social-vault-banner">${icon("lock")}<div><strong>Secrets leave this form once</strong><span>The Worker encrypts them with AES-GCM before storage. The CRM receives only configuration status and a masked identifier.</span></div></div>
             <div class="segmented social-provider-switch">
-              <button type="button" class="${isMeta ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="meta">Facebook + Instagram</button>
-              <button type="button" class="${!isMeta ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="tiktok">TikTok</button>
+              <button type="button" class="${isMeta ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="meta">Facebook</button>
+              <button type="button" class="${isInstagram ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="instagram">Instagram</button>
+              <button type="button" class="${provider === "tiktok" ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="tiktok">TikTok</button>
             </div>
             ${current.configured ? `<div class="social-configured-summary"><span class="status-pill success">Configured</span><div><strong>${escapeHtml(current.clientIdHint || "Credential saved")}</strong><small>Updated ${escapeHtml(relativeTime(current.updatedAt))}. Enter both values to replace it.</small></div></div>` : ""}
             <div class="form-grid">
               <div class="form-field full">
-                <label>${isMeta ? "Meta App ID" : "TikTok Client Key"}</label>
-                <input name="client_id" type="text" inputmode="text" autocapitalize="off" spellcheck="false" autocomplete="off" required placeholder="${isMeta ? "Enter the Meta App ID" : "Enter the TikTok client key"}" />
+                <label>${isInstagram ? "Instagram App ID" : isMeta ? "Meta App ID" : "TikTok Client Key"}</label>
+                <input name="client_id" type="text" inputmode="text" autocapitalize="off" spellcheck="false" autocomplete="off" required value="${escapeHtml(defaultClientId)}" placeholder="${isInstagram ? "Enter the Instagram App ID" : isMeta ? "Enter the Meta App ID" : "Enter the TikTok client key"}" />
               </div>
               <div class="form-field full">
-                <label>${isMeta ? "Meta App Secret" : "TikTok Client Secret"}</label>
+                <label>${isInstagram ? "Instagram App Secret" : isMeta ? "Meta App Secret" : "TikTok Client Secret"}</label>
                 <input name="client_secret" type="password" autocapitalize="off" spellcheck="false" autocomplete="new-password" required placeholder="Paste the secret from the developer portal" />
                 <div class="form-help">The saved secret cannot be viewed or copied back out. Updating it replaces the previous value.</div>
               </div>
-              ${isMeta ? `<div class="form-field"><label>Graph API version</label><input name="api_version" value="v25.0" pattern="v[0-9]+\\.[0-9]+" placeholder="v25.0" required /></div>` : ""}
-              <div class="form-field ${isMeta ? "" : "full"}"><label>Requested scopes</label><input name="scopes" value="${isMeta ? "pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights" : "user.info.basic,user.info.profile,user.info.stats,video.list"}" required /></div>
+              ${isGraphProvider ? `<div class="form-field"><label>Graph API version</label><input name="api_version" value="v25.0" pattern="v[0-9]+\\.[0-9]+" placeholder="v25.0" required /></div>` : ""}
+              <div class="form-field ${isGraphProvider ? "" : "full"}"><label>Requested scopes</label><input name="scopes" value="${escapeHtml(defaultScopes)}" required /></div>
             </div>
+            ${isInstagram ? `<div class="form-help">Instagram Login connects a professional account directly. It does not require a linked Facebook Page.</div>` : ""}
             <div class="social-callback-box"><strong>OAuth callback to register</strong><code>${escapeHtml(socialGatewayUrl(`/api/social/oauth/callback/${provider}`))}</code></div>
           </div>
           <footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button type="submit" class="action-btn primary">${icon("lock")} Encrypt and save</button></footer>
@@ -3261,20 +3278,20 @@
         break;
       case "open-social-credentials":
         if (authRole !== "administrator") { toast("Administrator access required", "Only administrators can update provider credentials.", "danger"); break; }
-        ui.modal = { kind: "social-credentials", provider: target.dataset.provider === "tiktok" ? "tiktok" : "meta" };
+        ui.modal = { kind: "social-credentials", provider: socialCredentialProvider(target.dataset.provider) };
         renderPortal();
         break;
       case "switch-social-credential-provider":
-        ui.modal = { kind: "social-credentials", provider: target.dataset.provider === "tiktok" ? "tiktok" : "meta" };
+        ui.modal = { kind: "social-credentials", provider: socialCredentialProvider(target.dataset.provider) };
         renderPortal();
         break;
       case "choose-social-business":
-        ui.modal = { kind: "social-business-picker", provider: target.dataset.provider === "tiktok" ? "tiktok" : "meta" };
+        ui.modal = { kind: "social-business-picker", provider: socialCredentialProvider(target.dataset.provider) };
         renderPortal();
         break;
       case "select-social-business": {
         const businessId = target.dataset.businessId || "";
-        const provider = target.dataset.provider === "tiktok" ? "tiktok" : "meta";
+        const provider = socialCredentialProvider(target.dataset.provider);
         if (!businessId) {
           toast("Choose a business", "Select a CRM business before connecting the account.", "info");
           break;
@@ -3988,7 +4005,7 @@
     }
     if (kind === "social-credentials") {
       if (authRole !== "administrator") { toast("Administrator access required", "Only administrators can update provider credentials.", "danger"); return; }
-      const provider = form.dataset.provider === "tiktok" ? "tiktok" : "meta";
+      const provider = socialCredentialProvider(form.dataset.provider);
       const values = Object.fromEntries(new FormData(form));
       const secretField = form.querySelector('[name="client_secret"]');
       if (secretField) secretField.value = "";
@@ -4003,7 +4020,7 @@
         ui.modal = null;
         renderPortal();
         await loadSocialOverview(false);
-        toast("Credentials secured", `${provider === "meta" ? "Meta" : "TikTok"} credentials were encrypted and saved. The secret is no longer present in this browser.`, "success");
+        toast("Credentials secured", `${socialProviderLabel(provider)} credentials were encrypted and saved. The secret is no longer present in this browser.`, "success");
       } catch (error) {
         if (submitButton) { submitButton.disabled = false; submitButton.innerHTML = `${icon("lock")} Encrypt and save`; }
         toast("Credentials not saved", error.message, "danger");

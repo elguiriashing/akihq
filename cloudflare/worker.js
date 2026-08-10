@@ -2,13 +2,13 @@
  * AkiHQ optional integration gateway for Cloudflare Workers.
  *
  * Secrets stay here rather than in the browser. The gateway implements an
- * encrypted social credential vault, Meta/TikTok OAuth and metrics sync, plus
- * a small, auditable set of provider actions and a generic webhook event sink.
+ * encrypted social credential vault, Facebook/Instagram/TikTok OAuth and
+ * metrics sync, plus a small, auditable set of provider actions and a generic webhook event sink.
  */
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 const MAX_BODY_BYTES = 1024 * 1024;
-const SOCIAL_PROVIDERS = new Set(["meta", "tiktok"]);
+const SOCIAL_PROVIDERS = new Set(["meta", "instagram", "tiktok"]);
 const SOCIAL_ACCOUNT_PREFIX = "social:account:";
 
 export default {
@@ -419,6 +419,12 @@ function socialCredentialKey(provider) {
   return `social:credentials:${provider}`;
 }
 
+function socialProviderName(provider) {
+  if (provider === "meta") return "Facebook";
+  if (provider === "instagram") return "Instagram";
+  return "TikTok";
+}
+
 function maskIdentifier(value) {
   const text = String(value || "");
   return text.length <= 4 ? "Configured" : `••••${text.slice(-4)}`;
@@ -428,12 +434,12 @@ async function saveSocialCredentials(request, env, staff, cors) {
   const store = requireSocialStore(env);
   const body = await readJson(request);
   const provider = cleanText(body.provider, 30, "provider").toLowerCase();
-  if (!SOCIAL_PROVIDERS.has(provider)) throw new HttpError(400, "invalid_provider", "provider must be meta or tiktok.");
+  if (!SOCIAL_PROVIDERS.has(provider)) throw new HttpError(400, "invalid_provider", "provider must be meta, instagram or tiktok.");
   const clientId = cleanText(body.client_id, 300, "client_id");
   const clientSecret = cleanText(body.client_secret, 2000, "client_secret");
   const scopes = cleanText(body.scopes, 800, "scopes");
-  const apiVersion = provider === "meta" ? cleanText(body.api_version || "v25.0", 20, "api_version") : "";
-  if (provider === "meta" && !/^v\d+\.\d+$/.test(apiVersion)) throw new HttpError(400, "invalid_api_version", "Meta API version must look like v25.0.");
+  const apiVersion = provider !== "tiktok" ? cleanText(body.api_version || "v25.0", 20, "api_version") : "";
+  if (provider !== "tiktok" && !/^v\d+\.\d+$/.test(apiVersion)) throw new HttpError(400, "invalid_api_version", "Graph API version must look like v25.0.");
   const updatedAt = new Date().toISOString();
   const encrypted = await encryptSocialValue(env, { provider, clientId, clientSecret, scopes, apiVersion, updatedAt, updatedBy: staff.id });
   await store.put(socialCredentialKey(provider), encrypted, { metadata: { updatedAt, updatedBy: staff.id, clientIdHint: maskIdentifier(clientId) } });
@@ -443,7 +449,7 @@ async function saveSocialCredentials(request, env, staff, cors) {
 async function getSocialCredentials(env, provider) {
   const store = requireSocialStore(env);
   const encrypted = await store.get(socialCredentialKey(provider));
-  if (!encrypted) throw new HttpError(409, "credentials_required", `${provider === "meta" ? "Meta" : "TikTok"} app credentials must be added first.`);
+  if (!encrypted) throw new HttpError(409, "credentials_required", `${socialProviderName(provider)} app credentials must be added first.`);
   return decryptSocialValue(env, encrypted);
 }
 
@@ -533,10 +539,10 @@ async function socialOverview(env, url, cors) {
       trendMap.set(point.date, current);
     }
   }
-  const [meta, tiktok] = await Promise.all([socialCredentialStatus(env, "meta"), socialCredentialStatus(env, "tiktok")]);
+  const [meta, instagram, tiktok] = await Promise.all([socialCredentialStatus(env, "meta"), socialCredentialStatus(env, "instagram"), socialCredentialStatus(env, "tiktok")]);
   return json({
     ok: true,
-    credentials: { meta, tiktok },
+    credentials: { meta, instagram, tiktok },
     summary: { connectedAccounts: accounts.length, followers, followerChange: hasComparison ? followers - earliestFollowers : null, views, engagements },
     accounts,
     trend: [...trendMap.values()].sort((a, b) => a.date.localeCompare(b.date))
@@ -589,7 +595,7 @@ function isAllowedRequestOrigin(origin, env) {
 async function startSocialOAuth(request, env, staff, workerUrl, cors) {
   const body = await readJson(request);
   const provider = cleanText(body.provider, 30, "provider").toLowerCase();
-  if (!SOCIAL_PROVIDERS.has(provider)) throw new HttpError(400, "invalid_provider", "provider must be meta or tiktok.");
+  if (!SOCIAL_PROVIDERS.has(provider)) throw new HttpError(400, "invalid_provider", "provider must be meta, instagram or tiktok.");
   const businessId = cleanText(body.business_id, 200, "business_id");
   const businessName = cleanText(body.business_name, 300, "business_name");
   const credentials = await getSocialCredentials(env, provider);
@@ -605,6 +611,9 @@ async function startSocialOAuth(request, env, staff, workerUrl, cors) {
     const graphVersion = credentials.apiVersion || "v25.0";
     const params = new URLSearchParams({ client_id: credentials.clientId, redirect_uri: redirectUri, state, response_type: "code", scope: credentials.scopes });
     authorizationUrl = `https://www.facebook.com/${encodeURIComponent(graphVersion)}/dialog/oauth?${params}`;
+  } else if (provider === "instagram") {
+    const params = new URLSearchParams({ force_reauth: "true", client_id: credentials.clientId, redirect_uri: redirectUri, state, response_type: "code", scope: credentials.scopes });
+    authorizationUrl = `https://www.instagram.com/oauth/authorize?${params}`;
   } else {
     const params = new URLSearchParams({ client_key: credentials.clientId, redirect_uri: redirectUri, state, response_type: "code", scope: credentials.scopes });
     authorizationUrl = `https://www.tiktok.com/v2/auth/authorize/?${params}`;
@@ -635,6 +644,7 @@ async function handleSocialOAuthCallback(request, env, url) {
     const code = cleanText(url.searchParams.get("code"), 3000, "code");
     const credentials = await getSocialCredentials(env, provider);
     if (provider === "meta") await exchangeMetaAuthorization(code, credentials, session, env);
+    else if (provider === "instagram") await exchangeInstagramAuthorization(code, credentials, session, env);
     else await exchangeTikTokAuthorization(code, credentials, session, env);
     return Response.redirect(socialResultUrl(session.returnUrl, "connected"), 303);
   } catch (error) {
@@ -667,6 +677,7 @@ async function exchangeMetaAuthorization(code, credentials, session, env) {
     const detail = await safeProviderFetch(`${graphRoot}/${encodeURIComponent(page.id)}?${detailParams}`, { method: "GET" }) || page;
     await saveSocialAccount(env, {
       provider: "facebook",
+      authProvider: "meta",
       businessId: session.businessId,
       businessName: session.businessName,
       externalAccountId: String(page.id),
@@ -685,6 +696,7 @@ async function exchangeMetaAuthorization(code, credentials, session, env) {
       const instagram = await safeProviderFetch(`${graphRoot}/${encodeURIComponent(instagramId)}?${igParams}`, { method: "GET" });
       if (instagram) await saveSocialAccount(env, {
         provider: "instagram",
+        authProvider: "meta",
         businessId: session.businessId,
         businessName: session.businessName,
         externalAccountId: String(instagramId),
@@ -701,6 +713,47 @@ async function exchangeMetaAuthorization(code, credentials, session, env) {
   }
 }
 
+async function exchangeInstagramAuthorization(code, credentials, session, env) {
+  const form = new URLSearchParams({
+    client_id: credentials.clientId,
+    client_secret: credentials.clientSecret,
+    grant_type: "authorization_code",
+    redirect_uri: session.redirectUri,
+    code
+  });
+  const shortToken = await providerFetch("https://api.instagram.com/oauth/access_token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: form.toString()
+  });
+  if (!shortToken.access_token) throw new HttpError(400, "instagram_token_missing", "Instagram did not return an access token.");
+  const longParams = new URLSearchParams({ grant_type: "ig_exchange_token", client_secret: credentials.clientSecret, access_token: shortToken.access_token });
+  const longToken = await providerFetch(`https://graph.instagram.com/access_token?${longParams}`, { method: "GET" });
+  if (!longToken.access_token) throw new HttpError(400, "instagram_long_token_missing", "Instagram did not return a long-lived access token.");
+  const accessToken = longToken.access_token;
+  const version = credentials.apiVersion || "v25.0";
+  const profileParams = new URLSearchParams({ fields: "id,user_id,username,name,profile_picture_url,followers_count,media_count", access_token: accessToken });
+  const profile = await providerFetch(`https://graph.instagram.com/${encodeURIComponent(version)}/me?${profileParams}`, { method: "GET" });
+  const externalAccountId = String(profile.id || profile.user_id || shortToken.user_id || "");
+  if (!externalAccountId) throw new HttpError(400, "instagram_account_missing", "Instagram did not return the professional account ID.");
+  const expiresIn = Number(longToken.expires_in || 0);
+  await saveSocialAccount(env, {
+    provider: "instagram",
+    authProvider: "instagram",
+    businessId: session.businessId,
+    businessName: session.businessName,
+    externalAccountId,
+    displayName: profile.name || profile.username || "Instagram",
+    username: profile.username || "",
+    avatarUrl: profile.profile_picture_url || "",
+    accessToken,
+    expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+    metrics: { followers: Number(profile.followers_count || 0), views: 0, engagements: 0, contentCount: Number(profile.media_count || 0) },
+    content: [],
+    status: "healthy"
+  });
+}
+
 async function exchangeTikTokAuthorization(code, credentials, session, env) {
   const form = new URLSearchParams({ client_key: credentials.clientId, client_secret: credentials.clientSecret, code, grant_type: "authorization_code", redirect_uri: session.redirectUri });
   const token = await providerFetch("https://open.tiktokapis.com/v2/oauth/token/", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: form.toString() });
@@ -711,6 +764,7 @@ async function exchangeTikTokAuthorization(code, credentials, session, env) {
   const user = userResponse.data?.user || {};
   await saveSocialAccount(env, {
     provider: "tiktok",
+    authProvider: "tiktok",
     businessId: session.businessId,
     businessName: session.businessName,
     externalAccountId: String(token.open_id),
@@ -745,6 +799,7 @@ async function syncSocialAccounts(request, env, cors) {
   for (const account of accounts) {
     try {
       if (account.provider === "tiktok") await syncTikTokAccount(account, env);
+      else if (account.provider === "instagram" && account.authProvider === "instagram") await syncInstagramAccount(account, env);
       else await syncMetaAccount(account, env);
       account.status = "healthy";
       account.lastError = "";
@@ -810,6 +865,52 @@ async function syncMetaAccount(account, env) {
       engagements: Number(metrics.total_interactions || 0) || Number(item.like_count || 0) + Number(item.comments_count || 0) + Number(metrics.saved || 0) + Number(metrics.shares || 0)
     });
   }
+  account.displayName = profile.name || profile.username || account.displayName;
+  account.username = profile.username || account.username;
+  account.avatarUrl = profile.profile_picture_url || account.avatarUrl;
+  account.content = content;
+  account.metrics = {
+    followers: Number(profile.followers_count || 0),
+    views: content.reduce((sum, item) => sum + Number(item.views || 0), 0),
+    engagements: content.reduce((sum, item) => sum + Number(item.engagements || 0), 0),
+    contentCount: Number(profile.media_count || content.length)
+  };
+}
+
+async function refreshInstagramToken(account) {
+  const params = new URLSearchParams({ grant_type: "ig_refresh_token", access_token: account.accessToken });
+  const token = await providerFetch(`https://graph.instagram.com/refresh_access_token?${params}`, { method: "GET" });
+  if (!token.access_token) throw new HttpError(401, "instagram_refresh_failed", "Instagram did not return a refreshed access token.");
+  account.accessToken = token.access_token;
+  account.expiresAt = token.expires_in ? new Date(Date.now() + Number(token.expires_in) * 1000).toISOString() : account.expiresAt;
+}
+
+async function syncInstagramAccount(account, env) {
+  const credentials = await getSocialCredentials(env, "instagram");
+  if (account.expiresAt && new Date(account.expiresAt).getTime() < Date.now() + 7 * 86400000) await refreshInstagramToken(account);
+  const root = `https://graph.instagram.com/${encodeURIComponent(credentials.apiVersion || "v25.0")}`;
+  const profileParams = new URLSearchParams({ fields: "id,user_id,username,name,profile_picture_url,followers_count,media_count", access_token: account.accessToken });
+  const profile = await providerFetch(`${root}/me?${profileParams}`, { method: "GET" });
+  const mediaParams = new URLSearchParams({ fields: "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count", limit: "12", access_token: account.accessToken });
+  const mediaResponse = await providerFetch(`${root}/me/media?${mediaParams}`, { method: "GET" });
+  const media = Array.isArray(mediaResponse.data) ? mediaResponse.data : [];
+  const content = [];
+  for (const item of media) {
+    const insightParams = new URLSearchParams({ metric: "views,reach,saved,shares,total_interactions", access_token: account.accessToken });
+    const insightResponse = await safeProviderFetch(`${root}/${encodeURIComponent(item.id)}/insights?${insightParams}`, { method: "GET" });
+    const metrics = {};
+    for (const metric of insightResponse?.data || []) metrics[metric.name] = Number(metric.total_value?.value ?? metric.values?.[0]?.value ?? 0);
+    content.push({
+      id: String(item.id),
+      title: String(item.caption || `${item.media_type || "Instagram"} post`).slice(0, 140),
+      publishedAt: item.timestamp,
+      url: item.permalink || "",
+      thumbnail: item.thumbnail_url || item.media_url || "",
+      views: Number(metrics.views || metrics.reach || 0),
+      engagements: Number(metrics.total_interactions || 0) || Number(item.like_count || 0) + Number(item.comments_count || 0) + Number(metrics.saved || 0) + Number(metrics.shares || 0)
+    });
+  }
+  account.externalAccountId = String(profile.id || profile.user_id || account.externalAccountId);
   account.displayName = profile.name || profile.username || account.displayName;
   account.username = profile.username || account.username;
   account.avatarUrl = profile.profile_picture_url || account.avatarUrl;

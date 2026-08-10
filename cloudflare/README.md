@@ -53,6 +53,7 @@ Register these exact provider callbacks after the Worker is deployed:
 
 ```text
 https://YOUR_WORKER.workers.dev/api/social/oauth/callback/meta
+https://YOUR_WORKER.workers.dev/api/social/oauth/callback/instagram
 https://YOUR_WORKER.workers.dev/api/social/oauth/callback/tiktok
 ```
 
