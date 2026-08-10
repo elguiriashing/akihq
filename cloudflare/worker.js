@@ -222,14 +222,32 @@ function requireFields(body, fields) {
   }
 }
 
-async function providerFetch(url, options) {
+function providerErrorDetail(data, status) {
+  const candidates = [
+    data?.error_message,
+    data?.error_description,
+    data?.message,
+    data?.error?.message,
+    typeof data?.error === "string" ? data.error : "",
+    data?.raw
+  ];
+  const message = candidates.find(value => typeof value === "string" && value.trim())?.trim() || `Provider request failed (${status}).`;
+  const codes = [data?.error_type, data?.error?.type, data?.error?.code, data?.code]
+    .map(value => String(value ?? "").trim())
+    .filter(Boolean);
+  const code = [...new Set(codes)].join(" / ");
+  return code ? `${message} [${code}]` : message;
+}
+
+async function providerFetch(url, options, context = "Provider request") {
   const response = await fetch(url, options);
   const text = await response.text();
   let data;
   try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text.slice(0, 1000) }; }
   if (!response.ok) {
-    const message = data?.message || data?.error?.message || data?.error || `Provider request failed (${response.status}).`;
-    throw new HttpError(response.status >= 500 ? 502 : 400, "provider_error", String(message));
+    const detail = providerErrorDetail(data, response.status);
+    console.error(JSON.stringify({ event: "social_provider_error", context, host: new URL(url).hostname, status: response.status, code: data?.error?.code || data?.code || "", type: data?.error_type || data?.error?.type || "", detail }));
+    throw new HttpError(response.status >= 500 ? 502 : 400, "provider_error", `${context}: ${detail}`);
   }
   return data;
 }
@@ -650,7 +668,7 @@ async function handleSocialOAuthCallback(request, env, url) {
     return Response.redirect(socialResultUrl(session.returnUrl, "connected"), 303);
   } catch (error) {
     console.error("Social OAuth callback failed", provider, error);
-    const message = error instanceof HttpError ? error.message : "The provider rejected the connection request.";
+    const message = error instanceof Error ? error.message : "The provider rejected the connection request.";
     return Response.redirect(socialResultUrl(session.returnUrl, "connection_failed", message), 303);
   }
 }
@@ -725,15 +743,15 @@ async function exchangeInstagramAuthorization(code, credentials, session, env) {
   const shortToken = await providerFetch("https://api.instagram.com/oauth/access_token", {
     method: "POST",
     body: form
-  });
+  }, "Instagram token exchange");
   if (!shortToken.access_token) throw new HttpError(400, "instagram_token_missing", "Instagram did not return an access token.");
   const longParams = new URLSearchParams({ grant_type: "ig_exchange_token", client_secret: credentials.clientSecret, access_token: shortToken.access_token });
-  const longToken = await providerFetch(`https://graph.instagram.com/access_token?${longParams}`, { method: "GET" });
+  const longToken = await providerFetch(`https://graph.instagram.com/access_token?${longParams}`, { method: "GET" }, "Instagram long-lived token exchange");
   if (!longToken.access_token) throw new HttpError(400, "instagram_long_token_missing", "Instagram did not return a long-lived access token.");
   const accessToken = longToken.access_token;
   const version = credentials.apiVersion || "v25.0";
   const profileParams = new URLSearchParams({ fields: "id,user_id,username,name,profile_picture_url,followers_count,media_count", access_token: accessToken });
-  const profile = await providerFetch(`https://graph.instagram.com/${encodeURIComponent(version)}/me?${profileParams}`, { method: "GET" });
+  const profile = await providerFetch(`https://graph.instagram.com/${encodeURIComponent(version)}/me?${profileParams}`, { method: "GET" }, "Instagram account lookup");
   const externalAccountId = String(profile.id || profile.user_id || shortToken.user_id || "");
   if (!externalAccountId) throw new HttpError(400, "instagram_account_missing", "Instagram did not return the professional account ID.");
   const expiresIn = Number(longToken.expires_in || 0);

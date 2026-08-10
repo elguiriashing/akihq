@@ -3106,12 +3106,12 @@
               <div class="form-field full">
                 <label>${isInstagram ? "Instagram App Secret" : isMeta ? "Meta App Secret" : "TikTok Client Secret"}</label>
                 <input name="client_secret" type="password" autocapitalize="off" spellcheck="false" autocomplete="new-password" required placeholder="Paste the secret from the developer portal" />
-                <div class="form-help">The saved secret cannot be viewed or copied back out. Updating it replaces the previous value.</div>
+                <div class="form-help">${isInstagram ? "Use the Instagram App Secret under Instagram > API setup with Instagram login. Do not use the general Meta App Secret from App settings > Basic." : "The saved secret cannot be viewed or copied back out. Updating it replaces the previous value."}</div>
               </div>
               ${isGraphProvider ? `<div class="form-field"><label>Graph API version</label><input name="api_version" value="v25.0" pattern="v[0-9]+\\.[0-9]+" placeholder="v25.0" required /></div>` : ""}
               <div class="form-field ${isGraphProvider ? "" : "full"}"><label>Requested scopes</label><input name="scopes" value="${escapeHtml(defaultScopes)}" required /></div>
             </div>
-            ${isInstagram ? `<div class="form-help">Instagram Login connects a professional account directly. It does not require a linked Facebook Page.</div>` : ""}
+            ${isInstagram ? `<div class="form-help">Instagram Login connects a professional account directly. The Instagram App ID and Instagram App Secret must come from the same Instagram API setup.</div>` : ""}
             <div class="social-callback-box"><strong>OAuth callback to register</strong><code>${escapeHtml(socialGatewayUrl(`/api/social/oauth/callback/${provider}`))}</code></div>
           </div>
           <footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button type="submit" class="action-btn primary">${icon("lock")} Encrypt and save</button></footer>

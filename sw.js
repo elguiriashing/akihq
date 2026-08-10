@@ -1,9 +1,9 @@
-const CACHE = "akihq-v28";
+const CACHE = "akihq-v30";
 const ASSETS = [
   "./",
   "./index.html",
   "./assets/styles.css",
-  "./assets/app-v27.js",
+  "./assets/app-v29.js",
   "./config.js",
   "./assets/logo.svg",
   "./manifest.webmanifest"
