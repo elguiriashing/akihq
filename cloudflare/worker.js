@@ -612,7 +612,7 @@ async function startSocialOAuth(request, env, staff, workerUrl, cors) {
     const params = new URLSearchParams({ client_id: credentials.clientId, redirect_uri: redirectUri, state, response_type: "code", scope: credentials.scopes });
     authorizationUrl = `https://www.facebook.com/${encodeURIComponent(graphVersion)}/dialog/oauth?${params}`;
   } else if (provider === "instagram") {
-    const params = new URLSearchParams({ force_reauth: "true", client_id: credentials.clientId, redirect_uri: redirectUri, state, response_type: "code", scope: credentials.scopes });
+    const params = new URLSearchParams({ client_id: credentials.clientId, redirect_uri: redirectUri, state, response_type: "code", scope: credentials.scopes });
     authorizationUrl = `https://www.instagram.com/oauth/authorize?${params}`;
   } else {
     const params = new URLSearchParams({ client_key: credentials.clientId, redirect_uri: redirectUri, state, response_type: "code", scope: credentials.scopes });
