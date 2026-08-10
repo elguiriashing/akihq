@@ -621,9 +621,10 @@ async function startSocialOAuth(request, env, staff, workerUrl, cors) {
   return json({ ok: true, authorization_url: authorizationUrl, callback_url: redirectUri }, 200, cors);
 }
 
-function socialResultUrl(returnUrl, result) {
+function socialResultUrl(returnUrl, result, errorMessage = "") {
   const target = new URL(returnUrl);
   target.searchParams.set("social", result);
+  if (errorMessage) target.searchParams.set("social_error", String(errorMessage).replace(/[\r\n]+/g, " ").slice(0, 240));
   target.hash = "/crm/social";
   return target.toString();
 }
@@ -649,7 +650,8 @@ async function handleSocialOAuthCallback(request, env, url) {
     return Response.redirect(socialResultUrl(session.returnUrl, "connected"), 303);
   } catch (error) {
     console.error("Social OAuth callback failed", provider, error);
-    return Response.redirect(socialResultUrl(session.returnUrl, "connection_failed"), 303);
+    const message = error instanceof HttpError ? error.message : "The provider rejected the connection request.";
+    return Response.redirect(socialResultUrl(session.returnUrl, "connection_failed", message), 303);
   }
 }
 
@@ -714,17 +716,15 @@ async function exchangeMetaAuthorization(code, credentials, session, env) {
 }
 
 async function exchangeInstagramAuthorization(code, credentials, session, env) {
-  const form = new URLSearchParams({
-    client_id: credentials.clientId,
-    client_secret: credentials.clientSecret,
-    grant_type: "authorization_code",
-    redirect_uri: session.redirectUri,
-    code
-  });
+  const form = new FormData();
+  form.append("client_id", credentials.clientId);
+  form.append("client_secret", credentials.clientSecret);
+  form.append("grant_type", "authorization_code");
+  form.append("redirect_uri", session.redirectUri);
+  form.append("code", code);
   const shortToken = await providerFetch("https://api.instagram.com/oauth/access_token", {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: form.toString()
+    body: form
   });
   if (!shortToken.access_token) throw new HttpError(400, "instagram_token_missing", "Instagram did not return an access token.");
   const longParams = new URLSearchParams({ grant_type: "ig_exchange_token", client_secret: credentials.clientSecret, access_token: shortToken.access_token });

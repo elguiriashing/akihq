@@ -6,7 +6,9 @@
   const SESSION_KEY = "akihq_supabase_session_v1";
   const APP_VERSION = "0.1.0";
   const initialRouteParts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-  const initialSocialResult = new URLSearchParams(location.search).get("social");
+  const initialSearchParams = new URLSearchParams(location.search);
+  const initialSocialResult = initialSearchParams.get("social");
+  const initialSocialError = String(initialSearchParams.get("social_error") || "").slice(0, 240);
   const appRoot = document.getElementById("app");
   const portal = document.getElementById("portal");
   const importInput = document.getElementById("import-file");
@@ -4717,7 +4719,7 @@
     loadLiveData();
     if (ui.route === "crm" && ui.crmTab === "social") loadSocialOverview(false);
     if (initialSocialResult === "connected") toast("Social account connected", "Refresh metrics to collect the latest available account and content data.", "success");
-    if (initialSocialResult === "connection_failed") toast("Social connection failed", "Check the provider app settings, redirect URL, scopes and account permissions, then try again.", "danger");
+    if (initialSocialResult === "connection_failed") toast("Social connection failed", initialSocialError || "Check the provider app settings, redirect URL, scopes and account permissions, then try again.", "danger");
   }
 
   async function finishBoot(client) {
