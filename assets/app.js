@@ -1488,6 +1488,8 @@
     const accounts = (socialOverview?.accounts || []).filter(account => account.provider === provider);
     const credential = socialOverview?.credentials?.[configKey] || {};
     const selectedBusiness = ui.socialBusinessId || (!state.companies.length ? state.workspace.id : "");
+    const connectAction = selectedBusiness ? "start-social-oauth" : "choose-social-business";
+    const connectLabel = selectedBusiness ? `Connect ${title}` : "Choose a business";
     return `
       <article class="social-provider-card" style="--social-provider:${color}">
         <div class="social-provider-head">
@@ -1498,7 +1500,7 @@
         ${accounts.length ? `<div class="social-provider-accounts">${accounts.map(account => `<div><strong>${escapeHtml(account.displayName || account.username || title)}</strong><span>${escapeHtml(account.businessName || companyName(account.businessId))} · ${formatSocialMetric(account.metrics?.followers)} followers</span></div>`).join("")}</div>` : `<div class="social-provider-empty">No ${escapeHtml(title)} account is connected to this view yet.</div>`}
         <div class="social-provider-actions">
           ${authRole === "administrator" ? `<button class="action-btn" data-action="open-social-credentials" data-provider="${configKey}">${icon("lock")} ${credential.configured ? "Update app credentials" : "Add app credentials"}</button>` : ""}
-          <button class="action-btn primary" data-action="start-social-oauth" data-provider="${configKey}" data-business-id="${escapeHtml(selectedBusiness)}" title="${!selectedBusiness ? "Choose one business in the toolbar first" : `Connect ${title} to ${companyName(selectedBusiness)}`}" ${!credential.configured || !selectedBusiness ? "disabled" : ""}>${icon("link")} ${!selectedBusiness ? "Choose a business" : `Connect ${escapeHtml(title)}`}</button>
+          <button class="action-btn primary" data-action="${connectAction}" data-provider="${configKey}" data-business-id="${escapeHtml(selectedBusiness)}" title="${!selectedBusiness ? `Choose the business to connect to ${title}` : `Connect ${title} to ${companyName(selectedBusiness)}`}" ${!credential.configured ? "disabled" : ""}>${icon("link")} ${escapeHtml(connectLabel)}</button>
         </div>
       </article>`;
   }
@@ -2747,9 +2749,40 @@
     if (ui.modal.kind === "form") return renderEntityFormModal();
     if (ui.modal.kind === "integration") return renderIntegrationModal();
     if (ui.modal.kind === "social-credentials") return renderSocialCredentialsModal();
+    if (ui.modal.kind === "social-business-picker") return renderSocialBusinessPickerModal();
     if (ui.modal.kind === "stock") return renderStockModal();
     if (ui.modal.kind === "confirm") return renderConfirmModal();
     return "";
+  }
+
+  function renderSocialBusinessPickerModal() {
+    const provider = ui.modal.provider === "tiktok" ? "tiktok" : "meta";
+    const providerLabel = provider === "meta" ? "Facebook + Instagram" : "TikTok";
+    const companies = Array.isArray(state.companies) ? state.companies : [];
+    const businesses = companies.length ? companies : state.workspace?.id ? [{
+      id: state.workspace.id,
+      name: state.workspace.name || "Current workspace",
+      type: "Workspace",
+      city: ""
+    }] : [];
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true" aria-labelledby="social-business-picker-title">
+      <header class="modal-head">
+        <div class="entity-logo" style="width:39px;height:39px">${icon("building")}</div>
+        <div><h2 id="social-business-picker-title">Choose a business</h2><p>Select where this ${escapeHtml(providerLabel)} account belongs in the CRM</p></div>
+        <button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button>
+      </header>
+      <div class="modal-body">
+        ${businesses.length ? `<div class="quick-create-grid">${businesses.map(business => `<button class="quick-create-card" data-action="select-social-business" data-provider="${provider}" data-business-id="${escapeHtml(business.id)}">
+          <span class="table-avatar">${initials(business.name)}</span>
+          <strong>${escapeHtml(business.name)}</strong>
+          <span>${escapeHtml([business.type, business.city].filter(Boolean).join(" · ") || "CRM business")}</span>
+        </button>`).join("")}</div>` : `<div class="panel-empty"><div><strong>No businesses available</strong><span>Add a company in CRM before connecting a social account.</span></div></div>`}
+      </div>
+      <footer class="modal-foot">
+        ${!businesses.length ? `<button class="action-btn primary" data-action="open-form" data-entity="company">${icon("plus")} Add a company</button>` : ""}
+        <button class="action-btn" data-action="close-modal">${escapeHtml(t("cancel"))}</button>
+      </footer>
+    </section>`;
   }
 
   function renderQuickCreateModal() {
@@ -3235,6 +3268,23 @@
         ui.modal = { kind: "social-credentials", provider: target.dataset.provider === "tiktok" ? "tiktok" : "meta" };
         renderPortal();
         break;
+      case "choose-social-business":
+        ui.modal = { kind: "social-business-picker", provider: target.dataset.provider === "tiktok" ? "tiktok" : "meta" };
+        renderPortal();
+        break;
+      case "select-social-business": {
+        const businessId = target.dataset.businessId || "";
+        const provider = target.dataset.provider === "tiktok" ? "tiktok" : "meta";
+        if (!businessId) {
+          toast("Choose a business", "Select a CRM business before connecting the account.", "info");
+          break;
+        }
+        ui.socialBusinessId = businessId;
+        ui.modal = null;
+        render();
+        startSocialOAuth(provider, businessId);
+        break;
+      }
       case "start-social-oauth":
         startSocialOAuth(target.dataset.provider, target.dataset.businessId);
         break;
