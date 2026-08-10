@@ -53,4 +53,4 @@ Verified flows:
 - Cloud snapshot sync is last-write-wins at whole-workspace level.
 - Integration cards requiring OAuth are setup surfaces until their provider adapters are added.
 - The app is not a compliant accounting, payroll or records-retention system.
-- Demo data uses `.example` addresses and must be replaced before real operations.
+- Placeholder records use `.example` addresses and must be replaced before real operations.

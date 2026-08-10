@@ -5,6 +5,8 @@
   const STORAGE_KEY_PREFIX = "akihq_state_v1_";
   const SESSION_KEY = "akihq_supabase_session_v1";
   const APP_VERSION = "0.1.0";
+  const initialRouteParts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const initialSocialResult = new URLSearchParams(location.search).get("social");
   const appRoot = document.getElementById("app");
   const portal = document.getElementById("portal");
   const importInput = document.getElementById("import-file");
@@ -107,7 +109,7 @@
       automation: "Automation", collaboration: "Team Chat", employees: "People", knowledge: "Knowledge",
       analytics: "Analytics", integrations: "Integrations", settings: "Settings", create: "Create", search: "Search everything…",
       collapse: "Collapse", allSystems: "Business operating system", newRecord: "New record", board: "Board", list: "List",
-      deals: "Deals", leads: "Leads", contacts: "Contacts", companies: "Companies", save: "Save", cancel: "Cancel",
+      deals: "Deals", leads: "Leads", contacts: "Contacts", companies: "Companies", social: "Social", save: "Save", cancel: "Cancel",
       edit: "Edit", delete: "Delete", close: "Close", connected: "Connected", configure: "Configure", disconnect: "Disconnect"
     },
     es: {
@@ -116,7 +118,7 @@
       automation: "Automatización", collaboration: "Chat de Equipo", employees: "Equipo", knowledge: "Conocimiento",
       analytics: "Analítica", integrations: "Integraciones", settings: "Ajustes", create: "Crear", search: "Buscar en todo…",
       collapse: "Contraer", allSystems: "Sistema operativo empresarial", newRecord: "Nuevo registro", board: "Tablero", list: "Lista",
-      deals: "Negocios", leads: "Prospectos", contacts: "Contactos", companies: "Empresas", save: "Guardar", cancel: "Cancelar",
+      deals: "Negocios", leads: "Prospectos", contacts: "Contactos", companies: "Empresas", social: "Social", save: "Guardar", cancel: "Cancelar",
       edit: "Editar", delete: "Eliminar", close: "Cerrar", connected: "Conectado", configure: "Configurar", disconnect: "Desconectar"
     }
   };
@@ -313,6 +315,9 @@
   let authUser = null;   // supabase user object
   let authRole = null;   // 'moderator' | 'administrator' | null
   let liveStats = null;  // crm_dashboard_stats() result
+  let socialOverview = null;
+  let socialLoading = false;
+  let socialError = "";
 
   let isSyncingWorkspace = false;
   let lastRemoteWorkspaceUpdate = null;
@@ -691,8 +696,8 @@
   }
 
   const ui = {
-    route: location.hash.replace(/^#\/?/, "") || "dashboard",
-    crmTab: "deals",
+    route: initialRouteParts[0] || "dashboard",
+    crmTab: initialRouteParts[0] === "crm" && initialRouteParts[1] === "social" ? "social" : "deals",
     dealView: "kanban",
     taskView: "board",
     pipelineId: state.pipelines?.[0]?.id || "venue",
@@ -701,6 +706,8 @@
     calendarDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     integrationCategory: "All",
     integrationSearch: "",
+    socialBusinessId: "",
+    socialRange: "30",
     settingsTab: "appearance",
     drawer: null,
     modal: null,
@@ -875,6 +882,103 @@
     render();
   }
 
+  function socialGatewayUrl(path = "") {
+    const base = String(window.AKIHQ_CONFIG?.SOCIAL_GATEWAY_URL || "").replace(/\/$/, "");
+    if (!base) throw new Error("The social integration gateway is not configured.");
+    return `${base}${path}`;
+  }
+
+  async function socialGatewayRequest(path, options = {}) {
+    const client = getSupabaseClient();
+    if (!client) throw new Error("Supabase authentication is unavailable.");
+    const { data, error } = await client.auth.getSession();
+    if (error || !data?.session?.access_token) throw new Error("Your session expired. Sign in again.");
+    const response = await fetch(socialGatewayUrl(path), {
+      method: options.method || "GET",
+      headers: {
+        Authorization: `Bearer ${data.session.access_token}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      cache: "no-store"
+    });
+    const text = await response.text();
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+    if (!response.ok) throw new Error(payload?.message || payload?.error || `Social gateway request failed (${response.status}).`);
+    return payload;
+  }
+
+  async function loadSocialOverview(showToast = false) {
+    if (socialLoading) return;
+    socialLoading = true;
+    socialError = "";
+    if (ui.route === "crm" && ui.crmTab === "social") render();
+    try {
+      const params = new URLSearchParams({ range: ui.socialRange || "30" });
+      if (ui.socialBusinessId) params.set("business_id", ui.socialBusinessId);
+      socialOverview = await socialGatewayRequest(`/api/social/overview?${params}`);
+      if (showToast) toast("Social data refreshed", "Latest available account metrics are now shown.");
+    } catch (error) {
+      console.error("Social overview:", error);
+      socialError = error.message;
+      if (showToast) toast("Social refresh failed", error.message, "danger");
+    } finally {
+      socialLoading = false;
+      if (ui.route === "crm" && ui.crmTab === "social") render();
+    }
+  }
+
+  function selectedSocialBusiness(requestedId = "") {
+    const id = requestedId || ui.socialBusinessId || state.companies[0]?.id || state.workspace.id;
+    const company = state.companies.find(item => item.id === id);
+    return { id, name: company?.name || state.workspace.name };
+  }
+
+  async function startSocialOAuth(provider, requestedBusinessId) {
+    try {
+      const business = selectedSocialBusiness(requestedBusinessId);
+      if (!business.id) throw new Error("Add or select a business before connecting an account.");
+      toast("Opening secure connection", "You will continue on the provider's consent screen.", "info");
+      const payload = await socialGatewayRequest("/api/social/oauth/start", {
+        method: "POST",
+        body: { provider, business_id: business.id, business_name: business.name }
+      });
+      if (!safeUrl(payload?.authorization_url)) throw new Error("The provider did not return a valid authorization URL.");
+      location.assign(payload.authorization_url);
+    } catch (error) {
+      console.error("Social OAuth:", error);
+      toast("Could not start connection", error.message, "danger");
+    }
+  }
+
+  async function syncSocialAccounts() {
+    try {
+      socialLoading = true;
+      render();
+      const business = ui.socialBusinessId || "";
+      const payload = await socialGatewayRequest("/api/social/sync", { method: "POST", body: { business_id: business } });
+      socialLoading = false;
+      await loadSocialOverview(false);
+      toast("Social accounts refreshed", `${Number(payload?.synced || 0)} account${Number(payload?.synced || 0) === 1 ? "" : "s"} updated.`);
+    } catch (error) {
+      socialLoading = false;
+      render();
+      toast("Social refresh failed", error.message, "danger");
+    }
+  }
+
+  async function disconnectSocialAccount(accountId) {
+    try {
+      await socialGatewayRequest("/api/social/accounts/disconnect", { method: "POST", body: { account_id: accountId } });
+      await loadSocialOverview(false);
+      toast("Social account disconnected", "Its stored access and refresh tokens have been removed.");
+    } catch (error) {
+      toast("Disconnect failed", error.message, "danger");
+    }
+  }
+
   function pageMeta() {
     const meta = {
       dashboard: [t("dashboard"), "Your workspace at a glance"],
@@ -1040,8 +1144,20 @@
       case "crm":
         return `
           <div class="segmented">
-            ${["deals", "leads", "contacts", "companies"].map(tab => `<button class="${ui.crmTab === tab ? "active" : ""}" data-action="set-crm-tab" data-tab="${tab}">${escapeHtml(t(tab))}</button>`).join("")}
+            ${["deals", "leads", "contacts", "companies", "social"].map(tab => `<button class="${ui.crmTab === tab ? "active" : ""}" data-action="set-crm-tab" data-tab="${tab}">${escapeHtml(t(tab))}</button>`).join("")}
           </div>
+          ${ui.crmTab === "social" ? `
+            <select class="filter-select" data-change="social-business" aria-label="Business">
+              <option value="">All businesses</option>
+              ${state.companies.map(company => `<option value="${escapeHtml(company.id)}" ${ui.socialBusinessId === company.id ? "selected" : ""}>${escapeHtml(company.name)}</option>`).join("")}
+            </select>
+            <select class="filter-select" data-change="social-range" aria-label="Date range">
+              ${[["7", "7 days"], ["30", "30 days"], ["90", "90 days"]].map(([value, label]) => `<option value="${value}" ${ui.socialRange === value ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
+            <span class="context-spacer"></span>
+            ${authRole === "administrator" ? `<button class="action-btn" data-action="open-social-credentials">${icon("lock")} App credentials</button>` : ""}
+            <button class="action-btn primary" data-action="sync-social" ${socialLoading ? "disabled" : ""}>${icon("refresh")} ${socialLoading ? "Refreshing…" : "Refresh metrics"}</button>
+          ` : `
           ${ui.crmTab === "deals" ? `
             <select class="filter-select" data-change="pipeline">
               ${state.pipelines.map(pipeline => `<option value="${pipeline.id}" ${ui.pipelineId === pipeline.id ? "selected" : ""}>${escapeHtml(pipeline.name)}</option>`).join("")}
@@ -1052,7 +1168,7 @@
             </div>` : ""}
           <span class="context-spacer"></span>
           <button class="action-btn" data-action="export-csv" data-entity="${ui.crmTab}">${icon("download")} CSV</button>
-          <button class="action-btn primary" data-action="open-form" data-entity="${ui.crmTab === "deals" ? "deal" : ui.crmTab.slice(0, -1)}">${icon("plus")} ${escapeHtml(t("newRecord"))}</button>`;
+          <button class="action-btn primary" data-action="open-form" data-entity="${ui.crmTab === "deals" ? "deal" : ui.crmTab.slice(0, -1)}">${icon("plus")} ${escapeHtml(t("newRecord"))}</button>`}`;
       case "tasks":
         return `
           <div class="segmented">
@@ -1175,7 +1291,7 @@
             </div>
           </section>
           <section class="panel">
-            <div class="panel-header"><div><h2>Task completion</h2><p>${completedTasks} of ${state.tasks.length} demo tasks completed</p></div></div>
+            <div class="panel-header"><div><h2>Task completion</h2><p>${completedTasks} of ${state.tasks.length} tasks completed</p></div></div>
             <div class="panel-body">
               <div class="progress-ring">
                 <svg viewBox="0 0 120 120">
@@ -1220,6 +1336,7 @@
     if (ui.crmTab === "deals") return renderDeals();
     if (ui.crmTab === "leads") return renderLeads();
     if (ui.crmTab === "contacts") return renderContacts();
+    if (ui.crmTab === "social") return renderSocialCRM();
     return renderCompanies();
   }
 
@@ -1357,6 +1474,76 @@
           </table>
         </div>
       </section>`;
+  }
+
+  function formatSocialMetric(value) {
+    return Number.isFinite(Number(value)) ? new Intl.NumberFormat(state.settings.locale === "es" ? "es-ES" : "en-GB", { notation: "compact", maximumFractionDigits: 1 }).format(Number(value)) : "—";
+  }
+
+  function socialMetricCard(label, value, detail) {
+    return `<article class="social-metric-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatSocialMetric(value))}</strong><small>${escapeHtml(detail)}</small></article>`;
+  }
+
+  function renderSocialProviderCard(provider, title, configKey, mark, color, description) {
+    const accounts = (socialOverview?.accounts || []).filter(account => account.provider === provider);
+    const credential = socialOverview?.credentials?.[configKey] || {};
+    const selectedBusiness = ui.socialBusinessId || (!state.companies.length ? state.workspace.id : "");
+    return `
+      <article class="social-provider-card" style="--social-provider:${color}">
+        <div class="social-provider-head">
+          <div class="social-provider-mark">${escapeHtml(mark)}</div>
+          <div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p></div>
+          <span class="status-pill ${accounts.length ? "success" : credential.configured ? "info" : "warning"}">${accounts.length ? `${accounts.length} connected` : credential.configured ? "Ready" : "Needs credentials"}</span>
+        </div>
+        ${accounts.length ? `<div class="social-provider-accounts">${accounts.map(account => `<div><strong>${escapeHtml(account.displayName || account.username || title)}</strong><span>${escapeHtml(account.businessName || companyName(account.businessId))} · ${formatSocialMetric(account.metrics?.followers)} followers</span></div>`).join("")}</div>` : `<div class="social-provider-empty">No ${escapeHtml(title)} account is connected to this view yet.</div>`}
+        <div class="social-provider-actions">
+          ${authRole === "administrator" ? `<button class="action-btn" data-action="open-social-credentials" data-provider="${configKey}">${icon("lock")} ${credential.configured ? "Update app credentials" : "Add app credentials"}</button>` : ""}
+          <button class="action-btn primary" data-action="start-social-oauth" data-provider="${configKey}" data-business-id="${escapeHtml(selectedBusiness)}" title="${!selectedBusiness ? "Choose one business in the toolbar first" : `Connect ${title} to ${companyName(selectedBusiness)}`}" ${!credential.configured || !selectedBusiness ? "disabled" : ""}>${icon("link")} ${!selectedBusiness ? "Choose a business" : `Connect ${escapeHtml(title)}`}</button>
+        </div>
+      </article>`;
+  }
+
+  function renderSocialTrend() {
+    const points = socialOverview?.trend || [];
+    if (!points.length) return `<div class="social-chart-empty"><strong>Trend history starts after the first sync</strong><span>Daily snapshots will build follower and view comparisons automatically.</span></div>`;
+    const max = Math.max(...points.map(point => Number(point.followers || 0)), 1);
+    return `<div class="social-bars" aria-label="Follower trend">${points.map(point => `<div class="social-bar-wrap" title="${escapeHtml(point.date)} · ${formatSocialMetric(point.followers)} followers"><div class="social-bar" style="height:${Math.max(5, Math.round(Number(point.followers || 0) / max * 100))}%"></div><span>${escapeHtml(point.date.slice(5))}</span></div>`).join("")}</div>`;
+  }
+
+  function renderSocialCRM() {
+    const summary = socialOverview?.summary || {};
+    const accounts = socialOverview?.accounts || [];
+    const content = accounts.flatMap(account => (account.content || []).map(item => ({ ...item, provider: account.provider, accountName: account.displayName || account.username })))
+      .sort((a, b) => Number(b.views || b.engagements || 0) - Number(a.views || a.engagements || 0)).slice(0, 12);
+    return `
+      <div class="social-crm">
+        <section class="social-intro panel">
+          <div><span class="eyebrow">SOCIAL COMMAND CENTRE</span><h2>Every business account, one clear view</h2><p>Connect professional accounts, compare audience and content performance, and keep provider credentials away from browsers and workspace backups.</p></div>
+          <div class="social-security-note">${icon("lock")}<div><strong>Server-side credential vault</strong><span>Secrets are encrypted before storage and are never returned to this page.</span></div></div>
+        </section>
+        ${socialError ? `<div class="social-alert">${icon("warning")}<div><strong>Social gateway unavailable</strong><span>${escapeHtml(socialError)}</span></div></div>` : ""}
+        <div class="social-metric-grid">
+          ${socialMetricCard("Connected accounts", summary.connectedAccounts, "Across the selected businesses")}
+          ${socialMetricCard("Followers", summary.followers, summary.followerChange == null ? "Growth appears after two daily snapshots" : `${summary.followerChange >= 0 ? "+" : ""}${formatSocialMetric(summary.followerChange)} in this period`)}
+          ${socialMetricCard("Content views", summary.views, "Available connected content in this period")}
+          ${socialMetricCard("Interactions", summary.engagements, "Likes, comments, shares and saves")}
+        </div>
+        <div class="social-provider-grid">
+          ${renderSocialProviderCard("instagram", "Instagram", "meta", "IG", "linear-gradient(135deg,#6f48d8,#dc3a85,#ffaf4d)", "Professional account reach, followers and Reels performance")}
+          ${renderSocialProviderCard("facebook", "Facebook", "meta", "f", "linear-gradient(135deg,#1877f2,#66a7ff)", "Page audience, engagement and post performance")}
+          ${renderSocialProviderCard("tiktok", "TikTok", "tiktok", "♪", "linear-gradient(135deg,#111,#27e7e7,#ff2d55)", "Profile growth and public video performance")}
+        </div>
+        <div class="social-detail-grid">
+          <section class="panel social-trend-panel"><div class="panel-header"><div><h2>Follower trend</h2><p>${escapeHtml(ui.socialRange)}-day history · snapshots are recorded during refreshes</p></div></div>${renderSocialTrend()}</section>
+          <section class="panel social-health-panel"><div class="panel-header"><div><h2>Connection health</h2><p>Accounts that may need attention</p></div></div>
+            ${accounts.length ? accounts.map(account => `<div class="social-health-row"><span class="social-platform-dot ${escapeHtml(account.provider)}"></span><div><strong>${escapeHtml(account.displayName || account.username || capitalize(account.provider))}</strong><small>${escapeHtml(account.businessName || companyName(account.businessId))}</small></div><span class="status-pill ${account.status === "attention" ? "warning" : "success"}">${account.status === "attention" ? "Reconnect" : "Healthy"}</span>${authRole === "administrator" ? `<button class="mini-btn" data-action="disconnect-social-account" data-account-id="${escapeHtml(account.id)}" title="Disconnect">${icon("trash")}</button>` : ""}</div>`).join("") : `<div class="panel-empty"><div><strong>No connected accounts</strong><span>Add provider credentials, then connect the first business account.</span></div></div>`}
+          </section>
+        </div>
+        <section class="panel table-panel social-content-panel">
+          <div class="panel-header"><div><h2>Top content</h2><p>Performance stays labelled by platform so unlike metrics are not mixed together.</p></div></div>
+          ${content.length ? `<div class="table-scroll"><table class="data-table"><thead><tr><th>Content</th><th>Platform</th><th>Published</th><th>Views</th><th>Interactions</th><th></th></tr></thead><tbody>${content.map(item => `<tr><td><div class="table-primary">${item.thumbnail ? `<img class="social-thumb" src="${escapeHtml(safeUrl(item.thumbnail))}" alt="" loading="lazy" />` : `<div class="table-avatar">${initials(item.accountName)}</div>`}<div class="table-primary-copy"><strong>${escapeHtml(item.title || "Untitled post")}</strong><span>${escapeHtml(item.accountName || "")}</span></div></div></td><td><span class="status-pill info">${escapeHtml(capitalize(item.provider))}</span></td><td>${escapeHtml(formatDate(item.publishedAt))}</td><td>${escapeHtml(formatSocialMetric(item.views))}</td><td>${escapeHtml(formatSocialMetric(item.engagements))}</td><td>${item.url ? `<a class="mini-btn" href="${escapeHtml(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer" title="Open post">${icon("external")}</a>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="panel-empty"><div><strong>No content metrics yet</strong><span>Connect an account and refresh to collect its available posts or videos.</span></div></div>`}
+        </section>
+      </div>`;
   }
 
   function renderInbox() {
@@ -1554,7 +1741,7 @@
     const overdue = state.invoices.filter(invoice => invoice.status === "Overdue").length;
     return `<div class="page-grid">
       <div class="page-grid grid-3">
-        ${renderMetric("Paid", formatMoney(paid, true), "collected in demo invoices", "check", "#49d7a0")}
+        ${renderMetric("Paid", formatMoney(paid, true), "collected across invoices", "check", "#49d7a0")}
         ${renderMetric("Outstanding", formatMoney(outstanding, true), "sent and overdue", "sales", "#7c8cff")}
         ${renderMetric("Overdue", String(overdue), overdue ? "follow-up required" : "nothing overdue", "warning", "#ff6f85")}
       </div>
@@ -1957,7 +2144,7 @@
       <div class="page-grid grid-4">
         ${renderMetric("Venue conversion", "24%", "imported venue to claimed", "analytics", "#7c8cff", "+4.2%")}
         ${renderMetric("Average deal", formatMoney(state.deals.reduce((sum, deal) => sum + Number(deal.value || 0), 0) / Math.max(state.deals.length, 1)), "across all pipelines", "money", "#49d7a0")}
-        ${renderMetric("Campaign ROI", "4.8×", "tracked demo revenue", "marketing", "#ffbd55", "+0.6×")}
+        ${renderMetric("Campaign ROI", "4.8×", "tracked campaign revenue", "marketing", "#ffbd55", "+0.6×")}
         ${renderMetric("Support response", "18 min", "median first reply", "inbox", "#52d9e9", "-7 min")}
       </div>
       <div class="page-grid grid-2">
@@ -2183,7 +2370,7 @@
         <div class="setting-row"><div class="setting-copy"><strong>Export complete workspace</strong><span>Downloads CRM, tasks, messages, settings and every other local record.</span></div><button class="action-btn" data-action="export-data">${icon("download")} Export JSON</button></div>
         <div class="setting-row"><div class="setting-copy"><strong>Import workspace backup</strong><span>Replaces the current workspace after validating the file.</span></div><button class="action-btn" data-action="import-data">${icon("upload")} Import JSON</button></div>
         <div class="setting-row"><div class="setting-copy"><strong>Export CRM CSV</strong><span>Creates separate CSV downloads for deals, contacts and companies.</span></div><button class="action-btn" data-action="export-crm-bundle">${icon("download")} Export CSVs</button></div>
-        <div class="setting-row"><div class="setting-copy"><strong>Restore demo workspace</strong><span>Deletes local changes and restores the original AkiPasa demo data.</span></div><button class="action-btn danger" data-action="confirm-reset">${icon("trash")} Reset</button></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Reset local workspace</strong><span>Deletes local changes and restores a clean AkiHQ workspace.</span></div><button class="action-btn danger" data-action="confirm-reset">${icon("trash")} Reset</button></div>
       </section>
       <section class="panel settings-section"><h2>Storage</h2><p>Browser storage usage is approximate and varies by browser.</p>
         <div class="detail-grid"><div class="detail-block"><div class="detail-label">Serialized size</div><div class="detail-value">${(new Blob([JSON.stringify(state)]).size / 1024).toFixed(1)} KB</div></div><div class="detail-block"><div class="detail-label">Storage key</div><div class="detail-value"><code>${store.key}</code></div></div></div>
@@ -2559,6 +2746,7 @@
     if (ui.modal.kind === "quick") return renderQuickCreateModal();
     if (ui.modal.kind === "form") return renderEntityFormModal();
     if (ui.modal.kind === "integration") return renderIntegrationModal();
+    if (ui.modal.kind === "social-credentials") return renderSocialCredentialsModal();
     if (ui.modal.kind === "stock") return renderStockModal();
     if (ui.modal.kind === "confirm") return renderConfirmModal();
     return "";
@@ -2839,6 +3027,46 @@
     `;
   }
 
+  function renderSocialCredentialsModal() {
+    const provider = ui.modal.provider === "tiktok" ? "tiktok" : "meta";
+    const current = socialOverview?.credentials?.[provider] || {};
+    const isMeta = provider === "meta";
+    return `
+      <div class="modal-backdrop" data-action="close-modal"></div>
+      <section class="modal social-credential-modal" role="dialog" aria-modal="true" aria-labelledby="social-credential-title">
+        <header class="modal-head">
+          <div class="entity-logo" style="width:39px;height:39px">${icon("lock")}</div>
+          <div><h2 id="social-credential-title">Social app credentials</h2><p>Administrator-only · encrypted server-side storage</p></div>
+          <button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button>
+        </header>
+        <form data-form="social-credentials" data-provider="${provider}" autocomplete="off" style="display:contents">
+          <div class="modal-body">
+            <div class="social-vault-banner">${icon("lock")}<div><strong>Secrets leave this form once</strong><span>The Worker encrypts them with AES-GCM before storage. The CRM receives only configuration status and a masked identifier.</span></div></div>
+            <div class="segmented social-provider-switch">
+              <button type="button" class="${isMeta ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="meta">Facebook + Instagram</button>
+              <button type="button" class="${!isMeta ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="tiktok">TikTok</button>
+            </div>
+            ${current.configured ? `<div class="social-configured-summary"><span class="status-pill success">Configured</span><div><strong>${escapeHtml(current.clientIdHint || "Credential saved")}</strong><small>Updated ${escapeHtml(relativeTime(current.updatedAt))}. Enter both values to replace it.</small></div></div>` : ""}
+            <div class="form-grid">
+              <div class="form-field full">
+                <label>${isMeta ? "Meta App ID" : "TikTok Client Key"}</label>
+                <input name="client_id" type="text" inputmode="text" autocapitalize="off" spellcheck="false" autocomplete="off" required placeholder="${isMeta ? "Enter the Meta App ID" : "Enter the TikTok client key"}" />
+              </div>
+              <div class="form-field full">
+                <label>${isMeta ? "Meta App Secret" : "TikTok Client Secret"}</label>
+                <input name="client_secret" type="password" autocapitalize="off" spellcheck="false" autocomplete="new-password" required placeholder="Paste the secret from the developer portal" />
+                <div class="form-help">The saved secret cannot be viewed or copied back out. Updating it replaces the previous value.</div>
+              </div>
+              ${isMeta ? `<div class="form-field"><label>Graph API version</label><input name="api_version" value="v25.0" pattern="v[0-9]+\\.[0-9]+" placeholder="v25.0" required /></div>` : ""}
+              <div class="form-field ${isMeta ? "" : "full"}"><label>Requested scopes</label><input name="scopes" value="${isMeta ? "pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights" : "user.info.basic,user.info.profile,user.info.stats,video.list"}" required /></div>
+            </div>
+            <div class="social-callback-box"><strong>OAuth callback to register</strong><code>${escapeHtml(socialGatewayUrl(`/api/social/oauth/callback/${provider}`))}</code></div>
+          </div>
+          <footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button type="submit" class="action-btn primary">${icon("lock")} Encrypt and save</button></footer>
+        </form>
+      </section>`;
+  }
+
   function renderStockModal() {
     const product = getEntity("product", ui.modal.id);
     if (!product) return "";
@@ -2988,7 +3216,34 @@
         ui.modal = null; ui.formDefaults = {}; renderPortal();
         break;
       case "set-crm-tab":
-        ui.crmTab = target.dataset.tab; render();
+        ui.crmTab = target.dataset.tab;
+        if (ui.crmTab === "social") {
+          location.hash = "#/crm/social";
+          render();
+          loadSocialOverview(false);
+        } else {
+          location.hash = "#/crm";
+          render();
+        }
+        break;
+      case "open-social-credentials":
+        if (authRole !== "administrator") { toast("Administrator access required", "Only administrators can update provider credentials.", "danger"); break; }
+        ui.modal = { kind: "social-credentials", provider: target.dataset.provider === "tiktok" ? "tiktok" : "meta" };
+        renderPortal();
+        break;
+      case "switch-social-credential-provider":
+        ui.modal = { kind: "social-credentials", provider: target.dataset.provider === "tiktok" ? "tiktok" : "meta" };
+        renderPortal();
+        break;
+      case "start-social-oauth":
+        startSocialOAuth(target.dataset.provider, target.dataset.businessId);
+        break;
+      case "sync-social":
+        syncSocialAccounts();
+        break;
+      case "disconnect-social-account":
+        ui.modal = { kind: "confirm", title: "Disconnect social account?", subtitle: "The provider app credentials will remain available.", message: "The encrypted access and refresh tokens for this account will be permanently removed from AkiHQ.", confirm: "disconnect-social-account", accountId: target.dataset.accountId, confirmLabel: "Disconnect account" };
+        renderPortal();
         break;
       case "set-deal-view":
         ui.dealView = target.dataset.view; render();
@@ -3086,7 +3341,7 @@
         downloadBlob(`akihq-audit-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state.audit, null, 2), "application/json");
         break;
       case "confirm-reset":
-        ui.modal = { kind: "confirm", title: "Restore demo workspace?", message: "Every local change in this browser will be replaced with the original AkiPasa demo data.", confirm: "reset", confirmLabel: "Restore demo" }; renderPortal();
+        ui.modal = { kind: "confirm", title: "Reset local workspace?", message: "Every local change in this browser will be replaced with a clean AkiHQ workspace.", confirm: "reset", confirmLabel: "Reset workspace" }; renderPortal();
         break;
       case "delete-entity":
         event.preventDefault(); event.stopPropagation();
@@ -3428,11 +3683,17 @@
     if (!modal) return;
     if (modal.confirm === "reset") {
       state = store.reset();
-      ui.modal = null; ui.drawer = null; ui.route = "dashboard"; location.hash = "#/dashboard"; render(); toast("Demo restored", "AkiHQ is back to its original demo data.");
+      ui.modal = null; ui.drawer = null; ui.route = "dashboard"; location.hash = "#/dashboard"; render(); toast("Workspace reset", "AkiHQ is ready with a clean local workspace.");
       return;
     }
     if (modal.confirm === "delete-entity") {
       deleteEntity(modal.entity, modal.id);
+      return;
+    }
+    if (modal.confirm === "disconnect-social-account") {
+      ui.modal = null;
+      renderPortal();
+      disconnectSocialAccount(modal.accountId);
       return;
     }
     if (modal.confirm === "cloud-pull") {
@@ -3445,6 +3706,12 @@
     if (change === "pipeline") {
       ui.pipelineId = target.value;
       render();
+    } else if (change === "social-business") {
+      ui.socialBusinessId = target.value;
+      loadSocialOverview(false);
+    } else if (change === "social-range") {
+      ui.socialRange = target.value;
+      loadSocialOverview(false);
     } else if (change === "density") {
       state.settings.density = target.value;
       persist();
@@ -3667,6 +3934,30 @@
       addAudit("workspace.updated", { name: data.name });
       persist();
       toast("Workspace saved", data.name);
+      return;
+    }
+    if (kind === "social-credentials") {
+      if (authRole !== "administrator") { toast("Administrator access required", "Only administrators can update provider credentials.", "danger"); return; }
+      const provider = form.dataset.provider === "tiktok" ? "tiktok" : "meta";
+      const values = Object.fromEntries(new FormData(form));
+      const secretField = form.querySelector('[name="client_secret"]');
+      if (secretField) secretField.value = "";
+      const submitButton = event.submitter;
+      if (submitButton) { submitButton.disabled = true; submitButton.textContent = "Encrypting…"; }
+      try {
+        await socialGatewayRequest("/api/social/credentials", {
+          method: "POST",
+          body: { provider, client_id: String(values.client_id || "").trim(), client_secret: String(values.client_secret || ""), api_version: String(values.api_version || "").trim(), scopes: String(values.scopes || "").trim() }
+        });
+        form.reset();
+        ui.modal = null;
+        renderPortal();
+        await loadSocialOverview(false);
+        toast("Credentials secured", `${provider === "meta" ? "Meta" : "TikTok"} credentials were encrypted and saved. The secret is no longer present in this browser.`, "success");
+      } catch (error) {
+        if (submitButton) { submitButton.disabled = false; submitButton.innerHTML = `${icon("lock")} Encrypt and save`; }
+        toast("Credentials not saved", error.message, "danger");
+      }
       return;
     }
     if (kind === "integration") {
@@ -4357,6 +4648,9 @@
 
     // Load live data asynchronously after the UI is visible
     loadLiveData();
+    if (ui.route === "crm" && ui.crmTab === "social") loadSocialOverview(false);
+    if (initialSocialResult === "connected") toast("Social account connected", "Refresh metrics to collect the latest available account and content data.", "success");
+    if (initialSocialResult === "connection_failed") toast("Social connection failed", "Check the provider app settings, redirect URL, scopes and account permissions, then try again.", "danger");
   }
 
   async function finishBoot(client) {

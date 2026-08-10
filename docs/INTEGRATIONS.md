@@ -32,6 +32,16 @@ The optional Cloudflare Worker contains server-side actions for:
 
 Privileged outgoing routes require `Authorization: Bearer <AKIHQ_API_TOKEN>`.
 
+## Social CRM
+
+The CRM Social tab connects Facebook Pages, Instagram professional accounts and TikTok accounts through the Cloudflare gateway. Staff overview requests use the signed-in Supabase session. Credential changes and account connection controls require an administrator role.
+
+Provider application credentials are submitted over HTTPS, encrypted in the Worker with `SOCIAL_ENCRYPTION_KEY`, and stored in the bound `SOCIAL_STORE` namespace. Access tokens and refresh tokens use the same encrypted path. Neither credentials nor tokens are placed in local storage, workspace snapshots, logs, or API responses.
+
+Meta and TikTok developer portals must approve the requested scopes and list the exact callback URLs shown in the CRM credential form before live account authorization succeeds.
+
+Connected accounts refresh daily through a Cloudflare Cron Trigger and can also be refreshed manually from the CRM.
+
 ## Provider catalogue/adapters
 
 AkiHQ includes connection records and setup UI for:

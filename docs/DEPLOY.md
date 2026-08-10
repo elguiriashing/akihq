@@ -71,13 +71,16 @@ npx wrangler secret put TELEGRAM_CHAT_ID
 npx wrangler secret put TWILIO_ACCOUNT_SID
 npx wrangler secret put TWILIO_AUTH_TOKEN
 npx wrangler secret put TWILIO_FROM_NUMBER
+npx wrangler secret put SOCIAL_ENCRYPTION_KEY
 ```
+
+The Social CRM also requires a `SOCIAL_STORE` Workers KV binding, `SUPABASE_PUBLISHABLE_KEY`, `SOCIAL_RETURN_URL`, and the production CRM origin in `ALLOWED_ORIGINS`. Provider credentials are then entered by an administrator inside **CRM → Social → App credentials**; they must not be added to `config.js`.
 
 The gateway API token is powerful. Use a long random value, rotate it if exposed, and do not put it into a publicly served JavaScript file. A production frontend should call privileged actions through an authenticated backend/session, not embed a master bearer token in every browser.
 
 ## 5. Production hardening checklist
 
-- Replace demonstration records and example email addresses.
+- Replace placeholder records and example email addresses.
 - Enable Supabase RLS and test with two different accounts.
 - Use separate development and production provider credentials.
 - Implement official signature verification for every sensitive provider webhook.

@@ -831,6 +831,83 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
   overflow-y: auto;
 }
 
+/* Social CRM */
+.social-crm { display: grid; gap: 14px; padding-bottom: 26px; }
+.social-intro { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(260px,.7fr); gap: 24px; align-items: center; padding: 22px; overflow: hidden; position: relative; }
+.social-intro::after { content: ""; position: absolute; width: 260px; height: 260px; right: -90px; top: -130px; border-radius: 50%; background: radial-gradient(circle, rgba(220,58,133,.18), transparent 68%); pointer-events: none; }
+.social-intro h2 { margin: 5px 0 6px; font-size: 20px; }
+.social-intro p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.65; max-width: 720px; }
+.social-security-note, .social-vault-banner { display: flex; gap: 10px; align-items: flex-start; border: 1px solid rgba(73,215,160,.24); background: rgba(73,215,160,.08); border-radius: 13px; padding: 13px; color: var(--success); position: relative; z-index: 1; }
+.social-security-note svg, .social-vault-banner svg { width: 20px; height: 20px; flex: 0 0 20px; }
+.social-security-note strong, .social-vault-banner strong { display: block; color: var(--text); font-size: 10px; }
+.social-security-note span, .social-vault-banner span { display: block; color: var(--muted); font-size: 9px; line-height: 1.5; margin-top: 3px; }
+.social-alert { display: flex; gap: 10px; align-items: center; border: 1px solid rgba(255,111,133,.3); background: rgba(255,111,133,.08); border-radius: 12px; padding: 12px 14px; color: var(--danger); }
+.social-alert svg { width: 20px; height: 20px; }
+.social-alert strong, .social-alert span { display: block; font-size: 10px; }
+.social-alert span { color: var(--muted); margin-top: 3px; }
+.social-metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+.social-metric-card { min-height: 104px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: linear-gradient(145deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface-2) 92%, transparent)); }
+.social-metric-card > span { color: var(--muted); font-size: 9px; font-weight: 700; }
+.social-metric-card strong { display: block; margin: 8px 0 5px; font-size: 25px; letter-spacing: -.03em; }
+.social-metric-card small { color: var(--subtle); font-size: 8px; line-height: 1.35; }
+.social-provider-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.social-provider-card { border: 1px solid var(--border); border-radius: 15px; background: var(--surface); padding: 16px; min-width: 0; display: flex; flex-direction: column; gap: 13px; }
+.social-provider-card::before { content: ""; height: 3px; border-radius: 999px; background: var(--social-provider); margin: -16px -16px 2px; }
+.social-provider-head { display: grid; grid-template-columns: 39px minmax(0,1fr) auto; gap: 10px; align-items: start; }
+.social-provider-mark { width: 39px; height: 39px; border-radius: 12px; display: grid; place-items: center; background: var(--social-provider); color: #fff; font-size: 14px; font-weight: 900; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+.social-provider-head h3 { margin: 2px 0 3px; font-size: 12px; }
+.social-provider-head p { margin: 0; color: var(--subtle); font-size: 8px; line-height: 1.45; }
+.social-provider-empty { min-height: 38px; color: var(--muted); font-size: 9px; line-height: 1.5; padding: 10px; border: 1px dashed var(--border); border-radius: 10px; }
+.social-provider-accounts { display: grid; gap: 6px; }
+.social-provider-accounts > div { background: var(--surface-2); border-radius: 9px; padding: 8px 10px; }
+.social-provider-accounts strong, .social-provider-accounts span { display: block; font-size: 9px; }
+.social-provider-accounts span { color: var(--subtle); font-size: 8px; margin-top: 2px; }
+.social-provider-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: auto; }
+.social-provider-actions .action-btn { flex: 1 1 auto; justify-content: center; font-size: 8px; }
+.social-detail-grid { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(290px,.8fr); gap: 10px; }
+.social-trend-panel, .social-health-panel { min-height: 260px; }
+.social-bars { height: 170px; display: flex; align-items: end; gap: 5px; padding: 12px 18px 17px; }
+.social-bar-wrap { height: 100%; min-width: 12px; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 5px; }
+.social-bar { width: 100%; max-width: 24px; min-height: 5px; border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg,#dc3a85,#6f48d8); }
+.social-bar-wrap span { color: var(--subtle); font-size: 7px; transform: rotate(-35deg); white-space: nowrap; }
+.social-chart-empty { min-height: 176px; display: grid; place-content: center; text-align: center; padding: 24px; }
+.social-chart-empty strong, .social-chart-empty span { display: block; font-size: 10px; }
+.social-chart-empty span { color: var(--subtle); font-size: 9px; margin-top: 5px; }
+.social-health-row { display: grid; grid-template-columns: 9px minmax(0,1fr) auto 28px; gap: 8px; align-items: center; padding: 9px 14px; border-top: 1px solid var(--border); }
+.social-health-row strong, .social-health-row small { display: block; font-size: 9px; }
+.social-health-row small { color: var(--subtle); margin-top: 2px; }
+.social-platform-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c8cff; }
+.social-platform-dot.instagram { background: #dc3a85; }.social-platform-dot.facebook { background: #1877f2; }.social-platform-dot.tiktok { background: #27e7e7; }
+.social-thumb { width: 34px; height: 34px; border-radius: 9px; object-fit: cover; background: var(--surface-3); }
+.social-content-panel .panel-empty { min-height: 160px; }
+.social-vault-banner { margin-bottom: 16px; }
+.social-provider-switch { margin-bottom: 15px; }
+.social-configured-summary { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 11px; padding: 10px 12px; margin-bottom: 15px; }
+.social-configured-summary strong, .social-configured-summary small { display: block; font-size: 9px; }.social-configured-summary small { color: var(--subtle); margin-top: 2px; }
+.social-callback-box { margin-top: 15px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.social-callback-box strong { display: block; font-size: 9px; margin-bottom: 6px; }.social-callback-box code { display: block; color: var(--accent-2); font-size: 8px; word-break: break-all; }
+
+@media (max-width: 1100px) {
+  .social-metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .social-provider-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .social-intro, .social-detail-grid { grid-template-columns: 1fr; }
+  .social-intro { padding: 16px; }
+  .social-metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .social-provider-head { grid-template-columns: 39px minmax(0,1fr); }
+  .social-provider-head > .status-pill { grid-column: 1 / -1; width: fit-content; }
+  .social-trend-panel, .social-health-panel { min-height: auto; }
+}
+
+@media (max-width: 430px) {
+  .social-metric-grid { grid-template-columns: 1fr; }
+  .social-metric-card { min-height: 92px; }
+  .social-provider-actions { flex-direction: column; }
+  .social-provider-actions .action-btn { width: 100%; }
+}
+
 .team-chat-main-pane {
   display: grid;
   grid-template-rows: 54px minmax(0, 1fr) auto;

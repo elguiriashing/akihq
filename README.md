@@ -35,6 +35,7 @@ Then visit `http://127.0.0.1:8080`.
 
 - Dashboard metrics, activity, tasks, revenue and pipeline summaries
 - CRM deals, leads, contacts and companies
+- Social CRM for Facebook Pages, Instagram professional accounts and TikTok metrics
 - Multiple pipelines, Kanban drag-and-drop, list view and record drawers
 - Lead conversion into contact, company and deal records
 - Shared inbox with conversations and local replies
@@ -54,8 +55,9 @@ Then visit `http://127.0.0.1:8080`.
 - Global search, command palette (`Ctrl/Cmd + K`), notifications and themes
 - English/Spanish interface setting, responsive layout and offline app shell
 - Optional Supabase account sign-in and encrypted-in-transit workspace snapshot sync
+- Encrypted Cloudflare credential vault and server-side social OAuth/token handling
 
-The default workspace is filled with realistic demonstration data so the app is useful the moment it opens. Use **Settings → Data → Reset demo workspace** when you need a clean reset.
+The default workspace starts clean. Use **Settings → Data → Reset local workspace** when you need a fresh start.
 
 ## Data model and privacy
 

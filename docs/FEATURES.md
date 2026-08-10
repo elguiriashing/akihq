@@ -18,7 +18,7 @@ Legend:
 | Command palette | Working | `Ctrl/Cmd + K` |
 | Notifications | Working | Local notification centre |
 | Work timer | Working | Persistent elapsed time |
-| English/Spanish setting | Working | Common interface labels; some long-form demo copy remains English |
+| English/Spanish setting | Working | Common interface labels; some long-form interface copy remains English |
 | PWA/offline shell | Working | Requires HTTP/HTTPS |
 | Multi-workspace switching | Adapter surface | Workspace selector UI/data model present; single workspace active in alpha |
 
@@ -36,6 +36,9 @@ Legend:
 | Activity timeline | Working | Local audit/activity entries |
 | CSV export | Working | Deals, leads, contacts, companies and products |
 | Bitrix24 CSV migration | Working | Contacts, companies and deals with duplicate checks |
+| Social account overview | Optional cloud | Facebook, Instagram and TikTok account metrics through the Worker |
+| Social credential vault | Optional cloud | Administrator-only submission; AES-GCM encrypted KV storage |
+| Social OAuth and refresh | Optional cloud | Meta/TikTok developer apps, callbacks and approved scopes required |
 | Custom fields | Partial | Record schema accepts extra data; visual field builder not included yet |
 | Advanced permissions | Not included yet | Current alpha is single-user/local-first |
 
@@ -44,7 +47,7 @@ Legend:
 | Capability | Status | Notes |
 |---|---|---|
 | Shared inbox UI | Working | Conversation list, unread state and local replies |
-| Channel labels | Working | Email/social/demo channels |
+| Channel labels | Working | Email and social channels |
 | Real email ingestion | Adapter surface | Resend/Google/Microsoft provider work required |
 | Outbound email | Optional cloud | Resend endpoint included in Worker |
 | SMS | Optional cloud | Twilio endpoint included in Worker |
@@ -81,7 +84,7 @@ Legend:
 | Capability | Status | Notes |
 |---|---|---|
 | Campaign records | Working | Status, channel and performance metrics |
-| Audience/consent overview | Working | Demonstration/local records |
+| Audience/consent overview | Working | Local workspace records |
 | Landing-page records | Working | CRUD and status management |
 | Form records | Working | CRUD and submission counts |
 | Hosted public page rendering | Not included yet | Page builder records are internal in alpha |
