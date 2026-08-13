@@ -2182,3 +2182,22 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
   .analytics-metric-grid,.analytics-business-grid { grid-template-columns: 1fr; }
   .analytics-health-stats { grid-template-columns: 1fr; }.analytics-health-stats div { border-right: 0; border-bottom: 1px solid var(--border); }.analytics-health-stats div:last-child { border-bottom: 0; }
 }
+
+/* Mobile calendar day agenda */
+.calendar-agenda-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 3px 10px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.calendar-agenda-item .upcoming-time { grid-row: 1 / span 2; align-self: center; }
+.calendar-agenda-item .upcoming-title,
+.calendar-agenda-item .upcoming-sub { margin-top: 0; }
+@media (max-width: 767px) {
+  .calendar-day[data-event-count]:not([data-event-count="0"]) { cursor: pointer; }
+  .calendar-day-modal { width: min(94vw, 520px); }
+  .calendar-day-modal .modal-body { max-height: 58vh; overflow-y: auto; }
+}

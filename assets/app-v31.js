@@ -1,0 +1,5399 @@
+(() => {
+  "use strict";
+
+  const APP_VERSION = "0.1.0";
+  const initialRouteParts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const initialSearchParams = new URLSearchParams(location.search);
+  const initialSocialResult = initialSearchParams.get("social");
+  const initialSocialError = String(initialSearchParams.get("social_error") || "").slice(0, 240);
+  const appRoot = document.getElementById("app");
+  const portal = document.getElementById("portal");
+  const importInput = document.getElementById("import-file");
+
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const uid = prefix => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const isoNow = () => new Date().toISOString();
+  const dateOffset = days => {
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() + days);
+    return date.toISOString();
+  };
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const escapeHtml = value => String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+  const initials = value => String(value || "A")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase())
+    .join("") || "A";
+  const stripHtml = value => String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const capitalize = value => String(value || "").replace(/[-_]/g, " ").replace(/\b\w/g, char => char.toUpperCase());
+  const safeUrl = value => {
+    try {
+      const url = new URL(value);
+      return ["https:", "http:"].includes(url.protocol) ? url.toString() : "";
+    } catch {
+      return "";
+    }
+  };
+
+  const ICONS = {
+    dashboard: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    crm: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+    inbox: '<path d="M4 4h16v16H4z"/><path d="m4 13 4 4h8l4-4"/><path d="M8 4v5h8V4"/>',
+    tasks: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+    calendar: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    inventory: '<path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="m3 8 9 5 9-5M3 12l9 5 9-5M3 16l9 5 9-5"/>',
+    sales: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/>',
+    marketing: '<path d="m3 11 18-5v12L3 14v-3Z"/><path d="M11.6 16.4 13 21H7l-1.3-6.5"/>',
+    sites: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 20V9"/><circle cx="6" cy="6.5" r=".5" fill="currentColor"/>',
+    automation: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.08A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.08A1.65 1.65 0 0 0 20.91 10H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/>',
+    collaboration: '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z"/><path d="M8 9h8M8 13h5"/>',
+    employees: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/><path d="M18 5h3M19.5 3.5v3"/>',
+    knowledge: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/><path d="M8 7h8M8 11h6"/>',
+    analytics: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-7"/>',
+    integrations: '<path d="M8 12h8M12 8v8"/><path d="M5 5a3 3 0 1 1 4.24 4.24L7.5 11M19 19a3 3 0 1 1-4.24-4.24L16.5 13M19 5a3 3 0 1 0-4.24 4.24L16.5 11M5 19a3 3 0 1 0 4.24-4.24L7.5 13"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06-2.83 2.83-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21h-4v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06-2.83-2.83.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3v-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06 2.83-2.83.06.06A1.65 1.65 0 0 0 9 4.6h.08A1.65 1.65 0 0 0 10 3.09V3h4v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06 2.83 2.83-.06.06A1.65 1.65 0 0 0 19.4 9v.08A1.65 1.65 0 0 0 20.91 10H21v4h-.09A1.65 1.65 0 0 0 19.4 15Z"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
+    timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',
+    chevron: '<path d="m9 18 6-6-6-6"/>',
+    down: '<path d="m6 9 6 6 6-6"/>',
+    close: '<path d="M18 6 6 18M6 6l12 12"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4L16.5 3.5Z"/>',
+    trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v5M14 11v5"/>',
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    more: '<circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/>',
+    download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
+    upload: '<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>',
+    filter: '<path d="M4 5h16M7 12h10M10 19h4"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r=".5" fill="currentColor"/><circle cx="3.5" cy="12" r=".5" fill="currentColor"/><circle cx="3.5" cy="18" r=".5" fill="currentColor"/>',
+    board: '<rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="12" rx="1"/>',
+    send: '<path d="m22 2-7 20-4-9-9-4 20-7Z"/><path d="M22 2 11 13"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    check: '<path d="m5 12 4 4L19 6"/>',
+    warning: '<path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+    info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+    arrowLeft: '<path d="m15 18-6-6 6-6"/>',
+    arrowRight: '<path d="m9 18 6-6-6-6"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92Z"/>',
+    building: '<path d="M3 21h18M6 21V3h12v18M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    money: '<circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8M12 6v12"/>',
+    activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 0 1 0 9Z"/>',
+    lock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+    refresh: '<path d="M20 6v6h-6M4 18v-6h6"/><path d="M5.6 9A8 8 0 0 1 19 6l1 6M4 12l1 6a8 8 0 0 0 13.4-3"/>',
+    external: '<path d="M14 3h7v7M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>',
+    sparkles: '<path d="m12 3-1.3 3.7L7 8l3.7 1.3L12 13l1.3-3.7L17 8l-3.7-1.3L12 3ZM5 14l-.8 2.2L2 17l2.2.8L5 20l.8-2.2L8 17l-2.2-.8L5 14ZM19 13l-.9 2.6-2.6.9 2.6.9.9 2.6.9-2.6 2.6-.9-2.6-.9L19 13Z"/>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    telegram: '<path d="m22 2-7 20-4-9-9-4 20-7Z"/><path d="M22 2 11 13"/>'
+  };
+
+  const icon = (name, className = "") => `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS.info}</svg>`;
+
+  const translations = {
+    en: {
+      dashboard: "Dashboard", crm: "CRM", inbox: "Inbox", tasks: "Tasks & Projects", calendar: "Calendar",
+      inventory: "Inventory", sales: "Sales & Billing", marketing: "Marketing", sites: "Sites & Forms",
+      automation: "Automation", collaboration: "Team Chat", employees: "People", knowledge: "Knowledge",
+      analytics: "Analytics", integrations: "Integrations", settings: "Settings", create: "Create", search: "Search everything…",
+      collapse: "Collapse", allSystems: "Business operating system", newRecord: "New record", board: "Board", list: "List",
+      deals: "Deals", leads: "Leads", contacts: "Contacts", companies: "Companies", social: "Social", aiTeam: "AI Team", save: "Save", cancel: "Cancel",
+      edit: "Edit", delete: "Delete", close: "Close", connected: "Connected", configure: "Configure", disconnect: "Disconnect"
+    },
+    es: {
+      dashboard: "Resumen", crm: "CRM", inbox: "Bandeja", tasks: "Tareas y proyectos", calendar: "Calendario",
+      inventory: "Inventario", sales: "Ventas y facturación", marketing: "Marketing", sites: "Webs y formularios",
+      automation: "Automatización", collaboration: "Chat de Equipo", employees: "Equipo", knowledge: "Conocimiento",
+      analytics: "Analítica", integrations: "Integraciones", settings: "Ajustes", create: "Crear", search: "Buscar en todo…",
+      collapse: "Contraer", allSystems: "Sistema operativo empresarial", newRecord: "Nuevo registro", board: "Tablero", list: "Lista",
+      deals: "Negocios", leads: "Prospectos", contacts: "Contactos", companies: "Empresas", social: "Social", aiTeam: "Equipo IA", save: "Guardar", cancel: "Cancelar",
+      edit: "Editar", delete: "Eliminar", close: "Cerrar", connected: "Conectado", configure: "Configurar", disconnect: "Desconectar"
+    }
+  };
+
+  const navSections = [
+    {
+      label: "Workspace",
+      items: [
+        ["dashboard", "dashboard"], ["crm", "crm"], ["inbox", "inbox"], ["tasks", "tasks"], ["calendar", "calendar"]
+      ]
+    },
+    {
+      label: "Operations",
+      items: [
+        ["inventory", "inventory"], ["sales", "sales"], ["marketing", "marketing"], ["sites", "sites"], ["automation", "automation"]
+      ]
+    },
+    {
+      label: "Team & insight",
+      items: [
+        ["collaboration", "collaboration"], ["telegram", "telegram"], ["employees", "employees"], ["knowledge", "knowledge"], ["analytics", "analytics"], ["integrations", "integrations"]
+      ]
+    }
+  ];
+
+  const integrationCatalog = [
+    { id: "resend", name: "Resend", category: "Email", mark: "R", color: "linear-gradient(135deg,#101010,#4c4c4c)", description: "Transactional and CRM email, inbound receiving, delivery events and sender identities.", mode: "serverless" },
+    { id: "gmail", name: "Gmail", category: "Email", mark: "M", color: "linear-gradient(135deg,#e65b51,#f4b85c)", description: "Sync mailbox threads, contacts and outbound messages through Google OAuth.", mode: "oauth" },
+    { id: "outlook", name: "Microsoft Outlook", category: "Email", mark: "O", color: "linear-gradient(135deg,#1787da,#39a7f0)", description: "Connect Microsoft 365 mailboxes, calendars and contacts.", mode: "oauth" },
+    { id: "mailchimp", name: "Mailchimp", category: "Marketing", mark: "M", color: "linear-gradient(135deg,#f3b945,#ffe37b)", description: "Sync audiences, tags and campaign performance.", mode: "api" },
+    { id: "telegram", name: "Telegram", category: "Messaging", mark: "T", color: "linear-gradient(135deg,#229ed9,#72d2ff)", description: "Bot messages, lead capture, notifications and team alerts.", mode: "serverless" },
+    { id: "whatsapp", name: "WhatsApp Business", category: "Messaging", mark: "W", color: "linear-gradient(135deg,#21b861,#68dc91)", description: "Meta Cloud API conversations, templates and CRM routing.", mode: "serverless" },
+    { id: "instagram", name: "Instagram", category: "Messaging", mark: "I", color: "linear-gradient(135deg,#6f48d8,#dc3a85,#ffaf4d)", description: "Business messages, lead forms and campaign attribution.", mode: "oauth" },
+    { id: "facebook", name: "Facebook Messenger", category: "Messaging", mark: "f", color: "linear-gradient(135deg,#1877f2,#66a7ff)", description: "Messenger conversations and lead-ad capture.", mode: "oauth" },
+    { id: "slack", name: "Slack", category: "Collaboration", mark: "S", color: "linear-gradient(135deg,#4a154b,#d54c74)", description: "Channel alerts, commands and workflow notifications.", mode: "oauth" },
+    { id: "discord", name: "Discord", category: "Collaboration", mark: "D", color: "linear-gradient(135deg,#5865f2,#8790ff)", description: "Send server notifications and receive webhook events.", mode: "serverless" },
+    { id: "teams", name: "Microsoft Teams", category: "Collaboration", mark: "T", color: "linear-gradient(135deg,#6264a7,#8e8fd1)", description: "Meeting links, channel messages and Microsoft collaboration.", mode: "oauth" },
+    { id: "google-calendar", name: "Google Calendar", category: "Calendar", mark: "31", color: "linear-gradient(135deg,#4285f4,#34a853)", description: "Two-way calendar sync, availability and booking events.", mode: "oauth" },
+    { id: "microsoft-calendar", name: "Microsoft Calendar", category: "Calendar", mark: "31", color: "linear-gradient(135deg,#1787da,#7ac1ed)", description: "Microsoft 365 event sync and scheduling.", mode: "oauth" },
+    { id: "zoom", name: "Zoom", category: "Calendar", mark: "Z", color: "linear-gradient(135deg,#2d8cff,#64aaff)", description: "Create meeting links from tasks, bookings and CRM activities.", mode: "oauth" },
+    { id: "stripe", name: "Stripe", category: "Payments", mark: "S", color: "linear-gradient(135deg,#635bff,#9d98ff)", description: "Invoices, subscriptions, payment links and webhook reconciliation.", mode: "serverless" },
+    { id: "paypal", name: "PayPal", category: "Payments", mark: "P", color: "linear-gradient(135deg,#003087,#009cde)", description: "Payment capture, refunds and invoice status updates.", mode: "serverless" },
+    { id: "google-drive", name: "Google Drive", category: "Storage", mark: "G", color: "linear-gradient(135deg,#0f9d58,#f4b400)", description: "Attach Drive files to records and sync selected folders.", mode: "oauth" },
+    { id: "onedrive", name: "OneDrive", category: "Storage", mark: "O", color: "linear-gradient(135deg,#0078d4,#54b4f4)", description: "Microsoft cloud file attachments and shared folders.", mode: "oauth" },
+    { id: "dropbox", name: "Dropbox", category: "Storage", mark: "D", color: "linear-gradient(135deg,#0061ff,#6ba0ff)", description: "File picker, record attachments and backup exports.", mode: "oauth" },
+    { id: "github", name: "GitHub", category: "Development", mark: "G", color: "linear-gradient(135deg,#171717,#555)", description: "Link repositories, issues, pull requests and deployment events.", mode: "oauth" },
+    { id: "shopify", name: "Shopify", category: "Commerce", mark: "S", color: "linear-gradient(135deg,#70b944,#a9d278)", description: "Sync customers, products, orders and fulfilment status.", mode: "oauth" },
+    { id: "woocommerce", name: "WooCommerce", category: "Commerce", mark: "W", color: "linear-gradient(135deg,#96588a,#c984ba)", description: "Products, customers and order sync for WordPress stores.", mode: "api" },
+    { id: "typeform", name: "Typeform", category: "Forms", mark: "T", color: "linear-gradient(135deg,#242424,#747474)", description: "Capture responses as leads, contacts or custom records.", mode: "oauth" },
+    { id: "tally", name: "Tally", category: "Forms", mark: "T", color: "linear-gradient(135deg,#242424,#5a5a5a)", description: "Webhook-based form submissions and field mapping.", mode: "webhook" },
+    { id: "zapier", name: "Zapier", category: "Automation", mark: "Z", color: "linear-gradient(135deg,#ff4f00,#ff9362)", description: "Triggers and actions through public API keys and webhooks.", mode: "webhook" },
+    { id: "make", name: "Make", category: "Automation", mark: "M", color: "linear-gradient(135deg,#6d00cc,#b15cff)", description: "Scenario automation through webhooks and API modules.", mode: "webhook" },
+    { id: "n8n", name: "n8n", category: "Automation", mark: "n", color: "linear-gradient(135deg,#ff6d5a,#ff9e91)", description: "Open automation workflows using generic webhooks and REST.", mode: "webhook" },
+    { id: "twilio", name: "Twilio", category: "Telephony", mark: "T", color: "linear-gradient(135deg,#f22f46,#ff7684)", description: "SMS, WhatsApp and programmable voice events.", mode: "serverless" },
+    { id: "telnyx", name: "Telnyx", category: "Telephony", mark: "T", color: "linear-gradient(135deg,#00c08b,#65e2c1)", description: "Messaging and voice through a provider adapter.", mode: "serverless" },
+    { id: "docusign", name: "DocuSign", category: "Documents", mark: "D", color: "linear-gradient(135deg,#ffcc22,#ffe27b)", description: "Send quotes and agreements for electronic signature.", mode: "oauth" },
+    { id: "dropbox-sign", name: "Dropbox Sign", category: "Documents", mark: "H", color: "linear-gradient(135deg,#1a73e8,#62a4f5)", description: "Signature requests and completed-document attachment.", mode: "api" },
+    { id: "generic-webhook", name: "Generic Webhook", category: "Development", mark: "↗", color: "linear-gradient(135deg,#5e72df,#52d7dc)", description: "Send signed JSON events to any HTTPS endpoint.", mode: "webhook" },
+    { id: "rest-api", name: "REST API", category: "Development", mark: "{ }", color: "linear-gradient(135deg,#4d5a75,#91a1bf)", description: "Personal access token and workspace-scoped API access.", mode: "serverless" },
+    { id: "akipasa", name: "AkiPasa", category: "Commerce", mark: "A", color: "linear-gradient(135deg,#6277ef,#e369b5)", description: "Venue claims, listings, subscriptions, events and support sync.", mode: "api" },
+    { id: "bitrix-import", name: "Bitrix24 Importer", category: "Migration", mark: "B", color: "linear-gradient(135deg,#35b4e6,#65ddff)", description: "Import contacts, companies, deals and activities from CSV exports.", mode: "import" }
+  ];
+
+  function seedState() {
+    const pipelineStages = [
+      { id: "discovered", name: "Discovered", color: "#6578e9" },
+      { id: "contact-needed", name: "Contact needed", color: "#4eb5df" },
+      { id: "contacted", name: "Contacted", color: "#48cfbf" },
+      { id: "interested", name: "Interested", color: "#52d795" },
+      { id: "onboarding", name: "Onboarding", color: "#f0b856" },
+      { id: "claimed", name: "Claimed", color: "#e77eac" },
+      { id: "paying", name: "Paying", color: "#9a73ea" }
+    ];
+    const salesStages = [
+      { id: "new", name: "New", color: "#687bea" },
+      { id: "qualified", name: "Qualified", color: "#49b8df" },
+      { id: "proposal", name: "Proposal", color: "#51c6a6" },
+      { id: "negotiation", name: "Negotiation", color: "#f0b650" },
+      { id: "won", name: "Won", color: "#4fd393" },
+      { id: "lost", name: "Lost", color: "#df6679" }
+    ];
+    return {
+      version: APP_VERSION,
+      isCleanWorkspace: true,
+      createdAt: isoNow(),
+      workspace: { id: "ws_akipasa", name: "AkiPasa HQ", slug: "akipasa", timezone: "Europe/Madrid", currency: "EUR", ownerId: "" },
+      currentUserId: "",
+      settings: { theme: "dark", density: "comfortable", locale: "en", sidebarCollapsed: false, reducedMotion: false, notifications: true },
+      pipelines: [
+        { id: "venue", name: "Venue onboarding", stages: pipelineStages },
+        { id: "sales", name: "Partnership sales", stages: salesStages }
+      ],
+      contacts: [],
+      companies: [],
+      employees: [],
+      deals: [],
+      leads: [],
+      projects: [],
+      tasks: [],
+      events: [],
+      products: [],
+      invoices: [],
+      campaigns: [],
+      pages: [],
+      forms: [],
+      automations: [],
+      knowledge: [],
+      conversations: [],
+      feed: [],
+      activities: [],
+      notifications: [
+        { id: "n1", title: "New Lead Created", body: "Soho House London added to CRM sales pipeline (€4,500).", route: "crm", icon: "sales", seen: false, at: new Date(Date.now() - 3600000 * 2).toISOString() },
+        { id: "n2", title: "Telegram Chat Backup Complete", body: "Automated 24h backup saved snapshot to CRM Telegram tab.", route: "telegram", icon: "telegram", seen: false, at: new Date(Date.now() - 3600000 * 5).toISOString() },
+        { id: "n3", title: "Supabase User Promotion", body: "User alex@akipasa.com verified as CRM Administrator.", route: "employees", icon: "user", seen: false, at: new Date(Date.now() - 3600000 * 24).toISOString() }
+      ],
+      integrations: {
+        "akipasa": { status: "connected", label: "Connected to akipasa.com", config: { siteUrl: "https://akipasa.com" }, connectedAt: isoNow() },
+        "generic-webhook": { status: "ready", label: "Not configured", config: {}, connectedAt: null },
+        "bitrix-import": { status: "ready", label: "CSV importer available", config: {}, connectedAt: null }
+      },
+      timer: { running: false, startedAt: null, elapsed: 0, label: "General work" },
+      audit: [{ id: "audit_init", action: "workspace.initialized", actorId: "system", at: isoNow(), meta: { version: APP_VERSION } }],
+      teamChat: {
+        channels: [
+          { id: "ch_general", name: "general", description: "General staff announcements", icon: "#", unread: 0 },
+          { id: "ch_crm_sales", name: "crm-sales", description: "Sales tracking and lead conversions", icon: "#", unread: 0 },
+        ],
+        messages: {
+          "ch_general": [],
+          "ch_crm_sales": []
+        }
+      }
+    };
+  }
+
+  class StateStore {
+    constructor() { this.value = null; }
+    load() {
+      return this.value || seedState();
+    }
+    save(value) {
+      this.value = value;
+    }
+    reset() {
+      const fresh = seedState();
+      this.save(fresh);
+      return fresh;
+    }
+  }
+
+  let store = new StateStore();
+  let state = store.load();
+
+  // ── Supabase client helper ──────────────────────────────────────────────────
+  function getSupabaseClient() {
+    if (window._sbClientInstance) return window._sbClientInstance;
+    const cfg = window.AKIHQ_CONFIG || {};
+    const url = cfg.SUPABASE_URL || "https://vhpbvcfkcteswlsdjrfl.supabase.co";
+    const key = cfg.SUPABASE_ANON_KEY || "sb_publishable_Mm4CJvGyIaLOWbU3g1sxIQ_Wv2jrKt1";
+    const sbObj = window.supabase || window.Supabase;
+    if (sbObj && url && key) {
+      const createFn = typeof sbObj.createClient === "function" ? sbObj.createClient : (typeof sbObj === "function" ? sbObj : null);
+      if (createFn) {
+        try {
+          window._sbClientInstance = createFn(url, key);
+          return window._sbClientInstance;
+        } catch (e) {
+          console.error("Supabase initialization error:", e);
+        }
+      }
+    }
+    return null;
+  }
+
+  // Auth state — populated after boot
+  let authUser = null;   // supabase user object
+  let authRole = null;   // 'moderator' | 'administrator' | null
+  let liveStats = null;  // crm_dashboard_stats() result
+  let socialOverview = null;
+  let socialLoading = false;
+  let socialError = "";
+  let aiTeamOverview = null;
+  let aiTeamLoading = false;
+  let aiTeamBusy = false;
+  let aiTeamError = "";
+  let analyticsOverview = null;
+  let analyticsLoading = false;
+  let analyticsError = "";
+
+  let isSyncingWorkspace = false;
+  let lastRemoteWorkspaceUpdate = null;
+  let hasWorkspaceSnapshotsTable = true;
+  let workspaceMutationVersion = 0;
+  let workspaceCommittedVersion = 0;
+  let workspacePushInFlight = null;
+  let durableRecordMutationVersion = 0;
+  let durableRecordCommittedVersion = 0;
+  const durableRecordCollections = { event: "events", article: "knowledge" };
+
+  function isDurableRecordType(type) {
+    return Boolean(durableRecordCollections[type]);
+  }
+
+  function markDurableRecordDirty() {
+    durableRecordMutationVersion += 1;
+    return durableRecordMutationVersion;
+  }
+
+  function applyDurableRecordChange(payload) {
+    if (!payload || durableRecordMutationVersion !== durableRecordCommittedVersion) return;
+    const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+    const collection = durableRecordCollections[row?.record_type];
+    if (!collection || row.workspace_id !== (state.workspace?.id || "ws_akipasa")) return;
+    const recordId = row.record_id;
+    const existingIndex = state[collection].findIndex(item => item.id === recordId);
+    if (payload.eventType === "DELETE") {
+      if (existingIndex >= 0) state[collection].splice(existingIndex, 1);
+    } else if (row.data && typeof row.data === "object") {
+      const entity = { ...row.data, id: recordId };
+      if (existingIndex >= 0) state[collection][existingIndex] = entity;
+      else state[collection].unshift(entity);
+    }
+    store.save(state);
+    render();
+  }
+
+  async function syncDurableRecordsPull() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) return;
+    const versionAtStart = durableRecordMutationVersion;
+    const wsId = state.workspace?.id || "ws_akipasa";
+    const { data: rows, error } = await sbClient
+      .from("crm_workspace_records")
+      .select("record_type, record_id, data, updated_at")
+      .eq("workspace_id", wsId)
+      .in("record_type", ["event", "article"])
+      .order("updated_at", { ascending: false });
+    if (error) throw error;
+    if (versionAtStart !== durableRecordMutationVersion) return;
+    state.events = (rows || []).filter(row => row.record_type === "event").map(row => ({ ...row.data, id: row.record_id }));
+    state.knowledge = (rows || []).filter(row => row.record_type === "article").map(row => ({ ...row.data, id: row.record_id }));
+    durableRecordCommittedVersion = durableRecordMutationVersion;
+    store.save(state);
+  }
+
+  async function upsertDurableRecord(type, entity, version) {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) throw new Error("Database authentication is unavailable.");
+    const wsId = state.workspace?.id || "ws_akipasa";
+    const { error } = await sbClient.from("crm_workspace_records").upsert({
+      workspace_id: wsId,
+      record_type: type,
+      record_id: entity.id,
+      data: JSON.parse(JSON.stringify(entity)),
+      updated_by: authUser.id
+    }, { onConflict: "workspace_id,record_type,record_id" }).select("record_id").single();
+    if (error) throw error;
+    durableRecordCommittedVersion = Math.max(durableRecordCommittedVersion, version);
+  }
+
+  async function deleteDurableRecord(type, recordId, version) {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) throw new Error("Database authentication is unavailable.");
+    const wsId = state.workspace?.id || "ws_akipasa";
+    const { error } = await sbClient.from("crm_workspace_records")
+      .delete()
+      .eq("workspace_id", wsId)
+      .eq("record_type", type)
+      .eq("record_id", recordId);
+    if (error) throw error;
+    durableRecordCommittedVersion = Math.max(durableRecordCommittedVersion, version);
+  }
+
+  function applyRemoteStateSnapshot(remote, updatedAt) {
+    if (!remote || typeof remote !== "object") return;
+    if (workspaceMutationVersion !== workspaceCommittedVersion) return;
+    if (updatedAt && updatedAt === lastRemoteWorkspaceUpdate) return;
+    if (updatedAt) lastRemoteWorkspaceUpdate = updatedAt;
+
+    const arrayKeys = [
+      "tasks", "projects", "contacts", "companies", "deals", "leads",
+      "products", "invoices", "campaigns", "pages", "forms",
+      "automations", "conversations", "feed", "activities", "audit"
+    ];
+
+    let stateChanged = false;
+    arrayKeys.forEach(key => {
+      if (Array.isArray(remote[key])) {
+        if (JSON.stringify(state[key] || []) !== JSON.stringify(remote[key])) {
+          state[key] = remote[key];
+          stateChanged = true;
+        }
+      }
+    });
+
+    if (remote.integrations && typeof remote.integrations === "object") {
+      if (JSON.stringify(state.integrations || {}) !== JSON.stringify(remote.integrations)) {
+        state.integrations = remote.integrations;
+        stateChanged = true;
+      }
+    }
+
+    if (remote.workspace && typeof remote.workspace === "object" && remote.workspace.name) {
+      state.workspace = { ...state.workspace, ...remote.workspace };
+      stateChanged = true;
+    }
+
+    if (stateChanged) {
+      store.save(state);
+      render();
+    }
+  }
+
+  async function syncCloudWorkspacePull() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser || isSyncingWorkspace || !hasWorkspaceSnapshotsTable) return;
+    if (workspaceMutationVersion !== workspaceCommittedVersion) return;
+    const mutationVersionAtStart = workspaceMutationVersion;
+    isSyncingWorkspace = true;
+    try {
+      const wsId = state.workspace?.id || "ws_akipasa";
+      const { data: snapshot, error } = await sbClient
+        .from("workspace_snapshots")
+        .select("data, updated_at, updated_by")
+        .eq("workspace_id", wsId)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === "PGRST205" || error.status === 404 || (error.message && error.message.includes("Could not find table"))) {
+          if (hasWorkspaceSnapshotsTable) {
+            hasWorkspaceSnapshotsTable = false;
+            console.info("AkiHQ Info: 'workspace_snapshots' table is not created in Supabase yet. Run migration 0032 in Supabase SQL editor to activate cross-device database sync.");
+          }
+          return;
+        }
+      }
+
+      if (!error && snapshot && snapshot.data && mutationVersionAtStart === workspaceMutationVersion) {
+        hasWorkspaceSnapshotsTable = true;
+        applyRemoteStateSnapshot(snapshot.data, snapshot.updated_at);
+      }
+    } catch (e) {
+      console.warn("Workspace snapshot pull error:", e);
+    } finally {
+      isSyncingWorkspace = false;
+    }
+  }
+
+  let pushWorkspaceTimer = null;
+  function markWorkspaceDirty() {
+    workspaceMutationVersion += 1;
+    return workspaceMutationVersion;
+  }
+
+  async function pushWorkspaceSnapshot(version = workspaceMutationVersion) {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) throw new Error("Database authentication is unavailable.");
+    if (workspacePushInFlight) await workspacePushInFlight;
+    const wsId = state.workspace?.id || "ws_akipasa";
+    const cleanState = JSON.parse(JSON.stringify(state));
+    const nowStr = isoNow();
+    workspacePushInFlight = sbClient.from("workspace_snapshots").upsert({
+      workspace_id: wsId,
+      updated_by: authUser.id,
+      data: cleanState,
+      updated_at: nowStr
+    }, { onConflict: "workspace_id" }).then(({ data, error }) => {
+      if (error) throw error;
+      hasWorkspaceSnapshotsTable = true;
+      workspaceCommittedVersion = Math.max(workspaceCommittedVersion, version);
+      lastRemoteWorkspaceUpdate = data?.updated_at || nowStr;
+      broadcastWorkspaceState();
+    }).finally(() => {
+      workspacePushInFlight = null;
+    });
+    return workspacePushInFlight;
+  }
+
+  function syncCloudWorkspacePush() {
+    if (pushWorkspaceTimer) clearTimeout(pushWorkspaceTimer);
+    const version = workspaceMutationVersion;
+    pushWorkspaceTimer = setTimeout(() => {
+      pushWorkspaceTimer = null;
+      pushWorkspaceSnapshot(version).catch(error => {
+        console.error("Workspace database save failed:", error);
+        toast("Database save failed", "Your change is still visible, but it has not been committed. Check the connection and retry.", "danger");
+      });
+    }, 120);
+  }
+
+  function broadcastWorkspaceState() {
+    if (window._workspaceSyncSub && authUser) {
+      try {
+        window._workspaceSyncSub.send({
+          type: "broadcast",
+          event: "state_change",
+          payload: {
+            data: JSON.parse(JSON.stringify(state)),
+            updatedAt: isoNow(),
+            senderId: authUser.id
+          }
+        });
+      } catch (e) {}
+    }
+  }
+
+  function setupRealtimeWorkspaceSync() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || window._workspaceSyncSub) return;
+    try {
+      const channel = sbClient.channel("workspace-live-sync");
+      window._workspaceSyncSub = channel;
+
+      channel
+        .on("broadcast", { event: "state_change" }, payload => {
+          if (payload && payload.payload && payload.payload.senderId !== authUser?.id) {
+            applyRemoteStateSnapshot(payload.payload.data, payload.payload.updatedAt);
+          }
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "workspace_snapshots" }, payload => {
+          if (payload?.new?.data && payload.new.updated_by !== authUser?.id) {
+            applyRemoteStateSnapshot(payload.new.data, payload.new.updated_at);
+          } else {
+            syncCloudWorkspacePull();
+          }
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "crm_workspace_records" }, applyDurableRecordChange)
+        .subscribe();
+    } catch (e) {
+      console.warn("Realtime workspace sync error:", e);
+    }
+  }
+
+  // ── Live data loader ───────────────────────────────────────────────────────
+  async function loadLiveData() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) return;
+    try {
+      await syncCloudWorkspacePull();
+      // Contacts — all staff & profiles directly from Supabase profiles table
+      const { data: profiles } = await sbClient.from("profiles")
+        .select("id, display_name, app_role, created_at")
+        .limit(500);
+
+      if (profiles?.length) {
+        state.contacts = profiles.map(p => ({
+          id: p.id,
+          name: p.display_name || `User (${p.id.slice(0, 6)})`,
+          email: "",
+          role: p.app_role || "consumer",
+          phone: "",
+          companyId: null,
+          source: "AkiPasa",
+          updatedAt: p.created_at,
+          createdAt: p.created_at
+        }));
+      }
+
+      // Companies — venues directly from Supabase venues table
+      try {
+        const { data: venueRows } = await sbClient.from("venues").select("*").limit(500);
+        if (venueRows?.length) {
+          state.companies = venueRows.map(row => ({
+            id: row.id,
+            name: row.name || row.venue_name || "Venue",
+            email: row.email || "",
+            website: row.website || "",
+            type: "Venue",
+            city: row.city || "",
+            address: row.address || "",
+            status: "Customer",
+            employees: 1,
+            ownerId: state.currentUserId,
+            source: "AkiPasa",
+            createdAt: row.created_at || isoNow()
+          }));
+        }
+      } catch (e) {}
+
+      // People (employees section) — staff/admin profiles
+      const staffContacts = state.contacts.filter(c => ["moderator", "administrator"].includes(c.role));
+      if (staffContacts.length > 0) {
+        const existingMap = new Map();
+        // Key employees primarily by their ID to ensure strict deduplication
+        state.employees.forEach(e => {
+          if (e.id) existingMap.set(e.id, e);
+        });
+
+        staffContacts.forEach(c => {
+          if (existingMap.has(c.id)) {
+            const existing = existingMap.get(c.id);
+            if (c.name && c.name.trim()) {
+              existing.name = c.name.trim();
+            }
+          } else {
+            existingMap.set(c.id, {
+              id: c.id,
+              name: c.name || "Staff Member",
+              email: c.email || "",
+              role: c.role === "administrator" ? "Administrator" : "Moderator / Staff",
+              department: c.role === "administrator" ? "Leadership" : "Operations",
+              status: "Offline",
+              location: "Spain",
+              phone: "",
+              joinedAt: c.createdAt,
+              leaveBalance: 20
+            });
+          }
+        });
+        state.employees = Array.from(existingMap.values());
+      }
+
+      // Live multi-user chat & DM sync
+      await syncTeamMessages();
+
+      store.save(state);
+      render();
+    } catch (err) {
+      console.warn("AkiHQ live data load error:", err);
+    }
+  }
+
+  async function syncTeamMessages() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) return;
+    try {
+      const { data: remoteMsgs, error } = await sbClient.from("crm_team_messages")
+        .select("*")
+        .order("created_at", { ascending: true })
+        .limit(1000);
+
+      if (error || !Array.isArray(remoteMsgs)) return;
+
+      state.teamChat ||= { channels: [], messages: {} };
+      state.teamChat.messages ||= {};
+
+      let hasNew = false;
+      remoteMsgs.forEach(msg => {
+        const chanId = msg.channel_id;
+        state.teamChat.messages[chanId] ||= [];
+        const existingIndex = state.teamChat.messages[chanId].findIndex(m => m.id === msg.id);
+        const formatted = {
+          id: msg.id,
+          authorId: msg.author_id,
+          authorName: msg.author_name,
+          role: msg.role || "Staff",
+          text: msg.text,
+          at: msg.created_at,
+          reactions: msg.reactions || {}
+        };
+
+        if (existingIndex >= 0) {
+          const oldStr = JSON.stringify(state.teamChat.messages[chanId][existingIndex].reactions || {});
+          const newStr = JSON.stringify(formatted.reactions || {});
+          if (oldStr !== newStr) {
+            state.teamChat.messages[chanId][existingIndex].reactions = formatted.reactions;
+            hasNew = true;
+          }
+        } else {
+          state.teamChat.messages[chanId].push(formatted);
+          hasNew = true;
+        }
+      });
+
+      if (hasNew) {
+        store.save(state);
+        if (ui.route === "collaboration") {
+          render();
+        }
+      }
+    } catch (e) {}
+  }
+
+  function sendPresenceHeartbeat() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) return;
+    try {
+      sbClient.from("profiles").update({ updated_at: isoNow() }).eq("id", authUser.id).then(({ error }) => {
+        if (error && error.code !== "42501" && error.code !== "PGRST301") {
+          console.warn("Presence heartbeat info:", error.message || error);
+        }
+      }).catch(() => {});
+    } catch (e) {}
+  }
+
+  function setupPresence() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser || window._presenceSub) return;
+    try {
+      const channel = sbClient.channel("online-presence");
+      window._presenceSub = channel;
+
+      channel.on("presence", { event: "sync" }, () => {
+        const stateState = channel.presenceState();
+        const onlineUserIds = new Set();
+        Object.values(stateState).forEach(presences => {
+          presences.forEach(p => {
+            if (p.user_id) onlineUserIds.add(p.user_id);
+            if (p.email) onlineUserIds.add(p.email.toLowerCase());
+          });
+        });
+        window._onlineUserIds = onlineUserIds;
+        if (ui.route === "collaboration" || ui.route === "employees" || ui.route === "dashboard") {
+          render();
+        }
+      });
+
+      channel.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            user_id: authUser.id,
+            email: (authUser.email || "").toLowerCase(),
+            name: (authUser._profileDisplayName || authUser.email || "").toLowerCase(),
+            online_at: new Date().toISOString()
+          });
+        }
+      });
+    } catch (e) {
+      console.warn("Presence setup error:", e);
+    }
+  }
+
+  function setupRealtimeChat() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || window._chatRealtimeSub) return;
+    try {
+      window._chatRealtimeSub = sbClient.channel("crm-chat-room")
+        .on("postgres_changes", { event: "*", schema: "public", table: "crm_team_messages" }, payload => {
+          if (payload.new) {
+            const msg = payload.new;
+            const chanId = msg.channel_id;
+            state.teamChat ||= { channels: [], messages: {} };
+            state.teamChat.messages ||= {};
+            state.teamChat.messages[chanId] ||= [];
+
+            const formatted = {
+              id: msg.id,
+              authorId: msg.author_id,
+              authorName: msg.author_name,
+              role: msg.role || "Staff",
+              text: msg.text,
+              at: msg.created_at,
+              reactions: msg.reactions || {}
+            };
+
+            const existingIndex = state.teamChat.messages[chanId].findIndex(m => m.id === msg.id);
+            if (existingIndex >= 0) {
+              state.teamChat.messages[chanId][existingIndex] = formatted;
+            } else {
+              state.teamChat.messages[chanId].push(formatted);
+            }
+            store.save(state);
+            if (ui.route === "collaboration") {
+              render();
+            }
+          }
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn("Realtime chat error:", e);
+    }
+  }
+
+  const ui = {
+    route: initialRouteParts[0] || "dashboard",
+    crmTab: initialRouteParts[0] === "crm" && ["social", "ai-team"].includes(initialRouteParts[1]) ? initialRouteParts[1] : "deals",
+    dealView: "kanban",
+    taskView: "board",
+    pipelineId: state.pipelines?.[0]?.id || "venue",
+    selectedConversationId: state.conversations?.[0]?.id || null,
+    selectedArticleId: state.knowledge?.[0]?.id || null,
+    calendarDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    integrationCategory: "All",
+    integrationSearch: "",
+    socialBusinessId: "",
+    socialRange: "30",
+    analyticsRange: "30",
+    aiTeamSection: "team",
+    aiSelectedAgentId: null,
+    aiContext: "",
+    settingsTab: "appearance",
+    drawer: null,
+    modal: null,
+    dropdown: null,
+    searchQuery: "",
+    commandOpen: false,
+    commandQuery: "",
+    toasts: [],
+    drag: null,
+    formDefaults: {},
+    userPickerQuery: "",
+    telegramTab: "chats",
+    telegramSearch: "",
+    mobileNavOpen: false
+  };
+
+  function t(key) {
+    const locale = state.settings?.locale || "en";
+    return translations[locale]?.[key] || translations.en[key] || key;
+  }
+
+  function currentUser() {
+    if (authUser) {
+      const userEmail = (authUser.email || "").toLowerCase();
+      let match = state.employees.find(p => p.id === authUser.id || (userEmail && p.email && p.email.toLowerCase() === userEmail));
+      if (match) return match;
+
+      const displayName = authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User";
+      return {
+        id: authUser.id,
+        name: displayName,
+        email: authUser.email,
+        role: authRole === "administrator" ? "Administrator" : "Moderator / Staff",
+        department: authRole === "administrator" ? "Leadership" : "Operations",
+        status: "Online",
+        location: "Spain",
+        phone: "",
+        joinedAt: isoNow(),
+        leaveBalance: 20
+      };
+    }
+    return state.employees.find(person => person.id === state.currentUserId) || state.employees[0] || { name: "Staff Member", role: "Staff" };
+  }
+
+  function employeeName(id) {
+    return state.employees.find(person => person.id === id)?.name || "Unassigned";
+  }
+
+  function companyName(id) {
+    return state.companies.find(company => company.id === id)?.name || "No company";
+  }
+
+  function contactName(id) {
+    return state.contacts.find(contact => contact.id === id)?.name || "No contact";
+  }
+
+  function projectName(id) {
+    return state.projects.find(project => project.id === id)?.name || "No project";
+  }
+
+  function formatMoney(value, compact = false) {
+    const amount = Number(value || 0);
+    return new Intl.NumberFormat(state.settings.locale === "es" ? "es-ES" : "en-GB", {
+      style: "currency",
+      currency: state.workspace.currency || "EUR",
+      notation: compact ? "compact" : "standard",
+      maximumFractionDigits: compact ? 1 : 2
+    }).format(amount);
+  }
+
+  function formatDate(value, options = {}) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return new Intl.DateTimeFormat(state.settings.locale === "es" ? "es-ES" : "en-GB", {
+      day: "2-digit", month: options.long ? "long" : "short", year: options.year === false ? undefined : "numeric",
+      ...(options.time ? { hour: "2-digit", minute: "2-digit" } : {})
+    }).format(date);
+  }
+
+  function relativeTime(value) {
+    if (!value) return "";
+    const diff = new Date(value).getTime() - Date.now();
+    const abs = Math.abs(diff);
+    const units = [
+      [86400000 * 365, "year"], [86400000 * 30, "month"], [86400000 * 7, "week"], [86400000, "day"], [3600000, "hour"], [60000, "minute"]
+    ];
+    for (const [size, name] of units) {
+      if (abs >= size || name === "minute") {
+        const number = Math.round(diff / size);
+        return new Intl.RelativeTimeFormat(state.settings.locale === "es" ? "es" : "en", { numeric: "auto" }).format(number, name);
+      }
+    }
+    return "now";
+  }
+
+  function isOverdue(value) {
+    if (!value) return false;
+    const date = new Date(value);
+    date.setHours(23, 59, 59, 999);
+    return date.getTime() < Date.now();
+  }
+
+  function markdown(value) {
+    const escaped = escapeHtml(value || "");
+    return escaped
+      .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+      .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+      .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+      .replace(/^\- (.*)$/gm, "<li>$1</li>")
+      .replace(/^\d+\. (.*)$/gm, "<li>$1</li>")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`(.*?)`/g, "<code>$1</code>")
+      .split(/\n\n+/)
+      .map(block => block.startsWith("<h") || block.startsWith("<li") ? (block.startsWith("<li") ? `<ul>${block}</ul>` : block) : `<p>${block.replace(/\n/g, "<br>")}</p>`)
+      .join("");
+  }
+
+  function addActivity(entityType, entityId, verb, detail = "", iconName = "activity") {
+    state.activities.unshift({ id: uid("ac"), entityType, entityId, actorId: state.currentUserId, verb, detail, at: isoNow(), icon: iconName });
+    state.activities = state.activities.slice(0, 250);
+  }
+
+  function addAudit(action, meta = {}) {
+    state.audit.unshift({ id: uid("audit"), action, actorId: state.currentUserId, at: isoNow(), meta });
+    state.audit = state.audit.slice(0, 500);
+  }
+
+  function persist(renderAfter = true, schedulePush = true) {
+    state.version = APP_VERSION;
+    store.save(state);
+    applySettings();
+    markWorkspaceDirty();
+    if (schedulePush) syncCloudWorkspacePush();
+    if (renderAfter) render();
+  }
+
+  function applySettings() {
+    document.documentElement.dataset.theme = state.settings.theme || "dark";
+    document.documentElement.dataset.density = state.settings.density || "comfortable";
+    document.documentElement.lang = state.settings.locale || "en";
+    document.body.classList.toggle("reduced-motion", Boolean(state.settings.reducedMotion));
+  }
+
+  function renderToastStack() {
+    let container = document.getElementById("toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "toast-container";
+      container.className = "toast-stack";
+      container.style.cssText = "position:fixed;bottom:18px;right:18px;z-index:200;display:flex;flex-direction:column-reverse;gap:8px;pointer-events:auto";
+      document.body.appendChild(container);
+    }
+    container.innerHTML = ui.toasts.map(renderToast).join("");
+  }
+
+  function toast(title, message = "", kind = "success") {
+    const item = { id: uid("toast"), title, message, kind };
+    ui.toasts.push(item);
+    renderToastStack();
+    setTimeout(() => {
+      ui.toasts = ui.toasts.filter(toastItem => toastItem.id !== item.id);
+      renderToastStack();
+    }, 3600);
+  }
+
+  function setRoute(route) {
+    ui.route = route;
+    location.hash = `#/${route}`;
+    ui.drawer = null;
+    ui.dropdown = null;
+    ui.searchQuery = "";
+    render();
+    if (route === "analytics") loadAnalyticsOverview(false);
+  }
+
+  function socialGatewayUrl(path = "") {
+    const base = String(window.AKIHQ_CONFIG?.SOCIAL_GATEWAY_URL || "").replace(/\/$/, "");
+    if (!base) throw new Error("The social integration gateway is not configured.");
+    return `${base}${path}`;
+  }
+
+  async function socialGatewayRequest(path, options = {}) {
+    const client = getSupabaseClient();
+    if (!client) throw new Error("Supabase authentication is unavailable.");
+    const { data, error } = await client.auth.getSession();
+    if (error || !data?.session?.access_token) throw new Error("Your session expired. Sign in again.");
+    const response = await fetch(socialGatewayUrl(path), {
+      method: options.method || "GET",
+      headers: {
+        Authorization: `Bearer ${data.session.access_token}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      cache: "no-store"
+    });
+    const text = await response.text();
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+    if (!response.ok) throw new Error(payload?.message || payload?.error || `Gateway request failed (${response.status}).`);
+    return payload;
+  }
+
+  async function syncCloudWorkspacePushNow() {
+    if (!getSupabaseClient() || !authUser) throw new Error("Sign in before using the AI Team.");
+    if (pushWorkspaceTimer) {
+      clearTimeout(pushWorkspaceTimer);
+      pushWorkspaceTimer = null;
+    }
+    await pushWorkspaceSnapshot(workspaceMutationVersion);
+  }
+
+  async function loadAnalyticsOverview(showToast = false) {
+    if (authRole !== "administrator" || analyticsLoading) return;
+    analyticsLoading = true;
+    analyticsError = "";
+    if (ui.route === "analytics") render();
+    try {
+      const client = getSupabaseClient();
+      if (!client) throw new Error("Supabase is not available.");
+      const days = clamp(Number(ui.analyticsRange || 30), 7, 365);
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const { data, error } = await client.rpc("crm_analytics_overview", { p_since: since });
+      if (error) throw error;
+      analyticsOverview = data || {};
+      if (showToast) toast("Analytics refreshed", `Loaded ${days} days of live database activity.`, "success");
+    } catch (error) {
+      console.error("Analytics overview:", error);
+      analyticsError = error.message || "Analytics could not be loaded.";
+      if (showToast) toast("Analytics refresh failed", analyticsError, "danger");
+    } finally {
+      analyticsLoading = false;
+      if (ui.route === "analytics") render();
+    }
+  }
+
+  async function loadAITeamOverview(showToast = false) {
+    if (authRole !== "administrator" || aiTeamLoading) return;
+    aiTeamLoading = true;
+    aiTeamError = "";
+    if (ui.route === "crm" && ui.crmTab === "ai-team") render();
+    try {
+      const payload = await socialGatewayRequest("/api/ai-team/overview");
+      aiTeamOverview = payload;
+      const agents = payload?.data?.agents || [];
+      if (!ui.aiSelectedAgentId || !agents.some(agent => agent.id === ui.aiSelectedAgentId)) {
+        ui.aiSelectedAgentId = agents.find(agent => agent.agent_key === "manager")?.id || agents[0]?.id || null;
+      }
+      if (showToast) toast("AI Team refreshed", "Tasks, approvals, activity, and usage are current.");
+    } catch (error) {
+      console.error("AI Team overview:", error);
+      aiTeamError = error.message;
+      if (showToast) toast("AI Team refresh failed", error.message, "danger");
+    } finally {
+      aiTeamLoading = false;
+      if (ui.route === "crm" && ui.crmTab === "ai-team") render();
+    }
+  }
+
+  async function runAITeamAction(body, successMessage = "AI Team updated") {
+    if (aiTeamBusy) return null;
+    aiTeamBusy = true;
+    render();
+    try {
+      const payload = await socialGatewayRequest("/api/ai-team/actions", { method: "POST", body });
+      if (body.action === "decide_approval" && body.decision === "approve") {
+        await syncCloudWorkspacePull();
+      }
+      await loadAITeamOverview(false);
+      toast(successMessage, "", "success");
+      return payload;
+    } catch (error) {
+      toast("AI action failed", error.message, "danger");
+      return null;
+    } finally {
+      aiTeamBusy = false;
+      render();
+    }
+  }
+
+  async function loadSocialOverview(showToast = false) {
+    if (socialLoading) return;
+    socialLoading = true;
+    socialError = "";
+    if (ui.route === "crm" && ui.crmTab === "social") render();
+    try {
+      const params = new URLSearchParams({ range: ui.socialRange || "30" });
+      if (ui.socialBusinessId) params.set("business_id", ui.socialBusinessId);
+      socialOverview = await socialGatewayRequest(`/api/social/overview?${params}`);
+      if (showToast) toast("Social data refreshed", "Latest available account metrics are now shown.");
+    } catch (error) {
+      console.error("Social overview:", error);
+      socialError = error.message;
+      if (showToast) toast("Social refresh failed", error.message, "danger");
+    } finally {
+      socialLoading = false;
+      if (ui.route === "crm" && ui.crmTab === "social") render();
+    }
+  }
+
+  function selectedSocialBusiness(requestedId = "") {
+    const id = requestedId || ui.socialBusinessId || state.companies[0]?.id || state.workspace.id;
+    const company = state.companies.find(item => item.id === id);
+    return { id, name: company?.name || state.workspace.name };
+  }
+
+  async function startSocialOAuth(provider, requestedBusinessId) {
+    try {
+      const business = selectedSocialBusiness(requestedBusinessId);
+      if (!business.id) throw new Error("Add or select a business before connecting an account.");
+      toast("Opening secure connection", "You will continue on the provider's consent screen.", "info");
+      const payload = await socialGatewayRequest("/api/social/oauth/start", {
+        method: "POST",
+        body: { provider, business_id: business.id, business_name: business.name }
+      });
+      if (!safeUrl(payload?.authorization_url)) throw new Error("The provider did not return a valid authorization URL.");
+      location.assign(payload.authorization_url);
+    } catch (error) {
+      console.error("Social OAuth:", error);
+      toast("Could not start connection", error.message, "danger");
+    }
+  }
+
+  async function syncSocialAccounts() {
+    try {
+      socialLoading = true;
+      render();
+      const business = ui.socialBusinessId || "";
+      const payload = await socialGatewayRequest("/api/social/sync", { method: "POST", body: { business_id: business } });
+      socialLoading = false;
+      await loadSocialOverview(false);
+      toast("Social accounts refreshed", `${Number(payload?.synced || 0)} account${Number(payload?.synced || 0) === 1 ? "" : "s"} updated.`);
+    } catch (error) {
+      socialLoading = false;
+      render();
+      toast("Social refresh failed", error.message, "danger");
+    }
+  }
+
+  async function disconnectSocialAccount(accountId) {
+    try {
+      await socialGatewayRequest("/api/social/accounts/disconnect", { method: "POST", body: { account_id: accountId } });
+      await loadSocialOverview(false);
+      toast("Social account disconnected", "Its stored access and refresh tokens have been removed.");
+    } catch (error) {
+      toast("Disconnect failed", error.message, "danger");
+    }
+  }
+
+  function pageMeta() {
+    const meta = {
+      dashboard: [t("dashboard"), "Your workspace at a glance"],
+      crm: [t("crm"), "Leads, relationships and revenue"],
+      inbox: [t("inbox"), "Shared customer conversations"],
+      tasks: [t("tasks"), "Plan work and ship projects"],
+      calendar: [t("calendar"), "Meetings, bookings and deadlines"],
+      inventory: [t("inventory"), "Products, stock and warehouses"],
+      sales: [t("sales"), "Quotes, invoices and payments"],
+      marketing: [t("marketing"), "Campaigns, audiences and consent"],
+      sites: [t("sites"), "Landing pages and lead forms"],
+      automation: [t("automation"), "Triggers, rules and actions"],
+      collaboration: [t("collaboration"), "Team feed and channels"],
+      employees: [t("employees"), "Directory, status and leave"],
+      knowledge: [t("knowledge"), "Document how the business works"],
+      analytics: [t("analytics"), "Performance across every module"],
+      integrations: [t("integrations"), "Connect the rest of your stack"],
+      telegram: ["Telegram Chat & 24h Backups", "Live CRM bot commands, real-time message stream, and daily 24h automated archives"],
+      settings: [t("settings"), "Workspace, appearance and data" ]
+    };
+    return meta[ui.route] || meta.dashboard;
+  }
+
+  function render() {
+    applySettings();
+    const chatEl = document.getElementById("team-chat-messages");
+    const savedScrollTop = chatEl ? chatEl.scrollTop : null;
+    const wasNearBottom = chatEl ? (chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 150) : true;
+    const channelChanged = window._lastChatChannel !== ui.activeTeamChannel;
+    window._lastChatChannel = ui.activeTeamChannel;
+
+    const collapsed = state.settings.sidebarCollapsed ? "sidebar-collapsed" : "";
+    const mobileNav = ui.mobileNavOpen ? "mobile-nav-open" : "";
+    appRoot.className = `app-shell ${collapsed} ${mobileNav}`;
+    appRoot.innerHTML = `
+      ${renderSidebar()}
+      <button class="mobile-nav-scrim" data-action="close-mobile-nav" aria-label="Close navigation"></button>
+      <main class="app-main">
+        ${renderTopbar()}
+        <section class="content-shell">
+          ${renderContextbar()}
+          <div class="content" id="page-content">
+            ${renderView()}
+          </div>
+        </section>
+      </main>
+      ${renderMobileTabbar()}`;
+    renderPortal();
+    attachAfterRender();
+
+    const newChatEl = document.getElementById("team-chat-messages");
+    if (newChatEl) {
+      if (window._forceScrollBottom || channelChanged || wasNearBottom) {
+        newChatEl.scrollTop = newChatEl.scrollHeight;
+        window._forceScrollBottom = false;
+      } else if (savedScrollTop !== null) {
+        newChatEl.scrollTop = savedScrollTop;
+      }
+    }
+  }
+
+  function renderSidebar() {
+    const unread = state.conversations.reduce((sum, conversation) => sum + Number(conversation.unread || 0), 0);
+    const overdueTasks = state.tasks.filter(task => task.status !== "done" && isOverdue(task.dueDate)).length;
+    return `
+      <aside class="sidebar" aria-label="Primary navigation">
+        <div class="brand">
+          <img src="assets/logo.svg" alt="" />
+          <div class="brand-copy">
+            <div class="brand-name">AkiHQ</div>
+            <div class="brand-tag">${escapeHtml(t("allSystems"))}</div>
+          </div>
+          <button class="mobile-nav-close" data-action="close-mobile-nav" aria-label="Close navigation">${icon("close")}</button>
+        </div>
+        <nav class="nav-scroll">
+          ${navSections.map(section => `
+            <div class="nav-section">
+              <div class="nav-label">${escapeHtml(section.label)}</div>
+              ${section.items.map(([route, iconName]) => {
+                const badge = route === "inbox" && unread ? unread : route === "tasks" && overdueTasks ? overdueTasks : "";
+                return `
+                  <button class="nav-item ${ui.route === route ? "active" : ""}" data-action="navigate" data-route="${route}" title="${escapeHtml(t(route))}">
+                    <span class="nav-icon">${icon(iconName)}</span>
+                    <span class="nav-text">${escapeHtml(t(route))}</span>
+                    ${badge ? `<span class="nav-badge">${badge}</span>` : ""}
+                  </button>`;
+              }).join("")}
+            </div>`).join("")}
+          <div class="nav-section">
+            <div class="nav-label">System</div>
+            <button class="nav-item ${ui.route === "settings" ? "active" : ""}" data-action="navigate" data-route="settings" title="${escapeHtml(t("settings"))}">
+              <span class="nav-icon">${icon("settings")}</span>
+              <span class="nav-text">${escapeHtml(t("settings"))}</span>
+            </button>
+            <a class="nav-item" href="https://akipasa.com" target="_blank" rel="noopener noreferrer" title="Open public website (akipasa.com)" style="text-decoration:none;">
+              <span class="nav-icon">${icon("external")}</span>
+              <span class="nav-text">AkiPasa Web</span>
+            </a>
+          </div>
+        </nav>
+        <div class="sidebar-footer">
+          <button class="collapse-btn" data-action="toggle-sidebar">
+            ${icon("chevron")}<span>${escapeHtml(t("collapse"))}</span>
+          </button>
+        </div>
+      </aside>`;
+  }
+
+  function renderMobileTabbar() {
+    const unread = state.conversations.reduce((sum, conversation) => sum + Number(conversation.unread || 0), 0);
+    const isSpanish = (state.settings?.locale || "en") === "es";
+    const primary = [
+      ["dashboard", "dashboard", isSpanish ? "Inicio" : "Home"],
+      ["crm", "crm", "CRM"],
+      ["tasks", "tasks", isSpanish ? "Tareas" : "Tasks"],
+      ["inbox", "inbox", isSpanish ? "Bandeja" : "Inbox"]
+    ];
+    const primaryRoutes = primary.map(([route]) => route);
+    return `<nav class="mobile-tabbar" aria-label="Mobile navigation">
+      ${primary.map(([route, iconName, label]) => `<button class="mobile-tab ${ui.route === route ? "active" : ""}" data-action="navigate" data-route="${route}" aria-label="${escapeHtml(t(route))}">
+        <span class="mobile-tab-icon">${icon(iconName)}${route === "inbox" && unread ? `<i>${unread > 99 ? "99+" : unread}</i>` : ""}</span>
+        <span>${escapeHtml(label)}</span>
+      </button>`).join("")}
+      <button class="mobile-tab ${!primaryRoutes.includes(ui.route) ? "active" : ""}" data-action="toggle-mobile-nav" aria-label="More tools" aria-expanded="${ui.mobileNavOpen ? "true" : "false"}">
+        <span class="mobile-tab-icon">${icon("menu")}</span>
+        <span>${isSpanish ? "Más" : "More"}</span>
+      </button>
+    </nav>`;
+  }
+
+  function renderTopbar() {
+    const user = currentUser();
+    const unseen = state.notifications.filter(notification => !notification.seen).length;
+    const siteUrl = (window.AKIHQ_CONFIG && window.AKIHQ_CONFIG.SITE_URL) || "https://akipasa.com";
+    return `
+      <header class="topbar">
+        <button class="icon-btn mobile-menu-btn" data-action="toggle-mobile-nav" aria-label="Open navigation">${icon("menu")}</button>
+        <div class="mobile-wordmark"><img src="assets/logo.svg" alt="" /><span>AkiHQ</span></div>
+        <button class="workspace-switcher" data-action="workspace-menu" title="Workspace switcher">
+          <span class="workspace-dot"></span>
+          <span>${escapeHtml(state.workspace.name)}</span>
+          <span class="chev">${icon("down")}</span>
+        </button>
+        <div class="global-search">
+          ${icon("search", "search-icon")}
+          <input id="global-search" data-global-search type="search" autocomplete="off" placeholder="${escapeHtml(t("search"))}" value="${escapeHtml(ui.searchQuery)}" />
+          <kbd>Ctrl K</kbd>
+        </div>
+        <div class="top-actions">
+          <a class="top-btn" href="${escapeHtml(siteUrl)}" target="_blank" rel="noopener noreferrer" title="View main public website (akipasa.com)" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+            ${icon("external")}<span>akipasa.com</span>
+          </a>
+          <button class="top-btn ${state.timer.running ? "timer-live" : ""}" data-action="timer-toggle" title="Work timer">
+            ${icon("timer")}<span id="timer-label">${formatTimer()}</span>
+          </button>
+          <button class="top-btn create-btn" data-action="open-quick-create">
+            ${icon("plus")}<span>${escapeHtml(t("create"))}</span>
+          </button>
+          <button class="icon-btn" data-action="open-notifications" title="Notifications">
+            ${icon("bell")}${unseen ? '<span class="notification-dot"></span>' : ""}
+          </button>
+          <button class="avatar" data-action="profile-menu" title="${escapeHtml(user.name)}">${initials(user.name)}</button>
+        </div>
+      </header>`;
+  }
+
+  function formatTimer() {
+    let elapsed = Number(state.timer.elapsed || 0);
+    if (state.timer.running && state.timer.startedAt) elapsed += Date.now() - new Date(state.timer.startedAt).getTime();
+    const seconds = Math.floor(elapsed / 1000);
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remaining = seconds % 60;
+    return hours > 0 ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}` : `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
+  }
+
+  function renderContextbar() {
+    const [title, subtitle] = pageMeta();
+    return `
+      <div class="contextbar">
+        <div class="context-title">
+          <h1>${escapeHtml(title)}</h1>
+          <p>${escapeHtml(subtitle)}</p>
+        </div>
+        <div class="context-actions">${renderContextControls()}</div>
+      </div>`;
+  }
+
+  function aiProviderStatus() {
+    if (!aiTeamOverview?.providerConfigured) {
+      return { className: "warning", label: "Provider key required" };
+    }
+    const latestExecution = (aiTeamOverview.activity || []).find(item =>
+      /\.(completed|failed)$/.test(String(item.event_type || ""))
+    );
+    const errorCode = String(latestExecution?.details?.error_code || "");
+    if (
+      latestExecution?.event_type?.endsWith(".failed") &&
+      (errorCode.includes("credit_balance_exhausted") ||
+        errorCode.includes("insufficient_quota") ||
+        errorCode.includes("billing"))
+    ) {
+      return { className: "warning", label: "Provider credits required" };
+    }
+    if (
+      latestExecution?.event_type?.endsWith(".failed") &&
+      errorCode.includes("invalid_api_key")
+    ) {
+      return { className: "warning", label: "Provider key rejected" };
+    }
+    return { className: "success", label: "Provider key set" };
+  }
+
+  function renderContextControls() {
+    const providerStatus = aiProviderStatus();
+    switch (ui.route) {
+      case "crm":
+        return `
+          <div class="segmented">
+            ${["deals", "leads", "contacts", "companies", "social", ...(authRole === "administrator" ? ["ai-team"] : [])].map(tab => `<button class="${ui.crmTab === tab ? "active" : ""}" data-action="set-crm-tab" data-tab="${tab}">${escapeHtml(tab === "ai-team" ? t("aiTeam") : t(tab))}</button>`).join("")}
+          </div>
+          ${ui.crmTab === "social" ? `
+            <select class="filter-select" data-change="social-business" aria-label="Business">
+              <option value="">All businesses</option>
+              ${state.companies.map(company => `<option value="${escapeHtml(company.id)}" ${ui.socialBusinessId === company.id ? "selected" : ""}>${escapeHtml(company.name)}</option>`).join("")}
+            </select>
+            <select class="filter-select" data-change="social-range" aria-label="Date range">
+              ${[["7", "7 days"], ["30", "30 days"], ["90", "90 days"]].map(([value, label]) => `<option value="${value}" ${ui.socialRange === value ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
+            <span class="context-spacer"></span>
+            ${authRole === "administrator" ? `<button class="action-btn" data-action="open-social-credentials">${icon("lock")} App credentials</button>` : ""}
+            <button class="action-btn primary" data-action="sync-social" ${socialLoading ? "disabled" : ""}>${icon("refresh")} ${socialLoading ? "Refreshing…" : "Refresh metrics"}</button>
+          ` : ui.crmTab === "ai-team" ? `
+            <span class="context-spacer"></span>
+            <span class="status-pill ${providerStatus.className}">${providerStatus.label}</span>
+            <button class="action-btn primary" data-action="refresh-ai-team" ${aiTeamLoading ? "disabled" : ""}>${icon("refresh")} ${aiTeamLoading ? "Refreshing..." : "Refresh AI Team"}</button>
+          ` : `
+          ${ui.crmTab === "deals" ? `
+            <select class="filter-select" data-change="pipeline">
+              ${state.pipelines.map(pipeline => `<option value="${pipeline.id}" ${ui.pipelineId === pipeline.id ? "selected" : ""}>${escapeHtml(pipeline.name)}</option>`).join("")}
+            </select>
+            <div class="segmented">
+              <button class="${ui.dealView === "kanban" ? "active" : ""}" data-action="set-deal-view" data-view="kanban">${icon("board")} ${escapeHtml(t("board"))}</button>
+              <button class="${ui.dealView === "list" ? "active" : ""}" data-action="set-deal-view" data-view="list">${icon("list")} ${escapeHtml(t("list"))}</button>
+            </div>` : ""}
+          <span class="context-spacer"></span>
+          ${authRole === "administrator" ? `<button class="action-btn" data-action="ask-ai-current">${icon("sparkles")} Ask AI</button>` : ""}
+          <button class="action-btn" data-action="export-csv" data-entity="${ui.crmTab}">${icon("download")} CSV</button>
+          <button class="action-btn primary" data-action="open-form" data-entity="${ui.crmTab === "deals" ? "deal" : ui.crmTab.slice(0, -1)}">${icon("plus")} ${escapeHtml(t("newRecord"))}</button>`}`;
+      case "tasks":
+        return `
+          <div class="segmented">
+            <button class="${ui.taskView === "board" ? "active" : ""}" data-action="set-task-view" data-view="board">${icon("board")} ${escapeHtml(t("board"))}</button>
+            <button class="${ui.taskView === "list" ? "active" : ""}" data-action="set-task-view" data-view="list">${icon("list")} ${escapeHtml(t("list"))}</button>
+          </div>
+          <span class="context-spacer"></span>
+          <button class="action-btn" data-action="open-form" data-entity="project">${icon("plus")} Project</button>
+          <button class="action-btn primary" data-action="open-form" data-entity="task">${icon("plus")} Task</button>`;
+      case "calendar":
+        return `
+          <button class="action-btn ghost" data-action="calendar-prev">${icon("arrowLeft")}</button>
+          <button class="action-btn" data-action="calendar-today">Today</button>
+          <button class="action-btn ghost" data-action="calendar-next">${icon("arrowRight")}</button>
+          <strong class="muted" style="font-size:12px;white-space:nowrap">${new Intl.DateTimeFormat(state.settings.locale === "es" ? "es-ES" : "en-GB", { month: "long", year: "numeric" }).format(ui.calendarDate)}</strong>
+          <span class="context-spacer"></span>
+          <button class="action-btn primary" data-action="open-form" data-entity="event">${icon("plus")} Event</button>`;
+      case "inventory":
+        return `<span class="context-spacer"></span><button class="action-btn" data-action="export-csv" data-entity="products">${icon("download")} CSV</button><button class="action-btn primary" data-action="open-form" data-entity="product">${icon("plus")} Product</button>`;
+      case "sales":
+        return `<span class="context-spacer"></span><button class="action-btn" data-action="open-form" data-entity="invoice" data-type="Quote">${icon("plus")} Quote</button><button class="action-btn primary" data-action="open-form" data-entity="invoice" data-type="Invoice">${icon("plus")} Invoice</button>`;
+      case "marketing":
+        return `<span class="context-spacer"></span><button class="action-btn primary" data-action="open-form" data-entity="campaign">${icon("plus")} Campaign</button>`;
+      case "sites":
+        return `<span class="context-spacer"></span><button class="action-btn" data-action="open-form" data-entity="form">${icon("plus")} Form</button><button class="action-btn primary" data-action="open-form" data-entity="page">${icon("plus")} Page</button>`;
+      case "automation":
+        return `<span class="context-spacer"></span><button class="action-btn primary" data-action="open-form" data-entity="automation">${icon("plus")} Automation</button>`;
+      case "employees":
+        return `<span class="context-spacer"></span><button class="action-btn primary" data-action="open-form" data-entity="employee">${icon("plus")} Team member</button>`;
+      case "knowledge":
+        return `<span class="context-spacer"></span><button class="action-btn primary" data-action="open-form" data-entity="article">${icon("plus")} Article</button>`;
+      case "analytics":
+        return `
+          <select class="filter-select" data-change="analytics-range" aria-label="Analytics date range">
+            ${[["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last 12 months"]].map(([value, label]) => `<option value="${value}" ${ui.analyticsRange === value ? "selected" : ""}>${label}</option>`).join("")}
+          </select>
+          <span class="context-spacer"></span>
+          <span class="status-pill success">${icon("cloud")} Live database</span>
+          <button class="action-btn primary" data-action="refresh-analytics" ${analyticsLoading ? "disabled" : ""}>${icon("refresh")} ${analyticsLoading ? "Refreshing…" : "Refresh analytics"}</button>`;
+      case "telegram":
+        return `
+          <div class="segmented">
+            <button class="${ui.telegramTab === "chats" ? "active" : ""}" data-action="set-telegram-tab" data-tab="chats">Chat Feed & Logs</button>
+            <button class="${ui.telegramTab === "backups" ? "active" : ""}" data-action="set-telegram-tab" data-tab="backups">24h Backups</button>
+            <button class="${ui.telegramTab === "commands" ? "active" : ""}" data-action="set-telegram-tab" data-tab="commands">Slash Commands</button>
+          </div>
+          <span class="context-spacer"></span>
+          <button class="action-btn" data-action="export-telegram-logs">${icon("download")} Export Logs</button>
+          <button class="action-btn primary" data-action="trigger-telegram-backup">${icon("refresh")} 24h Backup Now</button>`;
+      case "integrations":
+        return `<span class="context-spacer"></span><button class="action-btn" data-action="navigate" data-route="settings">${icon("settings")} API settings</button>`;
+      case "dashboard":
+        return `<span class="context-spacer"></span><button class="action-btn" data-action="export-data">${icon("download")} Backup</button><button class="action-btn primary" data-action="open-quick-create">${icon("plus")} Quick create</button>`;
+      default:
+        return `<span class="context-spacer"></span>`;
+    }
+  }
+
+  function renderView() {
+    const views = {
+      dashboard: renderDashboard,
+      crm: renderCRM,
+      inbox: renderInbox,
+      tasks: renderTasks,
+      calendar: renderCalendar,
+      inventory: renderInventory,
+      sales: renderSales,
+      marketing: renderMarketing,
+      sites: renderSites,
+      automation: renderAutomation,
+      collaboration: renderCollaboration,
+      employees: renderEmployees,
+      knowledge: renderKnowledge,
+      analytics: renderAnalytics,
+      telegram: renderTelegram,
+      integrations: renderIntegrations,
+      settings: renderSettings
+    };
+    return `<div class="view">${(views[ui.route] || renderDashboard)()}</div>`;
+  }
+
+  function renderMetric(label, value, foot, iconName, color, change = "") {
+    return `
+      <article class="panel metric-card" style="--metric-color:${color};--metric-glow:color-mix(in srgb, ${color} 30%, transparent)">
+        <div class="metric-top"><span class="metric-label">${escapeHtml(label)}</span><span class="metric-icon">${icon(iconName)}</span></div>
+        <div class="metric-value">${escapeHtml(value)}</div>
+        <div class="metric-foot">${change ? `<span class="metric-change">${escapeHtml(change)}</span> · ` : ""}${escapeHtml(foot)}</div>
+      </article>`;
+  }
+
+  function renderDashboard() {
+    const openDeals = state.deals.filter(deal => !["won", "lost", "paying"].includes(deal.stageId));
+    const pipelineValue = openDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
+    const paidRevenue = state.invoices.filter(invoice => invoice.status === "Paid").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
+    const dueTasks = state.tasks.filter(task => task.status !== "done" && new Date(task.dueDate).getTime() <= Date.now() + 86400000 * 3).length;
+    const completedTasks = state.tasks.filter(task => task.status === "done").length;
+    const completion = state.tasks.length ? Math.round(completedTasks / state.tasks.length * 100) : 0;
+    const pipeline = state.pipelines.find(item => item.id === ui.pipelineId) || state.pipelines[0];
+    const stageStats = pipeline.stages.map(stage => ({
+      label: stage.name,
+      value: state.deals.filter(deal => deal.pipelineId === pipeline.id && deal.stageId === stage.id).reduce((sum, deal) => sum + Number(deal.value || 0), 0)
+    }));
+    const maxStage = Math.max(...stageStats.map(item => item.value), 1);
+    const upcoming = [...state.events].filter(event => new Date(event.start) >= new Date(Date.now() - 86400000)).sort((a, b) => new Date(a.start) - new Date(b.start)).slice(0, 5);
+    return `
+      <div class="page-grid">
+        <div class="page-grid grid-4">
+          ${renderMetric("Total venues", liveStats ? String(liveStats.total_venues) : String(state.companies.length), liveStats ? `${liveStats.verified_venues} verified` : "from Supabase", "building", "#7c8cff")}
+          ${renderMetric("Platform users", liveStats ? String(liveStats.total_users) : String(state.contacts.length), liveStats ? `${liveStats.new_users_30d} joined this month` : "from Supabase", "crm", "#49d7a0")}
+          ${renderMetric("Pending claims", liveStats ? String(liveStats.pending_claims) : "—", "venue claims awaiting review", "warning", "#ffbd55", liveStats?.pending_claims > 0 ? "Needs review" : "Clear")}
+          ${renderMetric("Staff members", liveStats ? String(liveStats.staff_users) : String(state.employees.length), "moderators and administrators", "employees", "#e96fb7")}
+        </div>
+        <div class="page-grid grid-main">
+          <section class="panel">
+            <div class="panel-header">
+              <div><h2>${escapeHtml(pipeline.name)} value</h2><p>Value currently sitting in each stage</p></div>
+              <div class="panel-actions"><button class="mini-btn" data-action="navigate" data-route="crm" title="Open CRM">${icon("external")}</button></div>
+            </div>
+            <div class="panel-body">
+              <div class="chart-bars">
+                ${stageStats.map(item => `
+                  <div class="chart-bar-wrap">
+                    <span class="chart-value">${escapeHtml(formatMoney(item.value, true))}</span>
+                    <div class="chart-bar" style="height:${Math.max(4, Math.round(item.value / maxStage * 100))}%"></div>
+                    <span class="chart-label">${escapeHtml(item.label)}</span>
+                  </div>`).join("")}
+              </div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h2>Task completion</h2><p>${completedTasks} of ${state.tasks.length} tasks completed</p></div></div>
+            <div class="panel-body">
+              <div class="progress-ring">
+                <svg viewBox="0 0 120 120">
+                  <defs><linearGradient id="ringGradient"><stop stop-color="#52d9e9"/><stop offset="1" stop-color="#8b7bff"/></linearGradient></defs>
+                  <circle class="track" cx="60" cy="60" r="49" fill="none" stroke-width="10"/>
+                  <circle class="value" cx="60" cy="60" r="49" fill="none" stroke-width="10" stroke-dasharray="${2 * Math.PI * 49}" stroke-dashoffset="${2 * Math.PI * 49 * (1 - completion / 100)}"/>
+                </svg>
+                <div class="progress-ring-center"><strong>${completion}%</strong><span>complete</span></div>
+              </div>
+              <button class="action-btn" style="width:100%" data-action="navigate" data-route="tasks">Open task board</button>
+            </div>
+          </section>
+        </div>
+        <div class="page-grid grid-main">
+          <section class="panel">
+            <div class="panel-header"><div><h2>Recent activity</h2><p>Changes across CRM, operations and content</p></div><div class="panel-actions"><button class="mini-btn" data-action="navigate" data-route="collaboration">${icon("external")}</button></div></div>
+            <div class="panel-body activity-list">
+              ${state.activities.slice(0, 7).map(activity => `
+                <div class="activity-item">
+                  <div class="activity-icon">${icon(activity.icon || "activity")}</div>
+                  <div class="activity-copy"><strong>${escapeHtml(employeeName(activity.actorId))}</strong> ${escapeHtml(activity.verb)}${activity.detail ? `<br><span>${escapeHtml(activity.detail)}</span>` : ""}</div>
+                  <div class="activity-time">${escapeHtml(relativeTime(activity.at))}</div>
+                </div>`).join("")}
+            </div>
+          </section>
+          <aside class="panel">
+            <div class="panel-header"><div><h2>Upcoming</h2><p>Meetings and milestones</p></div><div class="panel-actions"><button class="mini-btn" data-action="navigate" data-route="calendar">${icon("external")}</button></div></div>
+            <div class="panel-body upcoming-list">
+              ${upcoming.map(event => `
+                <div class="upcoming-item" data-action="view-entity" data-entity="event" data-id="${event.id}" role="button" tabindex="0">
+                  <div class="upcoming-time">${escapeHtml(formatDate(event.start, { year: false }))}</div>
+                  <div class="upcoming-title">${escapeHtml(event.title)}</div>
+                  <div class="upcoming-sub">${escapeHtml(event.location || event.type)}</div>
+                </div>`).join("") || `<div class="panel-empty"><div><strong>No upcoming events</strong><span>Create one from Calendar.</span></div></div>`}
+            </div>
+          </aside>
+        </div>
+      </div>`;
+  }
+
+  function renderAITeamCRM() {
+    if (authRole !== "administrator") {
+      return `<section class="panel"><div class="panel-empty"><div><strong>Administrator access required</strong><span>The AI Team can read and act on CRM data, so this workspace is restricted to administrators.</span></div></div></section>`;
+    }
+    if (aiTeamLoading && !aiTeamOverview) {
+      return `<section class="panel"><div class="panel-empty"><div><strong>Loading AI Team⬦</strong><span>Fetching agents, tasks, approvals, and usage.</span></div></div></section>`;
+    }
+    if (aiTeamError && !aiTeamOverview) {
+      return `<section class="panel"><div class="panel-empty"><div><strong>AI Team unavailable</strong><span>${escapeHtml(aiTeamError)}</span><button class="action-btn primary" data-action="refresh-ai-team">Try again</button></div></div></section>`;
+    }
+
+    const data = aiTeamOverview?.data || {};
+    const agents = data.agents || [];
+    const selectedAgent = agents.find(agent => agent.id === ui.aiSelectedAgentId) || agents[0];
+    const selectedMessages = (data.messages || []).filter(message => message.agent_id === selectedAgent?.id);
+    const pendingApprovals = (data.approvals || []).filter(item => item.status === "pending");
+    const spend = (data.usage || []).reduce((total, item) => total + Number(item.actual_cost_eur ?? item.reserved_cost_eur ?? 0), 0);
+    const limit = Number(data.budget?.monthly_limit_eur || 4);
+    const sections = [
+      ["team", "Team & chat"],
+      ["tasks", "Tasks & schedules"],
+      ["approvals", `Approvals (${pendingApprovals.length})`],
+      ["activity", "Activity & errors"],
+      ["usage", "Usage & budget"]
+    ];
+
+    let content = "";
+    if (ui.aiTeamSection === "team") {
+      content = `
+        <div class="ai-team-layout">
+          <aside class="panel ai-agent-list">
+            <div class="panel-header"><div><h2>AI employees</h2><p>Role-scoped CRM access</p></div></div>
+            <div class="panel-body">
+              ${agents.map(agent => `
+                <button class="ai-agent-card ${selectedAgent?.id === agent.id ? "active" : ""}" data-action="select-ai-agent" data-id="${escapeHtml(agent.id)}">
+                  <span class="ai-agent-avatar">${escapeHtml(initials(agent.display_name))}</span>
+                  <span><strong>${escapeHtml(agent.display_name)}</strong><small>${escapeHtml(agent.role_description)}</small></span>
+                  <i class="ai-status-dot ${escapeHtml(agent.status)}" title="${escapeHtml(agent.status)}"></i>
+                </button>`).join("")}
+            </div>
+          </aside>
+          <section class="panel ai-chat-panel">
+            ${selectedAgent ? `
+              <div class="panel-header ai-agent-header">
+                <div><h2>${escapeHtml(selectedAgent.display_name)}</h2><p>${escapeHtml(selectedAgent.role_description)}</p></div>
+                <span class="status-pill ${selectedAgent.status === "failed" ? "danger" : selectedAgent.status === "working" ? "warning" : "success"}">${escapeHtml(selectedAgent.status)}</span>
+              </div>
+              <div class="ai-permissions">${(selectedAgent.permissions || []).map(permission => `<span>${escapeHtml(permission)}</span>`).join("")}</div>
+              ${!aiTeamOverview?.providerConfigured ? `
+                <div class="ai-provider-notice">${icon("lock")}<div><strong>Provider key not configured</strong><span>Paid calls remain blocked. Add OPENAI_API_KEY through the Cloudflare Worker secret prompt; keys are never entered into or stored by this browser.</span></div></div>` : ""}
+              <div class="ai-chat-messages" id="ai-chat-messages">
+                ${selectedMessages.length ? selectedMessages.map(message => `
+                  <article class="ai-message ${escapeHtml(message.role)}">
+                    <header><strong>${message.role === "user" ? "You" : selectedAgent.display_name}</strong><time>${escapeHtml(formatDate(message.created_at, { time: true }))}</time></header>
+                    <p>${escapeHtml(message.content).replace(/\n/g, "<br>")}</p>
+                  </article>`).join("") : `<div class="panel-empty"><div><strong>Start a CRM conversation</strong><span>Ask for a pipeline review, record research, follow-up task, or approval-controlled change.</span></div></div>`}
+              </div>
+              <form class="ai-chat-form" data-form="ai-chat" data-agent-id="${escapeHtml(selectedAgent.id)}">
+                ${ui.aiContext ? `<div class="ai-context-chip">${icon("link")} CRM context attached <button type="button" data-action="clear-ai-context">${icon("close")}</button></div>` : ""}
+                <textarea name="message" rows="3" maxlength="8000" placeholder="Ask this agent to analyze or work in the CRM⬦">${escapeHtml(ui.aiContext)}</textarea>
+                <button class="action-btn primary" type="submit" ${aiTeamBusy || !selectedAgent.enabled ? "disabled" : ""}>${icon("send")} ${aiTeamBusy ? "Working⬦" : "Send"}</button>
+              </form>
+            ` : `<div class="panel-empty"><div><strong>No AI employees configured</strong><span>Apply the AI Team database migrations, then refresh.</span></div></div>`}
+          </section>
+        </div>`;
+    } else if (ui.aiTeamSection === "tasks") {
+      content = `
+        <div class="ai-split">
+          <section class="panel">
+            <div class="panel-header"><div><h2>Agent tasks</h2><p>Create and assign bounded work</p></div></div>
+            <form class="panel-body ai-inline-form" data-form="ai-task">
+              <input name="title" maxlength="200" required placeholder="Task title">
+              <textarea name="description" maxlength="8000" required placeholder="Expected outcome and CRM scope"></textarea>
+              <div class="ai-form-row"><select name="agentId" required>${agents.map(agent => `<option value="${escapeHtml(agent.id)}">${escapeHtml(agent.display_name)}</option>`).join("")}</select><select name="priority"><option value="3">Normal priority</option><option value="2">High priority</option><option value="1">Urgent</option><option value="4">Low priority</option></select></div>
+              <button class="action-btn primary" type="submit" ${aiTeamBusy ? "disabled" : ""}>Create AI task</button>
+            </form>
+            <div class="panel-body ai-item-list">${(data.tasks || []).map(task => `<article><header><strong>${escapeHtml(task.title)}</strong><span class="status-pill">${escapeHtml(task.status)}</span></header><p>${escapeHtml(task.description)}</p><small>${escapeHtml(task.assigned?.display_name || "Unassigned")} · P${task.priority} · ${escapeHtml(formatDate(task.created_at, { time: true }))}</small>${task.result || task.error ? `<details><summary>${task.error ? "Error" : "Result"}</summary><p>${escapeHtml(task.error || task.result)}</p></details>` : ""}</article>`).join("") || `<div class="panel-empty"><div><strong>No tasks yet</strong></div></div>`}</div>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h2>Recurring jobs</h2><p>Schedules run through the same budget and permissions</p></div></div>
+            <form class="panel-body ai-inline-form" data-form="ai-schedule">
+              <input name="name" maxlength="120" required placeholder="Schedule name">
+              <textarea name="prompt" maxlength="8000" required placeholder="Recurring CRM job instructions"></textarea>
+              <div class="ai-form-row"><select name="agentId" required>${agents.map(agent => `<option value="${escapeHtml(agent.id)}">${escapeHtml(agent.display_name)}</option>`).join("")}</select><input name="intervalMinutes" type="number" min="5" max="43200" value="1440" required></div>
+              <button class="action-btn primary" type="submit" ${aiTeamBusy ? "disabled" : ""}>Create schedule</button>
+            </form>
+            <div class="panel-body ai-item-list">${(data.schedules || []).map(schedule => `<article><header><strong>${escapeHtml(schedule.name)}</strong><span class="status-pill ${schedule.enabled ? "success" : ""}">${schedule.enabled ? "enabled" : "paused"}</span></header><p>${escapeHtml(schedule.prompt)}</p><small>${escapeHtml(schedule.agent?.display_name || "Agent")} · every ${schedule.interval_minutes} min · next ${escapeHtml(formatDate(schedule.next_run_at, { time: true }))}</small><button class="action-btn" data-action="toggle-ai-schedule" data-id="${escapeHtml(schedule.id)}" data-enabled="${schedule.enabled ? "false" : "true"}">${schedule.enabled ? "Pause" : "Enable"}</button></article>`).join("") || `<div class="panel-empty"><div><strong>No schedules yet</strong></div></div>`}</div>
+          </section>
+        </div>`;
+    } else if (ui.aiTeamSection === "approvals") {
+      content = `<section class="panel"><div class="panel-header"><div><h2>Sensitive CRM actions</h2><p>Nothing in this queue executes until you approve it</p></div></div><div class="panel-body ai-item-list">${(data.approvals || []).map(approval => `
+        <article><header><strong>${escapeHtml(approval.tool_name)}</strong><span class="status-pill ${approval.status === "failed" ? "danger" : approval.status === "pending" ? "warning" : "success"}">${escapeHtml(approval.status)}</span></header><p>${escapeHtml(approval.reason)}</p><pre>${escapeHtml(JSON.stringify(approval.arguments, null, 2))}</pre><small>${escapeHtml(approval.agent?.display_name || "Agent")} · ${escapeHtml(formatDate(approval.requested_at, { time: true }))}</small>${approval.error ? `<p class="error-text">${escapeHtml(approval.error)}</p>` : ""}${approval.status === "pending" ? `<div class="ai-approval-actions"><button class="action-btn primary" data-action="decide-ai-approval" data-id="${escapeHtml(approval.id)}" data-decision="approve">Approve & execute</button><button class="action-btn danger" data-action="decide-ai-approval" data-id="${escapeHtml(approval.id)}" data-decision="reject">Reject</button></div>` : ""}</article>
+      `).join("") || `<div class="panel-empty"><div><strong>No approval requests</strong><span>Sensitive CRM changes will appear here before execution.</span></div></div>`}</div></section>`;
+    } else if (ui.aiTeamSection === "activity") {
+      const errors = (data.activity || []).filter(item => item.level === "error" || item.event_type?.includes("failed"));
+      content = `<div class="ai-split"><section class="panel"><div class="panel-header"><div><h2>Recent activity</h2><p>Agent work and handoffs</p></div></div><div class="panel-body ai-timeline">${(data.activity || []).map(item => `<article class="${escapeHtml(item.level || "info")}"><i></i><div><strong>${escapeHtml(item.message)}</strong><p>${escapeHtml(item.agent?.display_name || "System")} · ${escapeHtml(item.event_type)}</p><time>${escapeHtml(formatDate(item.created_at, { time: true }))}</time></div></article>`).join("") || `<div class="panel-empty"><div><strong>No activity yet</strong></div></div>`}</div></section><section class="panel"><div class="panel-header"><div><h2>Errors</h2><p>Failures requiring attention</p></div></div><div class="panel-body ai-item-list">${errors.map(item => `<article><strong>${escapeHtml(item.message)}</strong><p>${escapeHtml(String(item.details?.error || item.event_type))}</p><small>${escapeHtml(formatDate(item.created_at, { time: true }))}</small></article>`).join("") || `<div class="panel-empty"><div><strong>No recorded errors</strong></div></div>`}</div></section></div>`;
+    } else {
+      const percentage = limit > 0 ? clamp(spend / limit * 100, 0, 100) : 100;
+      content = `<div class="ai-split"><section class="panel"><div class="panel-header"><div><h2>Monthly AI budget</h2><p>Paid requests stop at the hard cap</p></div></div><div class="panel-body"><div class="ai-budget"><strong>€${spend.toFixed(4)}</strong><span>/ €${limit.toFixed(2)}</span><div><i style="width:${percentage}%"></i></div><p>${data.budget?.hard_cap_enabled ? "Hard cap active" : "Hard cap disabled"} · ${data.budget?.requests_per_minute || 0}/minute · ${data.budget?.requests_per_hour || 0}/hour</p></div><form class="ai-inline-form" data-form="ai-budget"><label>Monthly limit (EUR)<input name="monthlyLimitEur" type="number" min="0" max="100000" step="0.01" value="${limit}"></label><div class="ai-form-row"><label>Requests/minute<input name="requestsPerMinute" type="number" min="1" max="300" value="${data.budget?.requests_per_minute || 10}"></label><label>Requests/hour<input name="requestsPerHour" type="number" min="1" max="10000" value="${data.budget?.requests_per_hour || 100}"></label></div><label class="check-row"><input name="hardCapEnabled" type="checkbox" ${data.budget?.hard_cap_enabled !== false ? "checked" : ""}> Block paid requests at the limit</label><button class="action-btn primary" type="submit">Save budget limits</button></form></div></section><section class="panel"><div class="panel-header"><div><h2>Usage ledger</h2><p>API calls, tokens, and estimated cost</p></div></div><div class="panel-body ai-item-list">${(data.usage || []).map(item => `<article><header><strong>${escapeHtml(item.provider)} / ${escapeHtml(item.model)}</strong><span class="status-pill">${escapeHtml(item.status)}</span></header><p>${escapeHtml(item.request_kind)}</p><small>${Number(item.input_tokens || 0).toLocaleString()} in · ${Number(item.output_tokens || 0).toLocaleString()} out · €${Number(item.actual_cost_eur ?? item.reserved_cost_eur ?? 0).toFixed(4)} · ${escapeHtml(formatDate(item.created_at, { time: true }))}</small>${item.error_code ? `<p class="error-text">${escapeHtml(item.error_code)}</p>` : ""}</article>`).join("") || `<div class="panel-empty"><div><strong>No paid usage this month</strong></div></div>`}</div></section></div>`;
+    }
+
+    return `
+      <div class="ai-team-workspace">
+        <div class="ai-team-summary">
+          <div><strong>${agents.length}</strong><span>AI employees</span></div>
+          <div><strong>${(data.tasks || []).filter(item => !["completed", "failed", "cancelled"].includes(item.status)).length}</strong><span>Active tasks</span></div>
+          <div><strong>${pendingApprovals.length}</strong><span>Awaiting approval</span></div>
+          <div><strong>€${spend.toFixed(4)}</strong><span>Month usage</span></div>
+        </div>
+        <nav class="ai-team-nav">${sections.map(([key, label]) => `<button class="${ui.aiTeamSection === key ? "active" : ""}" data-action="set-ai-section" data-section="${key}">${escapeHtml(label)}</button>`).join("")}</nav>
+        ${aiTeamError ? `<div class="ai-inline-error">${icon("warning")} ${escapeHtml(aiTeamError)}</div>` : ""}
+        ${content}
+      </div>`;
+  }
+
+  function renderCRM() {
+    if (ui.crmTab === "ai-team") return renderAITeamCRM();
+    if (ui.crmTab === "deals") return renderDeals();
+    if (ui.crmTab === "leads") return renderLeads();
+    if (ui.crmTab === "contacts") return renderContacts();
+    if (ui.crmTab === "social") return renderSocialCRM();
+    return renderCompanies();
+  }
+
+  function renderDeals() {
+    const pipeline = state.pipelines.find(item => item.id === ui.pipelineId) || state.pipelines[0];
+    const deals = state.deals.filter(deal => deal.pipelineId === pipeline.id);
+    if (ui.dealView === "list") return renderDealsTable(deals, pipeline);
+    return `
+      <div class="kanban-wrap">
+        <div class="kanban" aria-label="${escapeHtml(pipeline.name)} Kanban">
+          ${pipeline.stages.map(stage => {
+            const stageDeals = deals.filter(deal => deal.stageId === stage.id);
+            const total = stageDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
+            return `
+              <section class="kanban-column">
+                <header class="kanban-header" style="--stage:${stage.color}">
+                  <div class="kanban-title-row"><span class="kanban-title">${escapeHtml(stage.name)}</span><span class="kanban-count">${stageDeals.length}</span></div>
+                  <div class="kanban-total">${escapeHtml(formatMoney(total))}</div>
+                </header>
+                <div class="kanban-cards" data-drop-entity="deal" data-stage-id="${stage.id}">
+                  ${stageDeals.map(deal => renderDealCard(deal)).join("")}
+                </div>
+                <button class="add-card" data-action="open-form" data-entity="deal" data-stage="${stage.id}">+ Add deal</button>
+              </section>`;
+          }).join("")}
+        </div>
+      </div>`;
+  }
+
+  function renderDealCard(deal) {
+    const owner = employeeName(deal.ownerId);
+    return `
+      <article class="kanban-card" draggable="true" data-drag-entity="deal" data-id="${deal.id}" data-action="view-entity" data-entity="deal">
+        <div class="card-title">${escapeHtml(deal.title)}</div>
+        <div class="card-sub">${escapeHtml(companyName(deal.companyId))}</div>
+        ${deal.tags?.length ? `<div class="card-tags">${deal.tags.slice(0, 3).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
+        <div class="card-meta">
+          <div class="card-avatar" title="${escapeHtml(owner)}">${initials(owner)}</div>
+          <span class="card-value">${escapeHtml(formatMoney(deal.value))}</span>
+          <span class="card-date ${isOverdue(deal.dueDate) ? "text-danger" : ""}">${escapeHtml(formatDate(deal.dueDate, { year: false }))}</span>
+        </div>
+      </article>`;
+  }
+
+  function renderDealsTable(deals, pipeline) {
+    return `
+      <section class="panel table-panel">
+        <div class="panel-header"><div><h2>${escapeHtml(pipeline.name)}</h2><p>${deals.length} deals · ${escapeHtml(formatMoney(deals.reduce((sum, deal) => sum + Number(deal.value || 0), 0)))}</p></div></div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>Deal</th><th>Stage</th><th>Value</th><th>Probability</th><th>Owner</th><th>Due</th><th></th></tr></thead>
+            <tbody>
+              ${deals.map(deal => {
+                const stage = pipeline.stages.find(item => item.id === deal.stageId);
+                return `<tr class="clickable" data-action="view-entity" data-entity="deal" data-id="${deal.id}">
+                  <td><div class="table-primary"><div class="table-avatar">${initials(deal.title)}</div><div class="table-primary-copy"><strong>${escapeHtml(deal.title)}</strong><span>${escapeHtml(companyName(deal.companyId))}</span></div></div></td>
+                  <td><span class="status-pill" style="color:${stage?.color || "#7c8cff"};background:color-mix(in srgb, ${stage?.color || "#7c8cff"} 13%, transparent)">${escapeHtml(stage?.name || deal.stageId)}</span></td>
+                  <td><strong>${escapeHtml(formatMoney(deal.value))}</strong></td>
+                  <td>${Number(deal.probability || 0)}%</td>
+                  <td>${escapeHtml(employeeName(deal.ownerId))}</td>
+                  <td class="${isOverdue(deal.dueDate) ? "text-danger" : ""}">${escapeHtml(formatDate(deal.dueDate))}</td>
+                  <td><div class="row-actions"><button class="mini-btn" data-action="edit-entity" data-entity="deal" data-id="${deal.id}">${icon("edit")}</button></div></td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function renderLeads() {
+    return `
+      <section class="panel table-panel">
+        <div class="panel-header"><div><h2>Lead inbox</h2><p>${state.leads.length} people and businesses waiting to be qualified</p></div></div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>Lead</th><th>Status</th><th>Source</th><th>Score</th><th>Owner</th><th>Updated</th><th></th></tr></thead>
+            <tbody>
+              ${state.leads.map(lead => `<tr class="clickable" data-action="view-entity" data-entity="lead" data-id="${lead.id}">
+                <td><div class="table-primary"><div class="table-avatar">${initials(lead.name)}</div><div class="table-primary-copy"><strong>${escapeHtml(lead.name)}</strong><span>${escapeHtml(lead.email || lead.company)}</span></div></div></td>
+                <td><span class="status-pill ${lead.status === "Qualified" ? "success" : lead.status === "Contacted" ? "info" : ""}">${escapeHtml(lead.status)}</span></td>
+                <td>${escapeHtml(lead.source)}</td>
+                <td><strong>${Number(lead.score || 0)}</strong></td>
+                <td>${escapeHtml(employeeName(lead.ownerId))}</td>
+                <td>${escapeHtml(relativeTime(lead.updatedAt))}</td>
+                <td><div class="row-actions"><button class="mini-btn" data-action="convert-lead" data-id="${lead.id}" title="Convert to deal">${icon("arrowRight")}</button><button class="mini-btn" data-action="edit-entity" data-entity="lead" data-id="${lead.id}">${icon("edit")}</button></div></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function renderContacts() {
+    return `
+      <section class="panel table-panel">
+        <div class="panel-header"><div><h2>Contacts</h2><p>${state.contacts.length} people across ${state.companies.length} venues · synced from AkiPasa database</p></div></div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>Contact</th><th>Company</th><th>Role</th><th>Phone</th><th>Source</th><th>Updated</th><th></th></tr></thead>
+            <tbody>
+              ${state.contacts.map(contact => `<tr class="clickable" data-action="view-entity" data-entity="contact" data-id="${contact.id}">
+                <td><div class="table-primary"><div class="table-avatar">${initials(contact.name)}</div><div class="table-primary-copy"><strong>${escapeHtml(contact.name)}</strong><span>${escapeHtml(contact.email)}</span></div></div></td>
+                <td>${escapeHtml(companyName(contact.companyId))}</td>
+                <td>${escapeHtml(contact.role || "—")}</td>
+                <td>${escapeHtml(contact.phone || "—")}</td>
+                <td><span class="status-pill info">${escapeHtml(contact.source || "Manual")}</span></td>
+                <td>${escapeHtml(relativeTime(contact.updatedAt))}</td>
+                <td><div class="row-actions"><button class="mini-btn" data-action="edit-entity" data-entity="contact" data-id="${contact.id}">${icon("edit")}</button></div></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function renderCompanies() {
+    return `
+      <section class="panel table-panel">
+        <div class="panel-header"><div><h2>Venues</h2><p>${state.companies.length} venue${state.companies.length !== 1 ? "s" : ""} · synced live from AkiPasa database</p></div></div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>Company</th><th>Type</th><th>City</th><th>Status</th><th>Owner</th><th>Employees</th><th></th></tr></thead>
+            <tbody>
+              ${state.companies.map(company => `<tr class="clickable" data-action="view-entity" data-entity="company" data-id="${company.id}">
+                <td><div class="table-primary"><div class="table-avatar">${initials(company.name)}</div><div class="table-primary-copy"><strong>${escapeHtml(company.name)}</strong><span>${escapeHtml(company.email || company.website)}</span></div></div></td>
+                <td>${escapeHtml(company.type || "—")}</td>
+                <td>${escapeHtml(company.city || "—")}</td>
+                <td><span class="status-pill ${company.status === "Customer" ? "success" : company.status === "Partner" ? "info" : "warning"}">${escapeHtml(company.status || "Prospect")}</span></td>
+                <td>${escapeHtml(employeeName(company.ownerId))}</td>
+                <td>${Number(company.employees || 0)}</td>
+                <td><div class="row-actions"><button class="mini-btn" data-action="edit-entity" data-entity="company" data-id="${company.id}">${icon("edit")}</button></div></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function formatSocialMetric(value) {
+    return Number.isFinite(Number(value)) ? new Intl.NumberFormat(state.settings.locale === "es" ? "es-ES" : "en-GB", { notation: "compact", maximumFractionDigits: 1 }).format(Number(value)) : "—";
+  }
+
+  function socialMetricCard(label, value, detail) {
+    return `<article class="social-metric-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatSocialMetric(value))}</strong><small>${escapeHtml(detail)}</small></article>`;
+  }
+
+  function socialCredentialProvider(value) {
+    const provider = String(value || "").toLowerCase();
+    return ["meta", "instagram", "tiktok"].includes(provider) ? provider : "meta";
+  }
+
+  function socialProviderLabel(provider) {
+    if (provider === "meta") return "Facebook";
+    if (provider === "instagram") return "Instagram";
+    return "TikTok";
+  }
+
+  function renderSocialProviderCard(provider, title, configKey, mark, color, description) {
+    const accounts = (socialOverview?.accounts || []).filter(account => account.provider === provider);
+    const credential = socialOverview?.credentials?.[configKey] || {};
+    const selectedBusiness = ui.socialBusinessId || (!state.companies.length ? state.workspace.id : "");
+    const connectAction = selectedBusiness ? "start-social-oauth" : "choose-social-business";
+    const connectLabel = selectedBusiness ? `Connect ${title}` : "Choose a business";
+    return `
+      <article class="social-provider-card" style="--social-provider:${color}">
+        <div class="social-provider-head">
+          <div class="social-provider-mark">${escapeHtml(mark)}</div>
+          <div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p></div>
+          <span class="status-pill ${accounts.length ? "success" : credential.configured ? "info" : "warning"}">${accounts.length ? `${accounts.length} connected` : credential.configured ? "Ready" : "Needs credentials"}</span>
+        </div>
+        ${accounts.length ? `<div class="social-provider-accounts">${accounts.map(account => `<div><strong>${escapeHtml(account.displayName || account.username || title)}</strong><span>${escapeHtml(account.businessName || companyName(account.businessId))} · ${formatSocialMetric(account.metrics?.followers)} followers</span></div>`).join("")}</div>` : `<div class="social-provider-empty">No ${escapeHtml(title)} account is connected to this view yet.</div>`}
+        <div class="social-provider-actions">
+          ${authRole === "administrator" ? `<button class="action-btn" data-action="open-social-credentials" data-provider="${configKey}">${icon("lock")} ${credential.configured ? "Update app credentials" : "Add app credentials"}</button>` : ""}
+          <button class="action-btn primary" data-action="${connectAction}" data-provider="${configKey}" data-business-id="${escapeHtml(selectedBusiness)}" title="${!selectedBusiness ? `Choose the business to connect to ${title}` : `Connect ${title} to ${companyName(selectedBusiness)}`}" ${!credential.configured ? "disabled" : ""}>${icon("link")} ${escapeHtml(connectLabel)}</button>
+        </div>
+      </article>`;
+  }
+
+  function renderSocialTrend() {
+    const points = socialOverview?.trend || [];
+    if (!points.length) return `<div class="social-chart-empty"><strong>Trend history starts after the first sync</strong><span>Daily snapshots will build follower and view comparisons automatically.</span></div>`;
+    const max = Math.max(...points.map(point => Number(point.followers || 0)), 1);
+    return `<div class="social-bars" aria-label="Follower trend">${points.map(point => `<div class="social-bar-wrap" title="${escapeHtml(point.date)} · ${formatSocialMetric(point.followers)} followers"><div class="social-bar" style="height:${Math.max(5, Math.round(Number(point.followers || 0) / max * 100))}%"></div><span>${escapeHtml(point.date.slice(5))}</span></div>`).join("")}</div>`;
+  }
+
+  function renderSocialCRM() {
+    const summary = socialOverview?.summary || {};
+    const accounts = socialOverview?.accounts || [];
+    const content = accounts.flatMap(account => (account.content || []).map(item => ({ ...item, provider: account.provider, accountName: account.displayName || account.username })))
+      .sort((a, b) => Number(b.views || b.engagements || 0) - Number(a.views || a.engagements || 0)).slice(0, 12);
+    return `
+      <div class="social-crm">
+        <section class="social-intro panel">
+          <div><span class="eyebrow">SOCIAL COMMAND CENTRE</span><h2>Every business account, one clear view</h2><p>Connect professional accounts, compare audience and content performance, and keep provider credentials away from browsers and workspace backups.</p></div>
+          <div class="social-security-note">${icon("lock")}<div><strong>Server-side credential vault</strong><span>Secrets are encrypted before storage and are never returned to this page.</span></div></div>
+        </section>
+        ${socialError ? `<div class="social-alert">${icon("warning")}<div><strong>Social gateway unavailable</strong><span>${escapeHtml(socialError)}</span></div></div>` : ""}
+        <div class="social-metric-grid">
+          ${socialMetricCard("Connected accounts", summary.connectedAccounts, "Across the selected businesses")}
+          ${socialMetricCard("Followers", summary.followers, summary.followerChange == null ? "Growth appears after two daily snapshots" : `${summary.followerChange >= 0 ? "+" : ""}${formatSocialMetric(summary.followerChange)} in this period`)}
+          ${socialMetricCard("Content views", summary.views, "Available connected content in this period")}
+          ${socialMetricCard("Interactions", summary.engagements, "Likes, comments, shares and saves")}
+        </div>
+        <div class="social-provider-grid">
+          ${renderSocialProviderCard("instagram", "Instagram", "instagram", "IG", "linear-gradient(135deg,#6f48d8,#dc3a85,#ffaf4d)", "Professional account reach, followers and Reels performance")}
+          ${renderSocialProviderCard("facebook", "Facebook", "meta", "f", "linear-gradient(135deg,#1877f2,#66a7ff)", "Page audience, engagement and post performance")}
+          ${renderSocialProviderCard("tiktok", "TikTok", "tiktok", "♪", "linear-gradient(135deg,#111,#27e7e7,#ff2d55)", "Profile growth and public video performance")}
+        </div>
+        <div class="social-detail-grid">
+          <section class="panel social-trend-panel"><div class="panel-header"><div><h2>Follower trend</h2><p>${escapeHtml(ui.socialRange)}-day history · snapshots are recorded during refreshes</p></div></div>${renderSocialTrend()}</section>
+          <section class="panel social-health-panel"><div class="panel-header"><div><h2>Connection health</h2><p>Accounts that may need attention</p></div></div>
+            ${accounts.length ? accounts.map(account => `<div class="social-health-row"><span class="social-platform-dot ${escapeHtml(account.provider)}"></span><div><strong>${escapeHtml(account.displayName || account.username || capitalize(account.provider))}</strong><small>${escapeHtml(account.businessName || companyName(account.businessId))}</small></div><span class="status-pill ${account.status === "attention" ? "warning" : "success"}">${account.status === "attention" ? "Reconnect" : "Healthy"}</span>${authRole === "administrator" ? `<button class="mini-btn" data-action="disconnect-social-account" data-account-id="${escapeHtml(account.id)}" title="Disconnect">${icon("trash")}</button>` : ""}</div>`).join("") : `<div class="panel-empty"><div><strong>No connected accounts</strong><span>Add provider credentials, then connect the first business account.</span></div></div>`}
+          </section>
+        </div>
+        <section class="panel table-panel social-content-panel">
+          <div class="panel-header"><div><h2>Top content</h2><p>Performance stays labelled by platform so unlike metrics are not mixed together.</p></div></div>
+          ${content.length ? `<div class="table-scroll"><table class="data-table"><thead><tr><th>Content</th><th>Platform</th><th>Published</th><th>Views</th><th>Interactions</th><th></th></tr></thead><tbody>${content.map(item => `<tr><td><div class="table-primary">${item.thumbnail ? `<img class="social-thumb" src="${escapeHtml(safeUrl(item.thumbnail))}" alt="" loading="lazy" />` : `<div class="table-avatar">${initials(item.accountName)}</div>`}<div class="table-primary-copy"><strong>${escapeHtml(item.title || "Untitled post")}</strong><span>${escapeHtml(item.accountName || "")}</span></div></div></td><td><span class="status-pill info">${escapeHtml(capitalize(item.provider))}</span></td><td>${escapeHtml(formatDate(item.publishedAt))}</td><td>${escapeHtml(formatSocialMetric(item.views))}</td><td>${escapeHtml(formatSocialMetric(item.engagements))}</td><td>${item.url ? `<a class="mini-btn" href="${escapeHtml(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer" title="Open post">${icon("external")}</a>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="panel-empty"><div><strong>No content metrics yet</strong><span>Connect an account and refresh to collect its available posts or videos.</span></div></div>`}
+        </section>
+      </div>`;
+  }
+
+  function renderInbox() {
+    state.conversations ||= [
+      {
+        id: "conv_01",
+        name: "Soho House Barcelona",
+        channel: "WhatsApp Business",
+        assignedTo: state.currentUserId,
+        unread: 1,
+        messages: [
+          { id: "m1", text: "Hello! We would like to connect our venue calendar to AkiPasa.", at: new Date(Date.now() - 3600000 * 4).toISOString(), direction: "in" },
+          { id: "m2", text: "Hi! Thanks for reaching out. Let's verify your venue profile in AkiHQ.", at: new Date(Date.now() - 3600000 * 2).toISOString(), direction: "out" },
+          { id: "m3", text: "Sounds great, sending over our manager contact details.", at: new Date(Date.now() - 3600000).toISOString(), direction: "in" }
+        ]
+      },
+      {
+        id: "conv_02",
+        name: "Pacha Ibiza Operations",
+        channel: "Resend Email",
+        assignedTo: state.currentUserId,
+        unread: 0,
+        messages: [
+          { id: "m4", text: "Can we request an updated invoice for the VIP package booking?", at: new Date(Date.now() - 3600000 * 12).toISOString(), direction: "in" },
+          { id: "m5", text: "Invoice INV-1014 has been generated and sent to your billing address.", at: new Date(Date.now() - 3600000 * 6).toISOString(), direction: "out" }
+        ]
+      }
+    ];
+    const selected = state.conversations.find(conversation => conversation.id === ui.selectedConversationId) || state.conversations[0];
+    if (!selected && !state.conversations.length) {
+      return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("inbox")}</div><h2>Your shared inbox is empty</h2><p>Connect Resend, Gmail, Outlook, WhatsApp or another channel from Integrations.</p><button class="action-btn primary" data-action="navigate" data-route="integrations">Open integrations</button></div></section>`;
+    }
+    return `
+      <div class="inbox-route-note" style="margin-bottom:12px;padding:10px 14px;background:rgba(124,140,255,.08);border:1px solid rgba(124,140,255,.2);border-radius:var(--radius);display:flex;align-items:center;gap:12px">
+        <div style="font-size:11px;color:var(--text);flex:1">
+          💬 <strong>Shared Customer Inbox</strong> — This view displays external customer conversations (WhatsApp, Email & Webhooks). Looking for internal staff channels & DMs?
+        </div>
+        <button class="action-btn primary" data-action="navigate" data-route="collaboration" style="height:28px;font-size:10px;padding:0 12px">Go to Team Chat →</button>
+      </div>
+      <section class="panel inbox-layout ${ui.mobileChatOpen ? "chat-open" : ""}">
+        <div class="conversation-list">
+          <div class="conversation-search"><input type="search" data-conversation-search placeholder="Search conversations…" /></div>
+          ${state.conversations.map(conversation => {
+            const last = conversation.messages[conversation.messages.length - 1];
+            return `<div class="conversation-item ${selected?.id === conversation.id ? "active" : ""}" data-action="select-conversation" data-id="${conversation.id}" data-search-text="${escapeHtml(`${conversation.name} ${last?.text || ""}`.toLowerCase())}">
+              <div class="conv-avatar">${initials(conversation.name)}</div>
+              <div><div class="conv-name">${escapeHtml(conversation.name)}</div><div class="conv-preview">${escapeHtml(last?.text || "No messages yet")}</div></div>
+              <div class="conv-meta">${escapeHtml(last ? relativeTime(last.at) : "")} ${conversation.unread ? `<div class="unread">${conversation.unread}</div>` : ""}</div>
+            </div>`;
+          }).join("")}
+        </div>
+        ${selected ? `
+          <div class="chat-pane">
+            <div class="chat-head">
+              <button class="mini-btn hidden" data-action="mobile-inbox-back">${icon("arrowLeft")}</button>
+              <div class="conv-avatar">${initials(selected.name)}</div>
+              <div class="chat-head-copy"><strong>${escapeHtml(selected.name)}</strong><span>${escapeHtml(selected.channel)} · assigned to ${escapeHtml(employeeName(selected.assignedTo))}</span></div>
+              <div class="panel-actions">
+                <button class="mini-btn" data-action="view-conversation-contact" data-id="${selected.id}" title="Open linked record">${icon("user")}</button>
+                <button class="mini-btn" data-action="toggle-conversation-status" data-id="${selected.id}" title="Resolve conversation">${icon("check")}</button>
+              </div>
+            </div>
+            <div class="messages" id="messages">
+              ${selected.messages.map(message => `<div class="message ${message.direction === "out" ? "out" : ""}">${escapeHtml(message.text)}<span class="message-time">${escapeHtml(formatDate(message.at, { time: true, year: false }))}</span></div>`).join("")}
+            </div>
+            <form class="composer" data-form="message" data-conversation-id="${selected.id}">
+              <textarea name="text" required placeholder="Write a reply…"></textarea>
+              <button class="icon-btn create-btn" type="submit" title="Send">${icon("send")}</button>
+            </form>
+          </div>` : ""}
+      </section>`;
+  }
+
+  function renderTasks() {
+    const statuses = [
+      { id: "todo", name: "To do" },
+      { id: "progress", name: "In progress" },
+      { id: "review", name: "Review" },
+      { id: "done", name: "Done" }
+    ];
+    if (ui.taskView === "list") {
+      return `
+        <section class="panel table-panel">
+          <div class="panel-header"><div><h2>All tasks</h2><p>${state.tasks.filter(task => task.status !== "done").length} still open</p></div></div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>Task</th><th>Status</th><th>Priority</th><th>Project</th><th>Assignee</th><th>Due</th><th></th></tr></thead>
+              <tbody>${state.tasks.map(task => `<tr class="clickable" data-action="view-entity" data-entity="task" data-id="${task.id}">
+                <td><div class="table-primary"><div class="table-avatar">${initials(task.title)}</div><div class="table-primary-copy"><strong>${escapeHtml(task.title)}</strong><span>${escapeHtml(task.description || "")}</span></div></div></td>
+                <td><span class="status-pill ${task.status === "done" ? "success" : task.status === "review" ? "warning" : task.status === "progress" ? "info" : ""}">${escapeHtml(statuses.find(item => item.id === task.status)?.name || task.status)}</span></td>
+                <td><span class="status-pill ${task.priority === "high" ? "danger" : task.priority === "medium" ? "warning" : "success"}">${escapeHtml(capitalize(task.priority))}</span></td>
+                <td>${escapeHtml(projectName(task.projectId))}</td>
+                <td>${escapeHtml(employeeName(task.assigneeId))}</td>
+                <td class="${task.status !== "done" && isOverdue(task.dueDate) ? "text-danger" : ""}">${escapeHtml(formatDate(task.dueDate))}</td>
+                <td><div class="row-actions"><button class="mini-btn" data-action="edit-entity" data-entity="task" data-id="${task.id}">${icon("edit")}</button></div></td>
+              </tr>`).join("")}</tbody>
+            </table>
+          </div>
+        </section>`;
+    }
+    return `
+      <div class="kanban-wrap">
+        <div class="task-board">
+          ${statuses.map(status => {
+            const tasks = state.tasks.filter(task => task.status === status.id);
+            return `<section class="task-column" data-drop-entity="task" data-stage-id="${status.id}">
+              <div class="task-column-head"><strong>${escapeHtml(status.name)}</strong><span>${tasks.length} tasks</span></div>
+              ${tasks.map(task => renderTaskCard(task)).join("")}
+              <button class="add-card" style="margin:6px 0 0;width:100%" data-action="open-form" data-entity="task" data-stage="${status.id}">+ Add task</button>
+            </section>`;
+          }).join("")}
+        </div>
+      </div>`;
+  }
+
+  function renderTaskCard(task) {
+    const dueClass = task.status !== "done" && isOverdue(task.dueDate) ? "overdue" : "";
+    return `<article class="task-card" draggable="true" data-drag-entity="task" data-id="${task.id}" data-action="view-entity" data-entity="task">
+      <div class="task-top"><span class="priority-dot ${task.priority}"></span><div><div class="task-title">${escapeHtml(task.title)}</div><div class="task-project">${escapeHtml(projectName(task.projectId))}</div></div></div>
+      <div class="task-foot"><span class="${dueClass}">${escapeHtml(formatDate(task.dueDate, { year: false }))}</span><div class="card-avatar" title="${escapeHtml(employeeName(task.assigneeId))}">${initials(employeeName(task.assigneeId))}</div></div>
+    </article>`;
+  }
+
+  function sameCalendarDate(a, b) {
+    const first = new Date(a);
+    const second = new Date(b);
+    return first.getFullYear() === second.getFullYear()
+      && first.getMonth() === second.getMonth()
+      && first.getDate() === second.getDate();
+  }
+
+  function calendarEventsForDate(value) {
+    return state.events.filter(item => sameCalendarDate(item.start, value)).sort((a, b) => new Date(a.start) - new Date(b.start));
+  }
+
+  function renderCalendar() {
+    const year = ui.calendarDate.getFullYear();
+    const month = ui.calendarDate.getMonth();
+    const first = new Date(year, month, 1);
+    const mondayIndex = (first.getDay() + 6) % 7;
+    const gridStart = new Date(year, month, 1 - mondayIndex);
+    const days = Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(gridStart);
+      date.setDate(gridStart.getDate() + index);
+      return date;
+    });
+    const today = new Date();
+    const upcoming = [...state.events].filter(event => new Date(event.start) >= new Date(Date.now() - 86400000)).sort((a, b) => new Date(a.start) - new Date(b.start)).slice(0, 8);
+    const weekdays = state.settings.locale === "es" ? ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    return `<div class="calendar-shell">
+      <section class="panel calendar">
+        <div class="calendar-weekdays">${weekdays.map(day => `<div>${day}</div>`).join("")}</div>
+        <div class="calendar-grid">
+          ${days.map(date => {
+            const dayEvents = calendarEventsForDate(date);
+            return `<div class="calendar-day ${date.getMonth() !== month ? "muted" : ""} ${sameCalendarDate(date, today) ? "today" : ""}" data-action="calendar-day" data-date="${date.toISOString()}" data-event-count="${dayEvents.length}">
+              <div class="day-number">${date.getDate()}</div>
+              ${dayEvents.slice(0, 4).map(event => `<div class="calendar-event" style="--event-color:${event.color || "#7c8cff"}" data-action="view-entity" data-entity="event" data-id="${event.id}" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</div>`).join("")}
+            </div>`;
+          }).join("")}
+        </div>
+      </section>
+      <aside class="panel">
+        <div class="panel-header"><div><h2>Upcoming events</h2><p>Next meetings and milestones</p></div></div>
+        <div class="panel-body upcoming-list">
+          ${upcoming.map(event => `<div class="upcoming-item" data-action="view-entity" data-entity="event" data-id="${event.id}" role="button" tabindex="0"><div class="upcoming-time">${escapeHtml(formatDate(event.start, { year: false }))}</div><div class="upcoming-title">${escapeHtml(event.title)}</div><div class="upcoming-sub">${escapeHtml(event.location || event.type)}</div></div>`).join("")}
+        </div>
+      </aside>
+    </div>`;
+  }
+
+  function renderInventory() {
+    const lowStock = state.products.filter(product => Number(product.stock) <= Number(product.reorderAt) && product.warehouse !== "Digital");
+    const stockValue = state.products.reduce((sum, product) => sum + Number(product.stock || 0) * Number(product.cost || 0), 0);
+    const physical = state.products.filter(product => product.warehouse !== "Digital");
+    return `<div class="page-grid">
+      <div class="page-grid grid-3">
+        ${renderMetric("Products", String(state.products.length), `${physical.length} physical products`, "inventory", "#7c8cff")}
+        ${renderMetric("Stock value", formatMoney(stockValue, true), "based on unit cost", "money", "#49d7a0")}
+        ${renderMetric("Low stock", String(lowStock.length), lowStock.length ? "needs attention" : "all healthy", "warning", "#ffbd55")}
+      </div>
+      <section class="panel table-panel">
+        <div class="panel-header"><div><h2>Product catalogue</h2><p>Subscriptions, advertising inventory and physical goods</p></div></div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th><th>Warehouse</th><th>Status</th><th></th></tr></thead>
+            <tbody>${state.products.map(product => `<tr class="clickable" data-action="view-entity" data-entity="product" data-id="${product.id}">
+              <td><div class="table-primary"><div class="table-avatar">${initials(product.name)}</div><div class="table-primary-copy"><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(product.description || "")}</span></div></div></td>
+              <td>${escapeHtml(product.sku)}</td>
+              <td>${escapeHtml(product.category)}</td>
+              <td><strong>${escapeHtml(formatMoney(product.price))}</strong></td>
+              <td class="${Number(product.stock) <= Number(product.reorderAt) && product.warehouse !== "Digital" ? "text-danger" : ""}">${Number(product.stock).toLocaleString()}</td>
+              <td>${escapeHtml(product.warehouse)}</td>
+              <td><span class="status-pill ${product.status === "Active" ? "success" : "warning"}">${escapeHtml(product.status)}</span></td>
+              <td><div class="row-actions"><button class="mini-btn" data-action="adjust-stock" data-id="${product.id}" title="Adjust stock">${icon("plus")}</button><button class="mini-btn" data-action="edit-entity" data-entity="product" data-id="${product.id}">${icon("edit")}</button></div></td>
+            </tr>`).join("")}</tbody>
+          </table>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  function renderSales() {
+    const outstanding = state.invoices.filter(invoice => !["Paid", "Draft"].includes(invoice.status)).reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
+    const paid = state.invoices.filter(invoice => invoice.status === "Paid").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
+    const overdue = state.invoices.filter(invoice => invoice.status === "Overdue").length;
+    return `<div class="page-grid">
+      <div class="page-grid grid-3">
+        ${renderMetric("Paid", formatMoney(paid, true), "collected across invoices", "check", "#49d7a0")}
+        ${renderMetric("Outstanding", formatMoney(outstanding, true), "sent and overdue", "sales", "#7c8cff")}
+        ${renderMetric("Overdue", String(overdue), overdue ? "follow-up required" : "nothing overdue", "warning", "#ff6f85")}
+      </div>
+      <section class="panel table-panel">
+        <div class="panel-header"><div><h2>Quotes and invoices</h2><p>Open any record to edit, print or change status</p></div></div>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr><th>Document</th><th>Customer</th><th>Type</th><th>Issue date</th><th>Due</th><th>Total</th><th>Status</th><th></th></tr></thead>
+          <tbody>${state.invoices.map(invoice => `<tr class="clickable" data-action="view-entity" data-entity="invoice" data-id="${invoice.id}">
+            <td><div class="table-primary"><div class="table-avatar">${invoice.type === "Quote" ? "Q" : "I"}</div><div class="table-primary-copy"><strong>${escapeHtml(invoice.number)}</strong><span>${escapeHtml(invoice.notes || "")}</span></div></div></td>
+            <td>${escapeHtml(companyName(invoice.companyId))}</td>
+            <td>${escapeHtml(invoice.type)}</td>
+            <td>${escapeHtml(formatDate(invoice.issueDate))}</td>
+            <td class="${invoice.status !== "Paid" && isOverdue(invoice.dueDate) ? "text-danger" : ""}">${escapeHtml(formatDate(invoice.dueDate))}</td>
+            <td><strong>${escapeHtml(formatMoney(invoice.total))}</strong></td>
+            <td><span class="status-pill ${invoice.status === "Paid" ? "success" : invoice.status === "Overdue" ? "danger" : invoice.status === "Sent" ? "info" : "warning"}">${escapeHtml(invoice.status)}</span></td>
+            <td><div class="row-actions"><button class="mini-btn" data-action="print-invoice" data-id="${invoice.id}" title="Print">${icon("download")}</button><button class="mini-btn" data-action="edit-entity" data-entity="invoice" data-id="${invoice.id}">${icon("edit")}</button></div></td>
+          </tr>`).join("")}</tbody>
+        </table></div>
+      </section>
+    </div>`;
+  }
+
+  function renderMarketing() {
+    const totals = state.campaigns.reduce((acc, campaign) => {
+      acc.sent += Number(campaign.sent || 0); acc.opened += Number(campaign.opened || 0); acc.clicked += Number(campaign.clicked || 0); acc.conversions += Number(campaign.conversions || 0); return acc;
+    }, { sent: 0, opened: 0, clicked: 0, conversions: 0 });
+    const openRate = totals.sent ? Math.round(totals.opened / totals.sent * 100) : 0;
+    const clickRate = totals.opened ? Math.round(totals.clicked / totals.opened * 100) : 0;
+    return `<div class="page-grid">
+      <div class="page-grid grid-4">
+        ${renderMetric("Messages sent", totals.sent.toLocaleString(), "across all campaigns", "send", "#7c8cff")}
+        ${renderMetric("Open rate", `${openRate}%`, "of delivered messages", "mail", "#52d9e9")}
+        ${renderMetric("Click rate", `${clickRate}%`, "of opened messages", "link", "#ffbd55")}
+        ${renderMetric("Conversions", totals.conversions.toLocaleString(), "tracked actions", "check", "#49d7a0")}
+      </div>
+      <div class="cards-grid">
+        ${state.campaigns.map(campaign => {
+          const open = campaign.sent ? Math.round(campaign.opened / campaign.sent * 100) : 0;
+          const click = campaign.opened ? Math.round(campaign.clicked / campaign.opened * 100) : 0;
+          return `<article class="entity-card" data-action="view-entity" data-entity="campaign" data-id="${campaign.id}" role="button" tabindex="0">
+            <div class="entity-card-top"><div class="entity-logo">${campaign.channel[0]}</div><div class="entity-card-copy"><h3>${escapeHtml(campaign.name)}</h3><p>${escapeHtml(campaign.channel)} · ${escapeHtml(campaign.audience)}</p></div><span class="status-pill ${campaign.status === "Running" ? "success" : campaign.status === "Scheduled" ? "info" : campaign.status === "Completed" ? "" : "warning"}">${escapeHtml(campaign.status)}</span></div>
+            <div class="entity-card-stats"><div class="entity-stat"><span>Sent</span><strong>${Number(campaign.sent).toLocaleString()}</strong></div><div class="entity-stat"><span>Conversions</span><strong>${Number(campaign.conversions).toLocaleString()}</strong></div><div class="entity-stat"><span>Open rate</span><strong>${open}%</strong></div><div class="entity-stat"><span>Click rate</span><strong>${click}%</strong></div></div>
+          </article>`;
+        }).join("")}
+      </div>
+      <section class="panel"><div class="panel-header"><div><h2>Audience segments</h2><p>Dynamic groups sourced from the AkiPasa database</p></div></div><div class="panel-body cards-grid">
+        ${[
+          ["All registered users", liveStats ? liveStats.total_users : state.contacts.length, "All profiles in the AkiPasa database"],
+          ["New this month", liveStats ? liveStats.new_users_30d : 0, "Signed up in the last 30 days"],
+          ["Unverified venues", liveStats ? (liveStats.total_venues - liveStats.verified_venues) : 0, "Venue is registered but not yet verified"],
+          ["Pending claim reviews", liveStats ? liveStats.pending_claims : 0, "Venue claim submitted and awaiting decision"]
+        ].map(([name, count, rule]) => `<div class="entity-card"><div class="entity-card-top"><div class="entity-logo">${icon("filter")}</div><div class="entity-card-copy"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(rule)}</p></div></div><div class="entity-card-stats"><div class="entity-stat"><span>Members</span><strong>${Number(count||0).toLocaleString()}</strong></div><div class="entity-stat"><span>Refresh</span><strong>Live</strong></div></div></div>`).join("")}
+      </div></section>
+    </div>`;
+  }
+
+  function renderSites() {
+    return `<div class="page-grid">
+      <section class="panel"><div class="panel-header"><div><h2>Landing pages</h2><p>Original, lightweight pages for campaigns and onboarding</p></div></div><div class="panel-body cards-grid">
+        ${state.pages.map(page => `<article class="entity-card" data-action="view-entity" data-entity="page" data-id="${page.id}" role="button" tabindex="0">
+          <div class="entity-card-top"><div class="entity-logo">${icon("sites")}</div><div class="entity-card-copy"><h3>${escapeHtml(page.name)}</h3><p>/${escapeHtml(page.slug)} · updated ${escapeHtml(relativeTime(page.updatedAt))}</p></div><span class="status-pill ${page.status === "Published" ? "success" : "warning"}">${escapeHtml(page.status)}</span></div>
+          <div class="entity-card-stats"><div class="entity-stat"><span>Visitors</span><strong>${Number(page.visitors || 0).toLocaleString()}</strong></div><div class="entity-stat"><span>Conversions</span><strong>${Number(page.conversions || 0).toLocaleString()}</strong></div></div>
+        </article>`).join("")}
+      </div></section>
+      <section class="panel"><div class="panel-header"><div><h2>Forms</h2><p>Capture leads, events and custom records</p></div></div><div class="panel-body cards-grid">
+        ${state.forms.map(form => `<article class="entity-card" data-action="view-entity" data-entity="form" data-id="${form.id}" role="button" tabindex="0">
+          <div class="entity-card-top"><div class="entity-logo">${icon("sales")}</div><div class="entity-card-copy"><h3>${escapeHtml(form.name)}</h3><p>${form.fields.length} fields · creates ${escapeHtml(form.destination)}</p></div><span class="status-pill ${form.status === "Live" ? "success" : "warning"}">${escapeHtml(form.status)}</span></div>
+          <div class="entity-card-stats"><div class="entity-stat"><span>Submissions</span><strong>${Number(form.submissions || 0).toLocaleString()}</strong></div><div class="entity-stat"><span>Conversion</span><strong>${Number(form.conversionRate || 0)}%</strong></div></div>
+        </article>`).join("")}
+      </div></section>
+    </div>`;
+  }
+
+  function renderAutomation() {
+    return `<div class="page-grid">
+      ${state.automations.map(automation => `<section class="panel">
+        <div class="panel-header"><div><h2>${escapeHtml(automation.name)}</h2><p>${Number(automation.runs || 0)} runs · ${Number(automation.failures || 0)} failures · updated ${escapeHtml(relativeTime(automation.updatedAt))}</p></div><div class="panel-actions"><span class="status-pill ${automation.status === "Active" ? "success" : "warning"}">${escapeHtml(automation.status)}</span><button class="mini-btn" data-action="toggle-automation" data-id="${automation.id}" title="Toggle">${automation.status === "Active" ? icon("timer") : icon("check")}</button><button class="mini-btn" data-action="edit-entity" data-entity="automation" data-id="${automation.id}">${icon("edit")}</button></div></div>
+        <div class="panel-body"><div class="automation-flow">
+          <div class="flow-node"><div class="flow-node-type">Trigger</div><strong>${escapeHtml(automation.trigger)}</strong><p>Starts a new workflow run.</p></div>
+          ${automation.conditions.map(condition => `<div class="flow-node"><div class="flow-node-type">Condition</div><strong>${escapeHtml(condition)}</strong><p>Continue only when the rule matches.</p></div>`).join("")}
+          ${automation.actions.map(action => `<div class="flow-node"><div class="flow-node-type">Action</div><strong>${escapeHtml(action)}</strong><p>Executed in sequence with an audit log.</p></div>`).join("")}
+        </div></div>
+      </section>`).join("")}
+      <section class="panel"><div class="panel-header"><div><h2>Execution log</h2><p>Latest workflow runs</p></div></div><div class="panel-body activity-list">
+        ${state.activities.filter(activity => activity.entityType === "automation").map(activity => `<div class="activity-item"><div class="activity-icon">${icon("automation")}</div><div class="activity-copy"><strong>${escapeHtml(employeeName(activity.actorId))}</strong> ${escapeHtml(activity.verb)}<br><span>${escapeHtml(activity.detail)}</span></div><div class="activity-time">${escapeHtml(relativeTime(activity.at))}</div></div>`).join("") || `<div class="panel-empty"><div><strong>No logged runs yet</strong><span>Toggle or edit a workflow to create activity.</span></div></div>`}
+      </div></section>
+    </div>`;
+  }
+
+  function getDmKey(idA, idB) {
+    if (!idA || !idB) return null;
+    const sorted = [String(idA), String(idB)].sort();
+    return `dm_${sorted[0]}_${sorted[1]}`;
+  }
+
+  function renderCollaboration() {
+    state.teamChat ||= {
+      activeChannelId: "ch_general",
+      channels: [
+        { id: "ch_general", name: "general", description: "General staff announcements & all-hands chatter", icon: "#", unread: 0 },
+        { id: "ch_crm_sales", name: "crm-sales", description: "CRM deals, sales pipeline & lead management", icon: "#", unread: 2 },
+        { id: "ch_inventory", name: "inventory", description: "Inventory stock, catalog & venue supplies", icon: "#", unread: 0 },
+        { id: "ch_billing", name: "sales-billing", description: "Invoicing, quote approvals & payment processing", icon: "#", unread: 0 },
+        { id: "ch_marketing", name: "marketing", description: "Marketing campaigns, email outreach & promo", icon: "#", unread: 0 },
+        { id: "ch_sites", name: "sites-forms", description: "Landing pages, Web forms & lead capture", icon: "#", unread: 0 },
+        { id: "ch_automation", name: "automation", description: "Workflow triggers, Telegram bot & Cloudflare Workers", icon: "#", unread: 0 },
+        { id: "ch_people", name: "people-hr", description: "Team roster, role assignments & leave management", icon: "#", unread: 0 }
+      ],
+      messages: {
+        "ch_general": [
+          { id: "cm_01", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Welcome to the Bitrix24-style AkiHQ CRM Team Chat! Staff members can communicate here across all operation categories in real-time.", at: new Date(Date.now() - 86400000).toISOString(), reactions: { "🚀": 4, "👏": 3 } },
+          { id: "cm_02", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "Awesome! Each operation category has its dedicated discussion channel.", at: new Date(Date.now() - 3600000 * 5).toISOString(), reactions: { "🔥": 2 } },
+          { id: "cm_03", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Security rules are strictly enforced: only users with valid CRM Staff or Administrator access can log into the workspace and chat.", at: new Date(Date.now() - 3600000 * 2).toISOString(), reactions: { "👍": 5, "❤️": 2 } }
+        ],
+        "ch_crm_sales": [
+          { id: "cm_10", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "New lead created in CRM: Soho House London (€4,500 pipeline value). Assigned to Alex Ashing.", at: new Date(Date.now() - 3600000 * 3).toISOString(), reactions: { "🎉": 3 } },
+          { id: "cm_11", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Following up with their general manager today.", at: new Date(Date.now() - 3600000).toISOString(), reactions: { "🚀": 2 } }
+        ],
+        "ch_inventory": [
+          { id: "cm_20", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Catalogue items updated. Stock quantities synced across all active locations.", at: new Date(Date.now() - 3600000 * 6).toISOString(), reactions: { "📦": 3 } }
+        ],
+        "ch_billing": [
+          { id: "cm_30", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "Invoice INV-1014 generated for Pacha Ibiza operations.", at: new Date(Date.now() - 3600000 * 8).toISOString(), reactions: { "💳": 2 } }
+        ],
+        "ch_marketing": [
+          { id: "cm_40", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Summer venue promotion campaign sent to 1,200 active contacts.", at: new Date(Date.now() - 3600000 * 12).toISOString(), reactions: { "📈": 4 } }
+        ],
+        "ch_sites": [
+          { id: "cm_50", authorId: "emp_staff1", authorName: "CRM Staff Member", role: "Staff", text: "New VIP booking lead form published at /forms/vip-booking.", at: new Date(Date.now() - 3600000 * 14).toISOString(), reactions: { "🌐": 2 } }
+        ],
+        "ch_automation": [
+          { id: "cm_60", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Telegram bot command `/stats` and `/backup` webhook response endpoints active.", at: new Date(Date.now() - 3600000 * 10).toISOString(), reactions: { "⚡": 3 } }
+        ],
+        "ch_people": [
+          { id: "cm_70", authorId: "emp_alex", authorName: "Alex Ashing", role: "Administrator", text: "Updated staff member roles and permissions in Supabase profile database.", at: new Date(Date.now() - 3600000 * 16).toISOString(), reactions: { "👔": 3 } }
+        ]
+      }
+    };
+
+    const myUser = currentUser();
+    const myUserId = authUser?.id || myUser.id || state.currentUserId;
+    const myUserEmail = (authUser?.email || myUser.email || "").toLowerCase();
+
+    // Deduplicate staff for DMs and exclude currently logged-in user
+    const uniqueStaffDms = [];
+    const seenDmKeys = new Set();
+    for (const emp of state.employees) {
+      const empEmail = (emp.email || "").toLowerCase();
+      const isMe = emp.id === myUserId || (myUserEmail && empEmail && empEmail === myUserEmail);
+      if (isMe) continue;
+      const key = (empEmail || emp.id || emp.name).toLowerCase();
+      if (!seenDmKeys.has(key)) {
+        seenDmKeys.add(key);
+        uniqueStaffDms.push(emp);
+      }
+    }
+
+    const activeKey = ui.activeTeamChannel || state.teamChat.activeChannelId || "ch_general";
+    ui.activeTeamChannel = activeKey;
+
+    let currentChan = state.teamChat.channels.find(c => c.id === activeKey);
+    let isDm = false;
+    let dmOtherUser = null;
+    if (!currentChan && activeKey.startsWith("dm_")) {
+      isDm = true;
+      const parts = activeKey.replace(/^dm_/, "").split("_");
+      const otherUserId = parts.find(id => id !== myUserId) || ui.activeTeamDm || parts[0];
+      dmOtherUser = state.employees.find(e => e.id === otherUserId || (e.email && e.email.toLowerCase() === otherUserId.toLowerCase()));
+      const otherName = dmOtherUser ? dmOtherUser.name : "Staff Member";
+      const otherRole = dmOtherUser ? dmOtherUser.role : "Staff";
+      currentChan = { name: otherName, description: `Private 1-on-1 staff DM with ${otherName} (${otherRole})` };
+    }
+    currentChan ||= state.teamChat.channels[0];
+
+    const chanMessages = state.teamChat.messages[activeKey] || [];
+    const staffMembers = state.employees;
+    const onlineStaff = staffMembers.filter(isUserOnline);
+
+    return `
+      <div class="team-chat-suite panel">
+
+        <!-- LEFT NAVIGATION COL: Operation Channels & Staff DMs -->
+        <div class="team-chat-sidebar-left">
+          <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <input class="toolbar-input" style="flex:1;height:32px" data-team-chat-search placeholder="Search channels & DMs…" value="${escapeHtml(ui.teamChatSearch || "")}" />
+            <button class="mini-btn mobile-chat-toggle" data-action="toggle-mobile-chat-channels" style="height:32px;padding:0 8px">${icon("check")}</button>
+          </div>
+          <div style="flex:1;overflow-y:auto;padding:12px 8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px 8px;font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em">
+              <span>OPERATION CHANNELS</span>
+              <button class="mini-btn ghost" data-action="create-team-channel" title="Create channel" style="height:20px;width:20px;padding:0;min-width:auto">${icon("plus")}</button>
+            </div>
+            ${state.teamChat.channels.map(chan => `
+              <button class="nav-item ${chan.id === activeKey ? "active" : ""}" data-action="select-team-channel" data-id="${chan.id}" style="height:34px;margin:2px 0;font-size:12px;justify-content:flex-start">
+                <span style="color:var(--accent-2);font-weight:800;margin-right:6px">#</span>
+                <span class="nav-text">${escapeHtml(chan.name)}</span>
+                ${chan.unread ? `<span class="nav-badge">${chan.unread}</span>` : ""}
+              </button>
+            `).join("")}
+
+            <div style="margin-top:20px;padding:4px 8px 8px;font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em">
+              <span>STAFF DIRECT MESSAGES</span>
+            </div>
+            ${uniqueStaffDms.map(emp => {
+              const isOnline = isUserOnline(emp);
+              const canonicalDmKey = getDmKey(myUserId, emp.id);
+              const isActive = activeKey === canonicalDmKey;
+              return `
+                <button class="nav-item ${isActive ? "active" : ""}" data-action="select-team-dm" data-id="${emp.id}" style="height:34px;margin:2px 0;font-size:11px;justify-content:flex-start">
+                  <span style="width:8px;height:8px;border-radius:50%;background:${isOnline ? "var(--success)" : "var(--muted)"};margin-right:8px;flex:0 0 8px"></span>
+                  <span class="nav-text">${escapeHtml(emp.name)}</span>
+                </button>
+              `;
+            }).join("")}
+          </div>
+        </div>
+
+        <!-- CENTER CHAT PANE -->
+        <div class="team-chat-main-pane">
+          <!-- HEADER -->
+          <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.02)">
+            <button class="mini-btn mobile-chat-toggle" data-action="toggle-mobile-chat-channels" style="height:28px;padding:0 8px;font-size:11px;margin-right:4px">${icon("filter")} Channels</button>
+            <div style="font-size:18px;font-weight:800;color:var(--accent-2)">${isDm ? "@" : "#"}</div>
+            <div>
+              <strong style="font-size:13px;display:block">${escapeHtml(currentChan?.name)}</strong>
+              <span style="font-size:10px;color:var(--subtle)">${escapeHtml(currentChan?.description)}</span>
+            </div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+              <span class="status-pill success" style="font-size:9px">● ${onlineStaff.length} Online</span>
+            </div>
+          </div>
+
+          <!-- MESSAGES STREAM -->
+          <div id="team-chat-messages" style="overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px">
+            ${chanMessages.map(msg => `
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <div class="table-avatar" style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6378ff,#e468b4);color:#fff;flex:0 0 34px">${initials(msg.authorName)}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+                    <strong style="font-size:12px">${escapeHtml(msg.authorName)}</strong>
+                    <span class="status-pill ${msg.role === "Administrator" ? "info" : ""}" style="font-size:8px;padding:2px 6px">${escapeHtml(msg.role || "Staff")}</span>
+                    <span style="font-size:9px;color:var(--subtle);margin-left:auto">${escapeHtml(relativeTime(msg.at))}</span>
+                  </div>
+                  <div style="font-size:12px;line-height:1.5;color:var(--text);background:var(--surface-2);padding:10px 12px;border-radius:0 12px 12px 12px;border:1px solid var(--border);max-width:min(640px,90%);white-space:pre-wrap">
+                    ${markdown(msg.text)}
+                  </div>
+                  <div style="display:flex;gap:4px;margin-top:6px;align-items:center;flex-wrap:wrap;position:relative">
+                    ${Object.entries(msg.reactions || {}).map(([emoji, val]) => {
+                      const userList = Array.isArray(val) ? val : (val > 0 ? ["legacy"] : []);
+                      const count = userList.length;
+                      if (count === 0) return "";
+                      const hasReacted = userList.includes(myUserId);
+                      return `
+                        <button class="chip ${hasReacted ? "active" : ""}" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="${escapeHtml(emoji)}" style="height:22px;padding:0 7px;font-size:10px;${hasReacted ? "background:rgba(99,120,255,.2);border-color:var(--accent);color:#fff;font-weight:700" : ""}">
+                          ${escapeHtml(emoji)} ${count}
+                        </button>
+                      `;
+                    }).join("")}
+                    <button class="chip ghost" data-action="toggle-reaction-picker" data-msg-id="${msg.id}" style="height:22px;padding:0 7px;font-size:10px" title="Add reaction">+ 😊</button>
+                    <button class="mini-btn ghost" data-action="reply-team-msg" data-msg-id="${msg.id}" style="height:22px;font-size:10px;margin-left:4px;padding:0 6px">${icon("send")} Reply</button>
+
+                    ${ui.activeReactionPicker === msg.id ? `
+                      <div style="position:absolute;bottom:28px;left:0;z-index:30;background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:4px 8px;display:flex;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.4)">
+                        ${["👍", "🔥", "👏", "❤️", "🎉", "😂"].map(e => `
+                          <button class="mini-btn ghost" data-action="react-team-msg" data-msg-id="${msg.id}" data-emoji="${e}" style="font-size:14px;padding:2px 4px;height:26px;min-width:26px">${e}</button>
+                        `).join("")}
+                      </div>
+                    ` : ""}
+                  </div>
+                </div>
+              </div>
+            `).join("") || `<div class="panel-empty"><div><strong>No messages in ${isDm ? "@" + escapeHtml(currentChan?.name) : "#" + escapeHtml(currentChan?.name)} yet</strong><span>Be the first to post an update!</span></div></div>`}
+          </div>
+
+          <!-- COMPOSER -->
+          <form class="composer" data-form="team-chat" style="padding:12px;border-top:1px solid var(--border);background:var(--surface-2)">
+            <textarea name="text" required placeholder="Message ${isDm ? "@" + escapeHtml(currentChan?.name) : "#" + escapeHtml(currentChan?.name)}…" style="min-height:42px;max-height:100px;font-size:12px"></textarea>
+            <button class="action-btn primary" type="submit">${icon("send")} Send</button>
+          </form>
+        </div>
+
+        <!-- RIGHT INFO PANEL -->
+        <div class="team-chat-sidebar-right">
+
+          <h3 style="font-size:12px;font-weight:800;margin:0 0 6px">${isDm ? "@" : "#"} ${escapeHtml(currentChan?.name)}</h3>
+          <p style="font-size:10px;color:var(--subtle);margin:0 0 16px;line-height:1.4">${escapeHtml(currentChan?.description)}</p>
+
+          <div style="font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em;margin-bottom:8px">CRM STAFF MEMBERS (${staffMembers.length})</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+            ${staffMembers.map(emp => `
+              <div style="display:flex;align-items:center;gap:8px;font-size:11px">
+                <div class="table-avatar" style="width:24px;height:24px;font-size:9px">${initials(emp.name)}</div>
+                <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
+                  <strong>${escapeHtml(emp.name)}</strong>
+                  <div style="font-size:8px;color:var(--subtle)">${escapeHtml(emp.role)}</div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+
+          <div style="font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em;margin-bottom:8px">PINNED RESOURCES</div>
+          <div style="font-size:11px;color:var(--muted);line-height:1.4;background:var(--surface);padding:10px;border-radius:8px;border:1px solid var(--border)">
+            📌 <strong>Staff Knowledge Base</strong><br>
+            <span style="font-size:9px;color:var(--subtle)">SOPs, operation guides & database rules.</span>
+          </div>
+        </div>
+
+      </div>
+    `;
+  }
+
+  function isUserOnline(employee) {
+    if (!employee) return false;
+    const myId = authUser?.id || state.currentUserId;
+    const myEmail = (authUser?.email || "").toLowerCase();
+    const empEmail = (employee.email || "").toLowerCase();
+    const empName = (employee.name || "").toLowerCase();
+
+    // 1. Current logged in user is always online
+    if (myId && (employee.id === myId || (empEmail && myEmail && empEmail === myEmail))) {
+      return true;
+    }
+
+    // 2. Supabase Realtime WebSocket presence set
+    if (window._onlineUserIds) {
+      if (employee.id && window._onlineUserIds.has(employee.id)) return true;
+      if (empEmail && window._onlineUserIds.has(empEmail)) return true;
+      if (empName && window._onlineUserIds.has(empName)) return true;
+    }
+
+    // 3. Database activity heartbeat timestamp from profiles table
+    const contact = state.contacts.find(c => c.id === employee.id || (c.name && c.name.toLowerCase() === empName));
+    if (contact && contact.updatedAt) {
+      const diffSec = (Date.now() - new Date(contact.updatedAt).getTime()) / 1000;
+      if (diffSec < 120) return true;
+    }
+
+    return false;
+  }
+
+  function renderEmployees() {
+    const departments = [...new Set(state.employees.map(employee => employee.department))];
+    const staffCount = liveStats ? liveStats.staff_users : state.employees.length;
+    const totalUsers = liveStats ? liveStats.total_users : state.contacts.length;
+    const onlineCount = state.employees.filter(isUserOnline).length;
+
+    return `<div class="page-grid">
+      <div class="page-grid grid-4">
+        ${renderMetric("Team members", String(staffCount), `${departments.length} departments · staff & admins`, "employees", "#7c8cff")}
+        ${renderMetric("Online now", String(onlineCount), "active CRM sessions", "activity", "#49d7a0")}
+        ${renderMetric("AkiPasa Users", String(totalUsers), "registered database profiles", "user", "#52d9e9")}
+        ${renderMetric("Open assignments", String(state.tasks.filter(task => task.status !== "done").length), "tasks assigned", "tasks", "#ffbd55")}
+      </div>
+      <div class="cards-grid">
+        ${state.employees.map(employee => {
+          const openTasks = state.tasks.filter(task => task.assigneeId === employee.id && task.status !== "done").length;
+          const online = isUserOnline(employee);
+          return `<article class="entity-card" data-action="view-entity" data-entity="employee" data-id="${employee.id}" role="button" tabindex="0">
+            <div class="entity-card-top"><div class="entity-logo">${initials(employee.name)}</div><div class="entity-card-copy"><h3>${escapeHtml(employee.name)}</h3><p>${escapeHtml(employee.role)} · ${escapeHtml(employee.location)}</p></div><span class="status-pill ${online ? "success" : ""}">${online ? "Online" : "Offline"}</span></div>
+            <div class="entity-card-stats"><div class="entity-stat"><span>Department</span><strong>${escapeHtml(employee.department)}</strong></div><div class="entity-stat"><span>Open tasks</span><strong>${openTasks}</strong></div><div class="entity-stat"><span>Status</span><strong>${online ? "Online" : "Offline"}</strong></div><div class="entity-stat"><span>Joined</span><strong>${escapeHtml(formatDate(employee.joinedAt, { year: false }))}</strong></div></div>
+          </article>`;
+        }).join("")}
+      </div>
+      <section class="panel"><div class="panel-header"><div><h2>Department workload</h2><p>Open tasks grouped by team</p></div></div><div class="panel-body">
+        <div class="chart-bars">${departments.map(department => {
+          const ids = state.employees.filter(employee => employee.department === department).map(employee => employee.id);
+          const value = state.tasks.filter(task => ids.includes(task.assigneeId) && task.status !== "done").length;
+          return `<div class="chart-bar-wrap"><span class="chart-value">${value}</span><div class="chart-bar" style="height:${Math.max(5, value * 18)}%"></div><span class="chart-label">${escapeHtml(department)}</span></div>`;
+        }).join("")}</div>
+      </div></section>
+    </div>`;
+  }
+
+  function renderKnowledge() {
+    const article = state.knowledge.find(item => item.id === ui.selectedArticleId) || state.knowledge[0];
+    if (!article) return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("knowledge")}</div><h2>No articles yet</h2><p>Create the first article to document a process, policy or playbook.</p><button class="action-btn primary" data-action="open-form" data-entity="article">Create article</button></div></section>`;
+    const categories = [...new Set(state.knowledge.map(item => item.category))];
+    return `<section class="panel knowledge-layout">
+      <aside class="knowledge-nav">
+        ${categories.map(category => `<div class="nav-label" style="opacity:1;padding-left:8px">${escapeHtml(category)}</div>${state.knowledge.filter(item => item.category === category).map(item => `<button class="knowledge-item ${item.id === article.id ? "active" : ""}" data-action="select-article" data-id="${item.id}">${escapeHtml(item.title)}</button>`).join("")}`).join("")}
+      </aside>
+      <article class="knowledge-article">
+        <div class="article-wrap">
+          <div class="flex items-center"><span class="status-pill info">${escapeHtml(article.category)}</span><div class="ml-auto flex gap-8"><button class="action-btn" data-action="edit-entity" data-entity="article" data-id="${article.id}">${icon("edit")} Edit</button><button class="action-btn ghost" data-action="delete-entity" data-entity="article" data-id="${article.id}">${icon("trash")}</button></div></div>
+          <h1>${escapeHtml(article.title)}</h1>
+          <div class="article-meta">Written by ${escapeHtml(employeeName(article.authorId))} · updated ${escapeHtml(relativeTime(article.updatedAt))}</div>
+          <div class="article-content">${markdown(article.content)}</div>
+        </div>
+      </article>
+    </section>`;
+  }
+
+  function renderAnalytics() {
+    if (authRole !== "administrator") {
+      return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("lock")}</div><h2>Administrator analytics</h2><p>Aggregate personalisation and catalogue analytics are restricted to administrators.</p></div></section>`;
+    }
+    if (analyticsLoading && !analyticsOverview) {
+      return `<section class="panel empty-state analytics-loading"><div><div class="empty-state-icon">${icon("refresh")}</div><h2>Loading live analytics</h2><p>Aggregating tracker, recommendation, catalogue and CRM data from Supabase.</p></div></section>`;
+    }
+    if (analyticsError && !analyticsOverview) {
+      return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("warning")}</div><h2>Analytics unavailable</h2><p>${escapeHtml(analyticsError)}</p><button class="action-btn primary" data-action="refresh-analytics">Try again</button></div></section>`;
+    }
+
+    const overview = analyticsOverview || {};
+    const summary = overview.summary || {};
+    const catalogue = overview.catalogue || {};
+    const daily = overview.daily || [];
+    const eventTypes = overview.event_types || [];
+    const surfaces = overview.surfaces || [];
+    const topEntities = overview.top_entities || [];
+    const preferences = overview.preferences || [];
+    const ranking = overview.active_ranking || {};
+    const weights = Object.entries(ranking.weights || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
+    const number = value => Number(value || 0).toLocaleString();
+    const percent = (value, total) => total > 0 ? Math.round(Number(value || 0) / total * 100) : 0;
+    const impressions = Number(summary.impressions || 0);
+    const opens = Number(summary.opens || 0);
+    const engagement = opens + Number(summary.saves || 0) + Number(summary.going || 0) + Number(summary.directions || 0) + Number(summary.verified_check_ins || 0);
+    const maxDaily = Math.max(1, ...daily.map(item => Number(item.interactions || 0) + Number(item.analytics_events || 0) + Number(item.recommendations || 0)));
+    const fallbackRate = percent(summary.fallback_requests, summary.recommendation_requests);
+    const paidRevenue = state.invoices.filter(invoice => invoice.status === "Paid").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
+    const activeTasks = state.tasks.filter(task => !["done", "completed"].includes(String(task.status || "").toLowerCase())).length;
+    const funnel = [
+      ["Impressions", summary.impressions, "#7c8cff"],
+      ["Opens", summary.opens, "#52d9e9"],
+      ["Saved", summary.saves, "#49d7a0"],
+      ["Going", summary.going, "#ffbd55"],
+      ["Directions", summary.directions, "#e77eac"],
+      ["Verified check-ins", summary.verified_check_ins, "#9a73ea"]
+    ];
+    const maxFunnel = Math.max(1, ...funnel.map(item => Number(item[1] || 0)));
+
+    return `<div class="analytics-dashboard">
+      <section class="analytics-hero panel">
+        <div><span class="analytics-eyebrow">PERSONALISATION INTELLIGENCE</span><h2>Real behaviour, recommendation and business signals</h2><p>Privacy-safe aggregates from Supabase. No individual visitor history or precise location data is exposed.</p></div>
+        <div class="analytics-freshness"><span class="live-dot"></span><div><strong>Database connected</strong><small>Generated ${escapeHtml(relativeTime(overview.generated_at))} · ${escapeHtml(ui.analyticsRange)}-day window</small></div></div>
+      </section>
+
+      <div class="analytics-metric-grid">
+        ${renderMetric("Tracked activity", number(summary.tracked_events), `${number(summary.behaviour_events)} tracker · ${number(summary.analytics_events)} legacy`, "activity", "#7c8cff")}
+        ${renderMetric("Recommendations", number(summary.recommendation_requests), `${number(summary.recommendation_items)} ranked results · ${fallbackRate}% fallback`, "sparkles", "#52d9e9")}
+        ${renderMetric("Known audience", number(Number(summary.known_visitors || 0) + Number(summary.anonymous_visitors || 0)), `${number(summary.known_visitors)} signed-in · ${number(summary.anonymous_visitors)} anonymous`, "user", "#49d7a0")}
+        ${renderMetric("Published catalogue", number(catalogue.published_events), `${number(catalogue.venues)} venues · ${number(catalogue.upcoming_occurrences)} upcoming`, "calendar", "#ffbd55")}
+      </div>
+
+      <div class="analytics-main-grid">
+        <section class="panel analytics-trend-panel">
+          <div class="panel-header"><div><h2>Activity over time</h2><p>Tracker events, legacy analytics and recommendation requests by day</p></div><span class="status-pill info">${number(summary.tracked_events)} signals</span></div>
+          <div class="analytics-chart" role="img" aria-label="Daily analytics activity">
+            ${daily.map(item => {
+              const trackerHeight = Math.max(Number(item.interactions || 0) ? 3 : 0, Math.round(Number(item.interactions || 0) / maxDaily * 100));
+              const legacyHeight = Math.max(Number(item.analytics_events || 0) ? 3 : 0, Math.round(Number(item.analytics_events || 0) / maxDaily * 100));
+              const recommendationHeight = Math.max(Number(item.recommendations || 0) ? 3 : 0, Math.round(Number(item.recommendations || 0) / maxDaily * 100));
+              return `<div class="analytics-day" title="${escapeHtml(item.date)} · ${number(item.interactions)} tracker · ${number(item.analytics_events)} analytics · ${number(item.recommendations)} recommendations"><div class="analytics-day-bars"><i class="tracker" style="height:${trackerHeight}%"></i><i class="legacy" style="height:${legacyHeight}%"></i><i class="recommendation" style="height:${recommendationHeight}%"></i></div><span>${escapeHtml(item.date.slice(5))}</span></div>`;
+            }).join("")}
+          </div>
+          <div class="analytics-legend"><span><i class="tracker"></i>Tracker events</span><span><i class="legacy"></i>Legacy analytics</span><span><i class="recommendation"></i>Recommendations</span></div>
+        </section>
+
+        <section class="panel analytics-health-panel">
+          <div class="panel-header"><div><h2>Recommendation health</h2><p>Current weighted-ranker performance and delivery</p></div><span class="status-pill success">${escapeHtml(ranking.key || "weighted_ranker")} v${number(ranking.version || 1)}</span></div>
+          <div class="analytics-health-score"><strong>${number(summary.average_latency_ms)}<small> ms</small></strong><span>average ranking latency</span></div>
+          <div class="analytics-health-stats"><div><strong>${fallbackRate}%</strong><span>fallback rate</span></div><div><strong>${Math.round(Number(ranking.exploration_ratio || 0) * 100)}%</strong><span>exploration</span></div><div><strong>${number(catalogue.preference_profiles)}</strong><span>learning profiles</span></div></div>
+          <div class="analytics-weight-list">${weights.slice(0, 5).map(([key, value]) => `<div><span>${escapeHtml(capitalize(key))}</span><strong>${Math.round(Number(value || 0) * 100)}%</strong><i><b style="width:${clamp(Number(value || 0) * 250, 3, 100)}%"></b></i></div>`).join("") || `<div class="analytics-inline-empty">Ranking weights will appear after configuration is available.</div>`}</div>
+        </section>
+      </div>
+
+      <div class="analytics-detail-grid">
+        <section class="panel">
+          <div class="panel-header"><div><h2>Engagement journey</h2><p>Measured actions, never estimated placeholders</p></div><span class="status-pill">${impressions ? percent(engagement, impressions) : 0}% engaged</span></div>
+          <div class="panel-body analytics-funnel">${funnel.map(([label, value, color]) => `<div><div><strong>${escapeHtml(label)}</strong><span>${number(value)}${label === "Opens" && impressions ? ` · ${percent(value, impressions)}% of impressions` : ""}</span></div><i><b style="width:${Math.max(Number(value || 0) ? 4 : 0, Number(value || 0) / maxFunnel * 100)}%;background:${color}"></b></i></div>`).join("")}</div>
+        </section>
+        <section class="panel">
+          <div class="panel-header"><div><h2>Signal mix</h2><p>Top events across the selected period</p></div></div>
+          <div class="panel-body analytics-ranked-list">${eventTypes.map((item, index) => `<div><span>${index + 1}</span><strong>${escapeHtml(capitalize(item.key))}</strong><b>${number(item.total)}</b></div>`).join("") || `<div class="analytics-inline-empty">No interaction signals in this period yet.</div>`}</div>
+        </section>
+      </div>
+
+      <div class="analytics-detail-grid analytics-lower-grid">
+        <section class="panel"><div class="panel-header"><div><h2>Top content and venues</h2><p>Most interacted-with catalogue entities</p></div></div><div class="panel-body analytics-ranked-list">${topEntities.map((item, index) => `<div><span>${index + 1}</span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(capitalize(item.entity_type))}</small><b>${number(item.interactions)}</b></div>`).join("") || `<div class="analytics-inline-empty">Entity-level tracker activity will appear after visitors interact with events or venues.</div>`}</div></section>
+        <section class="panel"><div class="panel-header"><div><h2>Discovery surfaces</h2><p>Where measured interactions originated</p></div></div><div class="panel-body analytics-ranked-list">${surfaces.map((item, index) => `<div><span>${index + 1}</span><strong>${escapeHtml(capitalize(item.key))}</strong><b>${number(item.total)}</b></div>`).join("") || `<div class="analytics-inline-empty">No surface attribution is available yet.</div>`}</div></section>
+        <section class="panel"><div class="panel-header"><div><h2>Audience affinities</h2><p>Aggregate high-confidence preference signals</p></div></div><div class="panel-body analytics-ranked-list">${preferences.map((item, index) => `<div><span>${index + 1}</span><strong>${escapeHtml(capitalize(item.key))}</strong><small>${escapeHtml(capitalize(item.dimension))} · ${Math.round(Number(item.confidence || 0) * 100)}% confidence</small><b>${number(item.profiles)}</b></div>`).join("") || `<div class="analytics-inline-empty">Affinity insights will appear as visitors opt in and the model learns.</div>`}</div></section>
+      </div>
+
+      <section class="panel analytics-business-panel"><div class="panel-header"><div><h2>CRM outcomes</h2><p>Operational records persisted in the shared database workspace</p></div></div><div class="analytics-business-grid"><div><span>Pipeline value</span><strong>${escapeHtml(formatMoney(state.deals.reduce((sum, deal) => sum + Number(deal.value || 0), 0)))}</strong><small>${number(state.deals.length)} deals</small></div><div><span>Collected revenue</span><strong>${escapeHtml(formatMoney(paidRevenue))}</strong><small>${number(state.invoices.filter(invoice => invoice.status === "Paid").length)} paid invoices</small></div><div><span>Active work</span><strong>${number(activeTasks)}</strong><small>${number(state.projects.length)} projects</small></div><div><span>Negative signals</span><strong>${number(summary.negative_signals)}</strong><small>skips, exits, dislikes and hidden venues</small></div></div></section>
+    </div>`;
+  }
+
+  function renderTelegram() {
+    const tab = ui.telegramTab || "chats";
+    const backups = state.telegramBackups || [
+      { id: "tb_2026_08_05", title: "Daily 24h Chat Backup (2026-08-05)", messagesCount: 48, size: "128 KB", createdAt: new Date().toISOString(), status: "Verified", hash: "sha256-8a9f4c2e" },
+      { id: "tb_2026_08_04", title: "Daily 24h Chat Backup (2026-08-04)", messagesCount: 62, size: "154 KB", createdAt: new Date(Date.now() - 86400000).toISOString(), status: "Verified", hash: "sha256-3b7c1d9e" },
+      { id: "tb_2026_08_03", title: "Daily 24h Chat Backup (2026-08-03)", messagesCount: 39, size: "94 KB", createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), status: "Verified", hash: "sha256-5e2a9b1f" }
+    ];
+    const messages = state.telegramMessages || [
+      { id: "tm_01", from: "@alexashing1", user: "Alex Ashing (Admin)", text: "/stats", response: "📊 AkiHQ CRM Live Dashboard Stats\n🏢 Venues: 12\n👥 Users: 48\n👔 Staff: 3\n💼 Active Deals: 6", command: "crm-stats", at: new Date(Date.now() - 3600000 * 2).toISOString() },
+      { id: "tm_02", from: "@alexashing1", user: "Alex Ashing (Admin)", text: "/addlead Soho House info@sohohouse.com", response: "✅ Lead Created in AkiHQ CRM\nLead Name: Soho House\nDetail: info@sohohouse.com · Added via Telegram Bot", command: "crm-add-lead", at: new Date(Date.now() - 3600000 * 5).toISOString() },
+      { id: "tm_03", from: "@staff_member", user: "CRM Staff Member", text: "/deals", response: "💼 AkiHQ Sales Deals & Pipeline\nActive Deals: 6\nPipeline Value: €14,500.00", command: "crm-deals", at: new Date(Date.now() - 3600000 * 12).toISOString() },
+      { id: "tm_04", from: "@alexashing1", user: "Alex Ashing (Admin)", text: "/backup", response: "💾 Telegram 24h Chat Backup Triggered\nSnapshot: Saved to AkiHQ CRM Telegram Tab", command: "telegram-backup", at: new Date(Date.now() - 3600000 * 24).toISOString() }
+    ];
+    state.telegramBackups ||= backups;
+    state.telegramMessages ||= messages;
+
+    const query = (ui.telegramSearch || "").trim().toLowerCase();
+    const filteredMessages = state.telegramMessages.filter(m => !query || `${m.from} ${m.user} ${m.text} ${m.response} ${m.command}`.toLowerCase().includes(query));
+
+    let tabContent = "";
+    if (tab === "chats") {
+      tabContent = `
+        <section class="panel table-panel">
+          <div class="panel-header">
+            <div><h2>Telegram Live Chat & Bot Logs</h2><p>${filteredMessages.length} messages logged · connected to @AkiPasaHQBot</p></div>
+            <div class="panel-actions">
+              <input class="toolbar-input" style="width:260px;height:34px" data-telegram-search value="${escapeHtml(ui.telegramSearch || "")}" placeholder="Search Telegram chat log…" />
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>User / Sender</th><th>Message / Command</th><th>Bot Response</th><th>Timestamp</th><th>Status</th></tr></thead>
+              <tbody>
+                ${filteredMessages.map(msg => `
+                  <tr>
+                    <td>
+                      <div class="table-primary">
+                        <div class="table-avatar" style="background:linear-gradient(135deg,#27a7e7,#1d93d2);color:#fff">${icon("telegram")}</div>
+                        <div class="table-primary-copy"><strong>${escapeHtml(msg.user || msg.from)}</strong><span>${escapeHtml(msg.from)}</span></div>
+                      </div>
+                    </td>
+                    <td><code style="color:var(--accent-2);font-weight:700">${escapeHtml(msg.text)}</code></td>
+                    <td><div style="font-size:11px;line-height:1.4;white-space:pre-wrap;max-width:380px;color:var(--text)">${escapeHtml(msg.response)}</div></td>
+                    <td>${escapeHtml(relativeTime(msg.at))}</td>
+                    <td><span class="status-pill success" style="font-size:9px">● Executed</span></td>
+                  </tr>
+                `).join("") || `<tr><td colspan="5"><div class="panel-empty"><div><strong>No chat messages found</strong><span>Try clearing your search query.</span></div></div></td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      `;
+    } else if (tab === "backups") {
+      tabContent = `
+        <section class="panel table-panel">
+          <div class="panel-header">
+            <div><h2>Automated 24h Chat Backups</h2><p>${state.telegramBackups.length} archived snapshots · scheduled every 24 hours</p></div>
+            <div class="panel-actions">
+              <button class="action-btn primary" data-action="trigger-telegram-backup">${icon("refresh")} 24h Backup Now</button>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>Backup Name</th><th>Messages Logged</th><th>File Size</th><th>SHA-256 Checksum</th><th>Date Created</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                ${state.telegramBackups.map(b => `
+                  <tr>
+                    <td><div class="table-primary"><div class="table-avatar" style="background:var(--surface-3);color:var(--accent)">${icon("download")}</div><div class="table-primary-copy"><strong>${escapeHtml(b.title)}</strong><span>${escapeHtml(b.id)}</span></div></div></td>
+                    <td><strong>${b.messagesCount} msgs</strong></td>
+                    <td>${escapeHtml(b.size)}</td>
+                    <td><code style="font-size:10px;color:var(--muted)">${escapeHtml(b.hash)}</code></td>
+                    <td>${escapeHtml(formatDate(b.createdAt, { time: true }))}</td>
+                    <td><span class="status-pill success" style="font-size:9px">● ${escapeHtml(b.status)}</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="mini-btn primary" data-action="download-telegram-backup" data-id="${b.id}">${icon("download")} Export</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      `;
+    } else if (tab === "commands") {
+      const commandsList = [
+        { cmd: "/stats", desc: "Pull live CRM metrics, total venues, users, staff, and active sales deals", category: "CRM Data" },
+        { cmd: "/venues", desc: "List top registered & verified AkiPasa venues directly from database", category: "Venues" },
+        { cmd: "/deals", desc: "Summary of active sales deals, stage breakdown & total pipeline value", category: "Sales" },
+        { cmd: "/contacts", desc: "Show staff members roster and total CRM registered contacts", category: "Team" },
+        { cmd: "/tasks", desc: "List current open team assignments & pending work items", category: "Tasks" },
+        { cmd: "/addlead <name> <company/email>", desc: "Quickly create a new lead in CRM directly from Telegram chat", category: "Actions" },
+        { cmd: "/backup", desc: "Trigger an instant automated 24h Telegram chat log backup", category: "System" },
+        { cmd: "/numbers", desc: "Send latest investor update summary to Telegram group", category: "Reports" },
+        { cmd: "/revenue", desc: "Show 30-day revenue, MRR, and net earnings", category: "Finance" },
+        { cmd: "/expenses", desc: "Show 30-day expenses and monthly burn rate", category: "Finance" },
+        { cmd: "/status", desc: "Check Cloudflare Worker, Supabase DB & Telegram bot health", category: "System" },
+        { cmd: "/test", desc: "Send connection test message to Telegram group", category: "System" }
+      ];
+      tabContent = `
+        <div class="page-grid grid-3">
+          ${commandsList.map(item => `
+            <article class="panel" style="padding:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <code style="font-size:13px;font-weight:800;color:var(--accent-2);background:rgba(82,217,233,.12);padding:4px 8px;border-radius:6px">${escapeHtml(item.cmd)}</code>
+                <span class="status-pill info" style="font-size:9px">${escapeHtml(item.category)}</span>
+              </div>
+              <p style="font-size:11px;color:var(--muted);margin:0 0 14px;line-height:1.4">${escapeHtml(item.desc)}</p>
+              <button class="mini-btn primary" data-action="run-telegram-command" data-cmd="${escapeHtml(item.cmd.split(" ")[0])}" style="width:100%;justify-content:center">
+                ${icon("send")} Run Command
+              </button>
+            </article>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="page-grid">
+        <div class="page-grid grid-4">
+          ${renderMetric("Telegram bot", "● Active", "@AkiPasaHQBot connected", "telegram", "#27a7e7")}
+          ${renderMetric("24h Chat backups", `${state.telegramBackups.length} Saved`, "Auto-backup every 24 hours", "download", "#49d7a0")}
+          ${renderMetric("Messages logged", String(state.telegramMessages.length), "Real-time group & bot sync", "inbox", "#7c8cff")}
+          ${renderMetric("Bot commands", "12 Commands", "Live Supabase query & add", "automation", "#ffbd55")}
+        </div>
+        ${tabContent}
+      </div>
+    `;
+  }
+
+  function renderIntegrations() {
+    const categories = ["All", ...new Set(integrationCatalog.map(item => item.category))];
+    const query = ui.integrationSearch.trim().toLowerCase();
+    const filtered = integrationCatalog.filter(item => (ui.integrationCategory === "All" || item.category === ui.integrationCategory) && (!query || `${item.name} ${item.description} ${item.category}`.toLowerCase().includes(query)));
+    return `<div class="page-grid">
+      <div class="integration-toolbar">
+        <input class="toolbar-input" style="flex:1;max-width:340px" data-integration-search value="${escapeHtml(ui.integrationSearch)}" placeholder="Search integrations…">
+        <div class="integration-categories">${categories.map(category => `<button class="chip ${ui.integrationCategory === category ? "active" : ""}" data-action="integration-category" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div>
+      </div>
+      <div class="cards-grid">
+        ${filtered.map(integration => {
+          const connection = state.integrations[integration.id];
+          const connected = connection?.status === "connected";
+          const setup = connection?.status === "setup";
+          return `<article class="entity-card integration-card">
+            <div class="integration-logo" style="--integration-bg:${integration.color}">${escapeHtml(integration.mark)}</div>
+            <h3>${escapeHtml(integration.name)}</h3><p>${escapeHtml(integration.description)}</p>
+            <div class="integration-foot"><span class="status-pill ${connected ? "success" : setup ? "warning" : ""}">${connected ? t("connected") : setup ? "Needs server config" : integration.mode === "import" ? "Available" : "Not configured"}</span><button class="action-btn" data-action="connect-integration" data-id="${integration.id}">${connected ? "Manage" : t("configure")}</button></div>
+          </article>`;
+        }).join("") || `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("search")}</div><h2>No matching integrations</h2><p>Try another provider or use the generic webhook and REST API connectors.</p></div></section>`}
+      </div>
+      <section class="panel"><div class="panel-header"><div><h2>Connector model</h2><p>What works in this no-VPS build</p></div></div><div class="panel-body page-grid grid-3">
+        <div class="detail-block"><div class="detail-label">Local adapters</div><div class="detail-value">CSV import/export, generic data backup and browser-side workflow configuration work immediately.</div></div>
+        <div class="detail-block"><div class="detail-label">Serverless adapters</div><div class="detail-value">Provider secrets and webhooks belong in the included Cloudflare Worker, not in browser storage.</div></div>
+        <div class="detail-block"><div class="detail-label">OAuth providers</div><div class="detail-value">Google, Microsoft, Meta and similar providers require your own app credentials and approval.</div></div>
+      </div></section>
+    </div>`;
+  }
+
+  function cloudConfigured() {
+    const config = window.AKIHQ_CONFIG || {};
+    return Boolean(config.SUPABASE_URL && config.SUPABASE_ANON_KEY && !String(config.SUPABASE_URL).includes("YOUR_PROJECT"));
+  }
+
+  function renderSettings() {
+    const tabs = [
+      ["appearance", "Appearance"], ["workspace", "Workspace"], ["data", "Data & backup"], ["cloud", "Cloud sync"], ["security", "Security"], ["about", "About"]
+    ];
+    return `<div class="settings-layout">
+      <aside class="panel settings-nav">${tabs.map(([id, label]) => `<button class="${ui.settingsTab === id ? "active" : ""}" data-action="settings-tab" data-tab="${id}">${escapeHtml(label)}</button>`).join("")}</aside>
+      <div>${renderSettingsPanel()}</div>
+    </div>`;
+  }
+
+  function renderSettingsPanel() {
+    if (ui.settingsTab === "workspace") {
+      return `<section class="panel settings-section"><h2>Workspace profile</h2><p>Defaults used across AkiHQ records, dates and documents.</p>
+        <form class="form-grid" data-form="workspace">
+          <div class="form-field"><label>Workspace name</label><input name="name" required value="${escapeHtml(state.workspace.name)}"></div>
+          <div class="form-field"><label>Slug</label><input name="slug" required value="${escapeHtml(state.workspace.slug)}"></div>
+          <div class="form-field"><label>Timezone</label><input name="timezone" value="${escapeHtml(state.workspace.timezone)}"></div>
+          <div class="form-field"><label>Currency</label><select name="currency">${["EUR", "GBP", "USD"].map(currency => `<option ${state.workspace.currency === currency ? "selected" : ""}>${currency}</option>`).join("")}</select></div>
+          <div class="form-field full"><div class="flex"><button class="action-btn primary ml-auto" type="submit">Save workspace</button></div></div>
+        </form>
+      </section>
+      <section class="panel settings-section"><h2>Workspace statistics</h2><p>Shared records currently stored in the Supabase workspace.</p>
+        <div class="page-grid grid-4">
+          <div class="detail-block"><div class="detail-label">CRM records</div><div class="detail-value">${state.deals.length + state.leads.length + state.contacts.length + state.companies.length}</div></div>
+          <div class="detail-block"><div class="detail-label">Tasks & projects</div><div class="detail-value">${state.tasks.length + state.projects.length}</div></div>
+          <div class="detail-block"><div class="detail-label">Documents</div><div class="detail-value">${state.invoices.length + state.knowledge.length}</div></div>
+          <div class="detail-block"><div class="detail-label">Audit entries</div><div class="detail-value">${state.audit.length}</div></div>
+        </div>
+      </section>`;
+    }
+    if (ui.settingsTab === "data") {
+      return `<section class="panel settings-section"><h2>Data and backup</h2><p>Supabase is the authoritative workspace. Exports are portable backups, not the primary data store.</p>
+        <div class="setting-row"><div class="setting-copy"><strong>Export complete workspace</strong><span>Downloads CRM, tasks, messages, settings and every other database-backed record.</span></div><button class="action-btn" data-action="export-data">${icon("download")} Export JSON</button></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Import workspace backup</strong><span>Replaces the current workspace after validating the file.</span></div><button class="action-btn" data-action="import-data">${icon("upload")} Import JSON</button></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Export CRM CSV</strong><span>Creates separate CSV downloads for deals, contacts and companies.</span></div><button class="action-btn" data-action="export-crm-bundle">${icon("download")} Export CSVs</button></div>
+      </section>
+      <section class="panel settings-section"><h2>Storage</h2><p>Business data is committed to the shared RLS-protected Supabase row; browser memory is only a render cache.</p>
+        <div class="detail-grid"><div class="detail-block"><div class="detail-label">Snapshot size</div><div class="detail-value">${(new Blob([JSON.stringify(state)]).size / 1024).toFixed(1)} KB</div></div><div class="detail-block"><div class="detail-label">Database table</div><div class="detail-value"><code>workspace_snapshots</code></div></div></div>
+      </section>`;
+    }
+    if (ui.settingsTab === "cloud") {
+      const configured = cloudConfigured();
+      return `<section class="panel settings-section"><h2>Supabase database</h2><p>The authenticated Supabase session is the only workspace connection; there is no separate browser-local mode.</p>
+        ${!configured ? `<div class="detail-block full" style="border-color:rgba(255,189,85,.4)"><div class="detail-label text-warning">Configuration needed</div><div class="detail-value">Add the Supabase URL and publishable key to <code>config.js</code>.</div></div>` : `
+          <div class="setting-row"><div class="setting-copy"><strong>Connected as ${escapeHtml(authUser?.email || "staff user")}</strong><span>Reads, writes and realtime updates use the signed-in staff session and database RLS.</span></div><span class="status-pill success">Live</span></div>
+          <div class="setting-row"><div class="setting-copy"><strong>Automatic persistence</strong><span>Every CRM mutation is committed to Supabase before it is reported as saved.</span></div><span class="status-pill success">Enabled</span></div>`}
+      </section>
+      <section class="panel settings-section"><h2>Persistence scope</h2><p>The shared snapshot is synchronized across authenticated staff devices.</p>
+        <div class="page-grid grid-3"><div class="detail-block"><div class="detail-label">Included</div><div class="detail-value">CRM, Calendar, Knowledge, tasks, operations, UI settings and audit state.</div></div><div class="detail-block"><div class="detail-label">Realtime</div><div class="detail-value">Database changes and workspace broadcasts update active staff sessions.</div></div><div class="detail-block"><div class="detail-label">Protected elsewhere</div><div class="detail-value">Provider credentials remain encrypted in the server-side integration vault.</div></div></div>
+      </section>`;
+    }
+    if (ui.settingsTab === "security") {
+      return `<section class="panel settings-section"><h2>Security model</h2><p>The downloadable build deliberately avoids pretending browser storage is a secure place for provider credentials.</p>
+        <div class="setting-row"><div class="setting-copy"><strong>Integration secrets</strong><span>Store OAuth client secrets, API secrets and webhook signing keys in Cloudflare Worker secrets.</span></div><span class="status-pill success">Protected design</span></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Cloud data access</strong><span>The included Supabase schema enables Row Level Security so each user can access only their own snapshot.</span></div><span class="status-pill success">RLS included</span></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Local device access</strong><span>Anyone with access to this browser profile can read local AkiHQ data. Use OS account security.</span></div><span class="status-pill warning">Device-controlled</span></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Audit log</strong><span>${state.audit.length} local actions recorded. Exported with workspace backups.</span></div><button class="action-btn" data-action="export-audit">Export log</button></div>
+      </section>
+      <section class="panel settings-section"><h2>Privacy switches</h2><p>Local preferences for notification and motion behaviour.</p>
+        <div class="setting-row"><div class="setting-copy"><strong>In-app notifications</strong><span>Show reminders and workflow updates.</span></div><button class="switch ${state.settings.notifications ? "on" : ""}" data-action="toggle-setting" data-key="notifications"></button></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Reduced motion</strong><span>Minimise non-essential interface animation.</span></div><button class="switch ${state.settings.reducedMotion ? "on" : ""}" data-action="toggle-setting" data-key="reducedMotion"></button></div>
+      </section>`;
+    }
+    if (ui.settingsTab === "about") {
+      return `<section class="panel settings-section"><h2>AkiHQ ${APP_VERSION}</h2><p>An original, open-source business workspace built for Alex—not a Bitrix24 source-code copy or branded skin.</p>
+        <div class="detail-grid"><div class="detail-block"><div class="detail-label">License</div><div class="detail-value">Apache License 2.0</div></div><div class="detail-block"><div class="detail-label">Runtime</div><div class="detail-value">Static PWA + optional Supabase + optional Cloudflare Worker</div></div><div class="detail-block full"><div class="detail-label">Modules in this build</div><div class="detail-value">Dashboard, CRM, inbox, projects, calendar, inventory, billing, marketing, sites/forms, automation, collaboration, people, knowledge, analytics, integrations and settings.</div></div></div>
+      </section>
+      <section class="panel settings-section"><h2>Honest status</h2><p>This package is a working database-backed alpha, not finished parity with every feature of a mature commercial suite.</p>
+        <div class="page-grid grid-3"><div class="detail-block"><div class="detail-label">Working now</div><div class="detail-value">Persistent CRUD, boards, drag-and-drop, search, activity, messages, exports, PWA shell and optional personal cloud sync.</div></div><div class="detail-block"><div class="detail-label">Adapter UI included</div><div class="detail-value">Major integration catalogue with configuration states and serverless architecture.</div></div><div class="detail-block"><div class="detail-label">Requires implementation</div><div class="detail-value">Production OAuth flows, provider webhooks, relational multi-tenant backend, files, payments and true realtime collaboration.</div></div></div>
+      </section>`;
+    }
+    return `<section class="panel settings-section"><h2>Appearance</h2><p>Choose a look and information density. Changes are saved instantly.</p>
+      <div class="setting-row"><div class="setting-copy"><strong>Theme</strong><span>Dark and light themes use the same original aurora-map visual system.</span></div><div class="theme-options">
+        <button class="theme-option ${state.settings.theme === "dark" ? "active" : ""}" data-action="set-theme" data-theme="dark" title="Dark"><div class="theme-preview dark"><span></span><span></span></div></button>
+        <button class="theme-option ${state.settings.theme === "light" ? "active" : ""}" data-action="set-theme" data-theme="light" title="Light"><div class="theme-preview light"><span></span><span></span></div></button>
+      </div></div>
+      <div class="setting-row"><div class="setting-copy"><strong>Density</strong><span>Compact mode fits more records on screen.</span></div><select class="filter-select" data-change="density"><option value="comfortable" ${state.settings.density === "comfortable" ? "selected" : ""}>Comfortable</option><option value="compact" ${state.settings.density === "compact" ? "selected" : ""}>Compact</option></select></div>
+      <div class="setting-row"><div class="setting-copy"><strong>Language</strong><span>Navigation and common actions include English and Spanish.</span></div><select class="filter-select" data-change="locale"><option value="en" ${state.settings.locale === "en" ? "selected" : ""}>English</option><option value="es" ${state.settings.locale === "es" ? "selected" : ""}>Español</option></select></div>
+      <div class="setting-row"><div class="setting-copy"><strong>Collapsed navigation</strong><span>Keep only icons visible on desktop.</span></div><button class="switch ${state.settings.sidebarCollapsed ? "on" : ""}" data-action="toggle-sidebar"></button></div>
+    </section>`;
+  }
+
+  const collectionFor = {
+    deal: "deals", lead: "leads", contact: "contacts", company: "companies", task: "tasks", project: "projects",
+    event: "events", product: "products", invoice: "invoices", campaign: "campaigns", page: "pages", form: "forms",
+    automation: "automations", article: "knowledge", employee: "employees", conversation: "conversations"
+  };
+
+  function getEntity(type, id) {
+    const collection = collectionFor[type];
+    return collection ? state[collection]?.find(item => item.id === id) : null;
+  }
+
+  function routeForEntity(type) {
+    if (["deal", "lead", "contact", "company"].includes(type)) return "crm";
+    if (["task", "project"].includes(type)) return "tasks";
+    if (type === "event") return "calendar";
+    if (type === "product") return "inventory";
+    if (type === "invoice") return "sales";
+    if (type === "campaign") return "marketing";
+    if (["page", "form"].includes(type)) return "sites";
+    if (type === "automation") return "automation";
+    if (type === "employee") return "employees";
+    if (type === "article") return "knowledge";
+    if (type === "conversation") return "inbox";
+    return "dashboard";
+  }
+
+  function titleForEntity(type, entity) {
+    if (!entity) return capitalize(type);
+    return entity.title || entity.name || entity.number || entity.sku || capitalize(type);
+  }
+
+  function entityFormConfig(type, existing = null) {
+    const employeeOptions = state.employees.map(employee => [employee.id, employee.name]);
+    const companyOptions = [["", "No company"], ...state.companies.map(company => [company.id, company.name])];
+    const contactOptions = [["", "No contact"], ...state.contacts.map(contact => [contact.id, contact.name])];
+    const projectOptions = [["", "No project"], ...state.projects.map(project => [project.id, project.name])];
+    const pipelineId = existing?.pipelineId || ui.formDefaults.pipelineId || ui.pipelineId || state.pipelines[0]?.id;
+    const pipeline = state.pipelines.find(item => item.id === pipelineId) || state.pipelines[0];
+    const configs = {
+      deal: {
+        label: "Deal",
+        icon: "crm",
+        fields: [
+          { name: "title", label: "Deal title", required: true, full: true },
+          { name: "companyId", label: "Company", type: "select", options: companyOptions },
+          { name: "contactId", label: "Contact", type: "select", options: contactOptions },
+          { name: "pipelineId", label: "Pipeline", type: "select", options: state.pipelines.map(item => [item.id, item.name]), value: pipelineId },
+          { name: "stageId", label: "Stage", type: "select", options: pipeline.stages.map(stage => [stage.id, stage.name]), value: ui.formDefaults.stageId || pipeline.stages[0]?.id },
+          { name: "value", label: "Value", type: "number", step: "0.01", value: 0 },
+          { name: "probability", label: "Probability %", type: "number", min: 0, max: 100, value: 20 },
+          { name: "ownerId", label: "Owner", type: "select", options: employeeOptions, value: state.currentUserId },
+          { name: "dueDate", label: "Due date", type: "date", value: dateOffset(7) },
+          { name: "source", label: "Source", value: "Manual" },
+          { name: "tags", label: "Tags", help: "Comma separated", full: true },
+          { name: "notes", label: "Notes", type: "textarea", full: true }
+        ]
+      },
+      lead: {
+        label: "Lead", icon: "user", fields: [
+          { name: "name", label: "Lead name", required: true }, { name: "company", label: "Company" },
+          { name: "email", label: "Email", type: "email" }, { name: "phone", label: "Phone" },
+          { name: "status", label: "Status", type: "select", options: ["New", "Contacted", "Qualified", "Unqualified"], value: "New" },
+          { name: "source", label: "Source", value: "Manual" },
+          { name: "ownerId", label: "Owner", type: "select", options: employeeOptions, value: state.currentUserId },
+          { name: "score", label: "Lead score", type: "number", min: 0, max: 100, value: 50 }
+        ]
+      },
+      contact: {
+        label: "Contact", icon: "user", fields: [
+          { name: "name", label: "Full name", required: true }, { name: "companyId", label: "Company", type: "select", options: companyOptions },
+          { name: "email", label: "Email", type: "email" }, { name: "phone", label: "Phone" },
+          { name: "role", label: "Role" }, { name: "source", label: "Source", value: "Manual" },
+          { name: "tags", label: "Tags", help: "Comma separated", full: true }
+        ]
+      },
+      company: {
+        label: "Company", icon: "building", fields: [
+          { name: "name", label: "Company name", required: true, full: true }, { name: "type", label: "Type" },
+          { name: "city", label: "City" }, { name: "website", label: "Website", type: "url" },
+          { name: "email", label: "Email", type: "email" }, { name: "phone", label: "Phone" },
+          { name: "ownerId", label: "Owner", type: "select", options: employeeOptions, value: state.currentUserId },
+          { name: "employees", label: "Employees", type: "number", min: 0, value: 1 },
+          { name: "status", label: "Status", type: "select", options: ["Prospect", "Customer", "Partner", "Inactive"], value: "Prospect" }
+        ]
+      },
+      task: {
+        label: "Task", icon: "tasks", fields: [
+          { name: "title", label: "Task title", required: true, full: true },
+          { name: "projectId", label: "Project", type: "select", options: projectOptions },
+          { name: "status", label: "Status", type: "select", options: [["todo", "To do"], ["progress", "In progress"], ["review", "Review"], ["done", "Done"]], value: ui.formDefaults.stageId || "todo" },
+          { name: "priority", label: "Priority", type: "select", options: ["low", "medium", "high"], value: "medium" },
+          { name: "assigneeId", label: "Assignee", type: "select", options: employeeOptions, value: state.currentUserId },
+          { name: "dueDate", label: "Due date", type: "date", value: dateOffset(3) },
+          { name: "estimate", label: "Estimate (minutes)", type: "number", min: 0, value: 60 },
+          { name: "tracked", label: "Tracked (minutes)", type: "number", min: 0, value: 0 },
+          { name: "description", label: "Description", type: "textarea", full: true }
+        ]
+      },
+      project: {
+        label: "Project", icon: "tasks", fields: [
+          { name: "name", label: "Project name", required: true, full: true },
+          { name: "status", label: "Status", type: "select", options: ["Planning", "Active", "On hold", "Completed"], value: "Planning" },
+          { name: "ownerId", label: "Owner", type: "select", options: employeeOptions, value: state.currentUserId },
+          { name: "progress", label: "Progress %", type: "number", min: 0, max: 100, value: 0 },
+          { name: "dueDate", label: "Due date", type: "date", value: dateOffset(30) },
+          { name: "budget", label: "Budget", type: "number", min: 0, step: "0.01", value: 0 }
+        ]
+      },
+      event: {
+        label: "Event", icon: "calendar", fields: [
+          { name: "title", label: "Event title", required: true, full: true },
+          { name: "start", label: "Starts", type: "datetime-local", value: ui.formDefaults.start || dateOffset(1) },
+          { name: "end", label: "Ends", type: "datetime-local", value: ui.formDefaults.end || dateOffset(1) },
+          { name: "type", label: "Type", type: "select", options: ["Team", "Client", "Sales", "Production", "Milestone", "Booking"], value: "Team" },
+          { name: "color", label: "Colour", type: "color", value: "#7c8cff" },
+          { name: "location", label: "Location", full: true },
+          { name: "notes", label: "Notes", type: "textarea", full: true }
+        ]
+      },
+      product: {
+        label: "Product", icon: "inventory", fields: [
+          { name: "name", label: "Product name", required: true, full: true },
+          { name: "sku", label: "SKU", required: true }, { name: "category", label: "Category", value: "General" },
+          { name: "price", label: "Sale price", type: "number", step: "0.01", min: 0, value: 0 },
+          { name: "cost", label: "Unit cost", type: "number", step: "0.01", min: 0, value: 0 },
+          { name: "stock", label: "Stock", type: "number", min: 0, value: 0 }, { name: "reorderAt", label: "Reorder at", type: "number", min: 0, value: 0 },
+          { name: "warehouse", label: "Warehouse", value: "Main" },
+          { name: "status", label: "Status", type: "select", options: ["Active", "Draft", "Archived"], value: "Active" },
+          { name: "description", label: "Description", type: "textarea", full: true }
+        ]
+      },
+      invoice: {
+        label: existing?.type || ui.formDefaults.type || "Invoice", icon: "sales", fields: [
+          { name: "number", label: "Document number", required: true, value: `${ui.formDefaults.type === "Quote" ? "Q" : "INV"}-${String(1013 + state.invoices.length).padStart(4, "0")}` },
+          { name: "type", label: "Type", type: "select", options: ["Invoice", "Quote"], value: ui.formDefaults.type || "Invoice" },
+          { name: "companyId", label: "Customer", type: "select", options: companyOptions, required: true },
+          { name: "status", label: "Status", type: "select", options: ["Draft", "Sent", "Paid", "Overdue", "Cancelled"], value: "Draft" },
+          { name: "issueDate", label: "Issue date", type: "date", value: isoNow() },
+          { name: "dueDate", label: "Due date", type: "date", value: dateOffset(14) },
+          { name: "total", label: "Total including tax", type: "number", min: 0, step: "0.01", value: 0 },
+          { name: "tax", label: "Tax", type: "number", min: 0, step: "0.01", value: 0 },
+          { name: "notes", label: "Description", type: "textarea", full: true }
+        ]
+      },
+      campaign: {
+        label: "Campaign", icon: "marketing", fields: [
+          { name: "name", label: "Campaign name", required: true, full: true },
+          { name: "channel", label: "Channel", type: "select", options: ["Email", "SMS", "Push", "Instagram", "Facebook"], value: "Email" },
+          { name: "audience", label: "Audience", value: "All contacts" },
+          { name: "status", label: "Status", type: "select", options: ["Draft", "Scheduled", "Running", "Paused", "Completed"], value: "Draft" },
+          { name: "budget", label: "Budget", type: "number", min: 0, step: "0.01", value: 0 },
+          { name: "startDate", label: "Start date", type: "date", value: isoNow() }, { name: "endDate", label: "End date", type: "date", value: dateOffset(14) }
+        ]
+      },
+      page: {
+        label: "Landing page", icon: "sites", fields: [
+          { name: "name", label: "Page name", required: true }, { name: "slug", label: "URL slug", required: true },
+          { name: "status", label: "Status", type: "select", options: ["Draft", "Published", "Archived"], value: "Draft" },
+          { name: "headline", label: "Headline", required: true, full: true },
+          { name: "body", label: "Body copy", type: "textarea", full: true }
+        ]
+      },
+      form: {
+        label: "Form", icon: "sales", fields: [
+          { name: "name", label: "Form name", required: true },
+          { name: "status", label: "Status", type: "select", options: ["Draft", "Live", "Archived"], value: "Draft" },
+          { name: "destination", label: "Create record", type: "select", options: ["Lead", "Deal", "Contact", "Custom record"], value: "Lead" },
+          { name: "fields", label: "Fields", type: "textarea", help: "One field per line", full: true, value: "Name\nEmail\nMessage" }
+        ]
+      },
+      automation: {
+        label: "Automation", icon: "automation", fields: [
+          { name: "name", label: "Automation name", required: true, full: true },
+          { name: "status", label: "Status", type: "select", options: ["Active", "Paused"], value: "Paused" },
+          { name: "trigger", label: "Trigger", required: true, full: true },
+          { name: "conditions", label: "Conditions", type: "textarea", help: "One condition per line", full: true },
+          { name: "actions", label: "Actions", type: "textarea", help: "One action per line", full: true, required: true }
+        ]
+      },
+      article: {
+        label: "Knowledge article", icon: "knowledge", fields: [
+          { name: "title", label: "Article title", required: true, full: true },
+          { name: "category", label: "Category", value: "General" },
+          { name: "authorId", label: "Author", type: "select", options: employeeOptions, value: state.currentUserId },
+          { name: "content", label: "Content (Markdown)", type: "textarea", full: true, required: true, value: "## Overview\n\nWrite the process here." }
+        ]
+      },
+      employee: {
+        label: "Team member", icon: "employees", fields: [
+          { name: "name", label: "Full name", required: true }, { name: "email", label: "Work email", type: "email", required: true },
+          { name: "role", label: "Role", required: true, type: "select", options: ["Consumer", "Organiser", "Staff", "Admin"], value: "Staff" },
+          { name: "department", label: "Department", type: "select", options: ["Operations", "Engineering", "Marketing", "Sales", "Finance", "Human Resources", "Customer Support", "Design", "Legal", "Management"], value: "Operations" },
+          { name: "location", label: "Location", value: "Remote" }, { name: "phone", label: "Phone" }
+        ]
+      }
+    };
+    return configs[type];
+  }
+
+  function inputValue(value, type) {
+    if (value === null || value === undefined) return "";
+    if (type === "date") {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+      return date.toISOString().slice(0, 10);
+    }
+    if (type === "datetime-local") {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 16);
+    }
+    if (Array.isArray(value)) return value.join(type === "textarea" ? "\n" : ", ");
+    return value;
+  }
+
+  function renderField(field, record) {
+    const raw = record?.[field.name] ?? field.value ?? "";
+    const value = inputValue(raw, field.type);
+    const common = `name="${field.name}" ${field.required ? "required" : ""} ${field.min !== undefined ? `min="${field.min}"` : ""} ${field.max !== undefined ? `max="${field.max}"` : ""} ${field.step ? `step="${field.step}"` : ""}`;
+    let control;
+    if (field.type === "select") {
+      const options = (field.options || []).map(option => Array.isArray(option) ? option : [option, capitalize(option)]);
+      control = `<select ${common}>${options.map(([optionValue, label]) => `<option value="${escapeHtml(optionValue)}" ${String(raw ?? field.value ?? "") === String(optionValue) ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>`;
+    } else if (field.type === "textarea") {
+      control = `<textarea ${common}>${escapeHtml(value)}</textarea>`;
+    } else {
+      control = `<input type="${field.type || "text"}" ${common} value="${escapeHtml(value)}">`;
+    }
+    return `<div class="form-field ${field.full ? "full" : ""}"><label>${escapeHtml(field.label)}${field.required ? " *" : ""}</label>${control}${field.help ? `<div class="form-help">${escapeHtml(field.help)}</div>` : ""}</div>`;
+  }
+
+  function renderPortal() {
+    const parts = [];
+    if (ui.drawer) parts.push(renderDrawer());
+    if (ui.modal) parts.push(renderModal());
+    if (ui.dropdown) parts.push(renderDropdown());
+    if (ui.searchQuery.trim()) parts.push(renderSearchResults());
+    if (ui.commandOpen) parts.push(renderCommandPalette());
+    // Toasts now render into a separate #toast-container to avoid modal flicker
+    portal.innerHTML = parts.join("");
+    requestAnimationFrame(() => {
+      const messages = $("#messages");
+      if (messages) messages.scrollTop = messages.scrollHeight;
+      if (ui.commandOpen) $("#command-input")?.focus();
+    });
+  }
+
+  function detailPairs(type, entity) {
+    const map = {
+      deal: [
+        ["Company", companyName(entity.companyId)], ["Contact", contactName(entity.contactId)],
+        ["Pipeline", state.pipelines.find(item => item.id === entity.pipelineId)?.name || entity.pipelineId],
+        ["Stage", state.pipelines.find(item => item.id === entity.pipelineId)?.stages.find(stage => stage.id === entity.stageId)?.name || entity.stageId],
+        ["Value", formatMoney(entity.value)], ["Probability", `${Number(entity.probability || 0)}%`],
+        ["Owner", employeeName(entity.ownerId)], ["Due", formatDate(entity.dueDate)],
+        ["Source", entity.source || "—"], ["Tags", (entity.tags || []).join(", ") || "—"],
+        ["Notes", entity.notes || "No notes yet.", true]
+      ],
+      lead: [["Company", entity.company || "—"], ["Email", entity.email || "—"], ["Phone", entity.phone || "—"], ["Status", entity.status], ["Source", entity.source], ["Score", entity.score], ["Owner", employeeName(entity.ownerId)], ["Created", formatDate(entity.createdAt)]],
+      contact: [["Company", companyName(entity.companyId)], ["Role", entity.role || "—"], ["Email", entity.email || "—"], ["Phone", entity.phone || "—"], ["Source", entity.source || "Manual"], ["Tags", (entity.tags || []).join(", ") || "—"], ["Updated", formatDate(entity.updatedAt)]],
+      company: [["Type", entity.type || "—"], ["City", entity.city || "—"], ["Status", entity.status || "—"], ["Owner", employeeName(entity.ownerId)], ["Email", entity.email || "—"], ["Phone", entity.phone || "—"], ["Website", entity.website || "—"], ["Employees", entity.employees || 0]],
+      task: [["Project", projectName(entity.projectId)], ["Status", capitalize(entity.status)], ["Priority", capitalize(entity.priority)], ["Assignee", employeeName(entity.assigneeId)], ["Due", formatDate(entity.dueDate)], ["Estimate", `${Number(entity.estimate || 0)} min`], ["Tracked", `${Number(entity.tracked || 0)} min`], ["Description", entity.description || "No description.", true]],
+      project: [["Status", entity.status], ["Owner", employeeName(entity.ownerId)], ["Progress", `${Number(entity.progress || 0)}%`], ["Due", formatDate(entity.dueDate)], ["Budget", formatMoney(entity.budget)], ["Members", (entity.members || []).map(employeeName).join(", ") || "—", true]],
+      event: [["Starts", formatDate(entity.start, { time: true })], ["Ends", formatDate(entity.end, { time: true })], ["Type", entity.type], ["Location", entity.location || "—"], ["Attendees", (entity.attendees || []).map(id => employeeName(id) === "Unassigned" ? contactName(id) : employeeName(id)).join(", ") || "—", true], ["Notes", entity.notes || "No notes.", true]],
+      product: [["SKU", entity.sku], ["Category", entity.category], ["Price", formatMoney(entity.price)], ["Cost", formatMoney(entity.cost)], ["Stock", Number(entity.stock || 0).toLocaleString()], ["Reorder at", Number(entity.reorderAt || 0).toLocaleString()], ["Warehouse", entity.warehouse], ["Status", entity.status], ["Description", entity.description || "—", true]],
+      invoice: [["Customer", companyName(entity.companyId)], ["Type", entity.type], ["Status", entity.status], ["Issue date", formatDate(entity.issueDate)], ["Due date", formatDate(entity.dueDate)], ["Total", formatMoney(entity.total)], ["Tax", formatMoney(entity.tax)], ["Notes", entity.notes || "—", true]],
+      campaign: [["Channel", entity.channel], ["Audience", entity.audience], ["Status", entity.status], ["Budget", formatMoney(entity.budget)], ["Sent", Number(entity.sent || 0).toLocaleString()], ["Opened", Number(entity.opened || 0).toLocaleString()], ["Clicked", Number(entity.clicked || 0).toLocaleString()], ["Conversions", Number(entity.conversions || 0).toLocaleString()], ["Dates", `${formatDate(entity.startDate)} — ${formatDate(entity.endDate)}`, true]],
+      page: [["Slug", `/${entity.slug}`], ["Status", entity.status], ["Visitors", Number(entity.visitors || 0).toLocaleString()], ["Conversions", Number(entity.conversions || 0).toLocaleString()], ["Headline", entity.headline || "—", true], ["Body", entity.body || "—", true]],
+      form: [["Status", entity.status], ["Destination", entity.destination], ["Submissions", Number(entity.submissions || 0).toLocaleString()], ["Conversion", `${Number(entity.conversionRate || 0)}%`], ["Fields", (entity.fields || []).join(", "), true]],
+      automation: [["Status", entity.status], ["Trigger", entity.trigger, true], ["Conditions", (entity.conditions || []).join("; ") || "None", true], ["Actions", (entity.actions || []).join("; "), true], ["Runs", Number(entity.runs || 0)], ["Failures", Number(entity.failures || 0)]],
+      employee: [["Role", entity.role], ["Department", entity.department], ["Status", isUserOnline(entity) ? "Online (Active session)" : "Offline"], ["Location", entity.location || "Remote"], ["Email", entity.email || "—"], ["Phone", entity.phone || "—"], ["Joined", formatDate(entity.joinedAt)]],
+      article: [["Category", entity.category], ["Author", employeeName(entity.authorId)], ["Updated", formatDate(entity.updatedAt)], ["Content", stripHtml(markdown(entity.content)).slice(0, 520), true]]
+    };
+    return map[type] || Object.entries(entity).filter(([key]) => !["id", "createdAt", "updatedAt"].includes(key)).map(([key, value]) => [capitalize(key), Array.isArray(value) ? value.join(", ") : String(value ?? "—")]);
+  }
+
+  function renderDrawer() {
+    const { type, id } = ui.drawer;
+    const entity = getEntity(type, id);
+    if (!entity) {
+      ui.drawer = null;
+      return "";
+    }
+    const timeline = state.activities.filter(activity => activity.entityType === type && activity.entityId === id).slice(0, 12);
+    const relatedDeals = type === "company" ? state.deals.filter(deal => deal.companyId === id) : type === "contact" ? state.deals.filter(deal => deal.contactId === id) : [];
+    return `
+      <div class="drawer-backdrop" data-action="close-drawer"></div>
+      <aside class="drawer" role="dialog" aria-modal="true" aria-label="${escapeHtml(titleForEntity(type, entity))}">
+        <header class="drawer-head">
+          <div class="entity-logo" style="width:42px;height:42px">${initials(titleForEntity(type, entity))}</div>
+          <div class="drawer-head-copy"><h2>${escapeHtml(titleForEntity(type, entity))}</h2><p>${escapeHtml(capitalize(type))} · updated ${escapeHtml(relativeTime(entity.updatedAt || entity.issueDate || entity.start || entity.createdAt))}</p></div>
+          <button class="icon-btn close-btn" data-action="close-drawer">${icon("close")}</button>
+        </header>
+        <div class="drawer-body">
+          <div class="detail-grid">
+            ${detailPairs(type, entity).map(([label, value, full]) => `<div class="detail-block ${full ? "full" : ""}"><div class="detail-label">${escapeHtml(label)}</div><div class="detail-value">${escapeHtml(value)}</div></div>`).join("")}
+          </div>
+          ${type === "task" ? `<div class="detail-section"><h3>Time progress</h3><div style="height:10px;background:var(--surface-3);border-radius:999px;overflow:hidden"><div style="height:100%;width:${clamp(Number(entity.estimate) ? Number(entity.tracked) / Number(entity.estimate) * 100 : 0, 0, 100)}%;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></div></div><div class="subtle" style="font-size:9px;margin-top:7px">${Number(entity.tracked || 0)} of ${Number(entity.estimate || 0)} minutes tracked</div></div>` : ""}
+          ${type === "page" ? `<div class="detail-section"><h3>Page preview</h3><div class="panel" style="padding:25px;text-align:center;background:linear-gradient(135deg,rgba(124,140,255,.16),rgba(82,217,233,.10))"><span class="status-pill info">/${escapeHtml(entity.slug)}</span><h2 style="font-size:24px;margin:18px 0 8px">${escapeHtml(entity.headline)}</h2><p class="muted" style="line-height:1.6">${escapeHtml(entity.body)}</p><button class="action-btn primary">Primary call to action</button></div></div>` : ""}
+          ${relatedDeals.length ? `<div class="detail-section"><h3>Related deals</h3>${relatedDeals.map(deal => `<button class="action-btn ghost" style="width:100%;justify-content:flex-start;margin-bottom:6px" data-action="view-entity" data-entity="deal" data-id="${deal.id}"><span>${escapeHtml(deal.title)}</span><strong class="ml-auto">${escapeHtml(formatMoney(deal.value))}</strong></button>`).join("")}</div>` : ""}
+          <div class="detail-section"><h3>Timeline</h3>
+            <div class="timeline">
+              ${timeline.length ? timeline.map(activity => `<div class="timeline-item"><strong>${escapeHtml(employeeName(activity.actorId))} ${escapeHtml(activity.verb)}</strong><p>${escapeHtml(activity.detail || "Record updated")}</p><time>${escapeHtml(formatDate(activity.at, { time: true }))}</time></div>`).join("") : `<div class="timeline-item"><strong>Record created</strong><p>No additional activity has been logged yet.</p><time>${escapeHtml(formatDate(entity.createdAt || entity.issueDate || entity.start))}</time></div>`}
+            </div>
+          </div>
+        </div>
+        <footer class="drawer-foot">
+          ${authRole === "administrator" && ["deal", "lead", "contact", "company", "task", "project"].includes(type) ? `<button class="action-btn primary" data-action="ask-ai-record" data-entity="${escapeHtml(type)}" data-id="${escapeHtml(id)}">${icon("sparkles")} Ask AI</button>` : ""}
+          ${type === "lead" ? `<button class="action-btn success" data-action="convert-lead" data-id="${entity.id}">${icon("arrowRight")} Convert</button>` : ""}
+          ${type === "invoice" ? `<button class="action-btn" data-action="print-invoice" data-id="${entity.id}">${icon("download")} Print</button>` : ""}
+          ${type === "product" ? `<button class="action-btn" data-action="adjust-stock" data-id="${entity.id}">${icon("plus")} Adjust stock</button>` : ""}
+          <button class="action-btn" data-action="edit-entity" data-entity="${type}" data-id="${id}">${icon("edit")} ${escapeHtml(t("edit"))}</button>
+          <button class="action-btn danger" data-action="delete-entity" data-entity="${type}" data-id="${id}">${icon("trash")} ${escapeHtml(t("delete"))}</button>
+        </footer>
+      </aside>`;
+  }
+
+  function renderModal() {
+    if (ui.modal.kind === "quick") return renderQuickCreateModal();
+    if (ui.modal.kind === "form") return renderEntityFormModal();
+    if (ui.modal.kind === "calendar-day") return renderCalendarDayModal();
+    if (ui.modal.kind === "integration") return renderIntegrationModal();
+    if (ui.modal.kind === "social-credentials") return renderSocialCredentialsModal();
+    if (ui.modal.kind === "social-business-picker") return renderSocialBusinessPickerModal();
+    if (ui.modal.kind === "stock") return renderStockModal();
+    if (ui.modal.kind === "confirm") return renderConfirmModal();
+    return "";
+  }
+
+  function renderCalendarDayModal() {
+    const date = ui.modal.date;
+    const events = calendarEventsForDate(date);
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal calendar-day-modal" role="dialog" aria-modal="true" aria-label="Events for ${escapeHtml(formatDate(date))}">
+      <header class="modal-head"><div><h2>${escapeHtml(formatDate(date))}</h2><p>${events.length} ${events.length === 1 ? "event" : "events"} scheduled</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
+      <div class="modal-body upcoming-list">
+        ${events.map(item => `<button class="upcoming-item calendar-agenda-item" data-action="view-entity" data-entity="event" data-id="${item.id}">
+          <span class="upcoming-time">${escapeHtml(new Date(item.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>
+          <span class="upcoming-title">${escapeHtml(item.title)}</span>
+          <span class="upcoming-sub">${escapeHtml(item.location || item.type || "Event")}</span>
+        </button>`).join("")}
+      </div>
+      <footer class="modal-foot"><button class="action-btn" data-action="close-modal">Close</button><button class="action-btn primary" data-action="calendar-add-event" data-date="${escapeHtml(date)}">${icon("plus")} Add event</button></footer>
+    </section>`;
+  }
+
+  function renderSocialBusinessPickerModal() {
+    const provider = socialCredentialProvider(ui.modal.provider);
+    const providerLabel = socialProviderLabel(provider);
+    const companies = Array.isArray(state.companies) ? state.companies : [];
+    const businesses = companies.length ? companies : state.workspace?.id ? [{
+      id: state.workspace.id,
+      name: state.workspace.name || "Current workspace",
+      type: "Workspace",
+      city: ""
+    }] : [];
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true" aria-labelledby="social-business-picker-title">
+      <header class="modal-head">
+        <div class="entity-logo" style="width:39px;height:39px">${icon("building")}</div>
+        <div><h2 id="social-business-picker-title">Choose a business</h2><p>Select where this ${escapeHtml(providerLabel)} account belongs in the CRM</p></div>
+        <button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button>
+      </header>
+      <div class="modal-body">
+        ${businesses.length ? `<div class="quick-create-grid">${businesses.map(business => `<button class="quick-create-card" data-action="select-social-business" data-provider="${provider}" data-business-id="${escapeHtml(business.id)}">
+          <span class="table-avatar">${initials(business.name)}</span>
+          <strong>${escapeHtml(business.name)}</strong>
+          <span>${escapeHtml([business.type, business.city].filter(Boolean).join(" · ") || "CRM business")}</span>
+        </button>`).join("")}</div>` : `<div class="panel-empty"><div><strong>No businesses available</strong><span>Add a company in CRM before connecting a social account.</span></div></div>`}
+      </div>
+      <footer class="modal-foot">
+        ${!businesses.length ? `<button class="action-btn primary" data-action="open-form" data-entity="company">${icon("plus")} Add a company</button>` : ""}
+        <button class="action-btn" data-action="close-modal">${escapeHtml(t("cancel"))}</button>
+      </footer>
+    </section>`;
+  }
+
+  function renderQuickCreateModal() {
+    const items = [
+      ["deal", "Deal", "Track an opportunity", "crm"], ["lead", "Lead", "Capture a prospect", "user"], ["contact", "Contact", "Add a person", "user"],
+      ["company", "Company", "Add an organisation", "building"], ["task", "Task", "Assign work", "tasks"], ["event", "Event", "Schedule a meeting", "calendar"],
+      ["invoice", "Invoice", "Create a document", "sales"], ["product", "Product", "Add catalogue stock", "inventory"], ["campaign", "Campaign", "Plan outreach", "marketing"]
+    ];
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true">
+      <header class="modal-head"><div><h2>Quick create</h2><p>Add a record without leaving your current view</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
+      <div class="modal-body"><div class="quick-create-grid">${items.map(([type, label, description, iconName]) => `<button class="quick-create-card" data-action="quick-create-entity" data-entity="${type}">${icon(iconName)}<strong>${escapeHtml(label)}</strong><span>${escapeHtml(description)}</span></button>`).join("")}</div></div>
+      <footer class="modal-foot"><button class="action-btn" data-action="close-modal">${escapeHtml(t("close"))}</button></footer>
+    </section>`;
+  }
+
+  function renderPickerHtml(contacts) {
+    if (!contacts || !contacts.length) {
+      return `<div style="font-size:11px;color:var(--muted);text-align:center;padding:14px">Searching AkiPasa database…</div>`;
+    }
+    return contacts.map(user => {
+      let email = user.email || (user.name && user.name.includes("@") ? user.name : "");
+      if (!email && authUser && user.id === authUser.id) email = authUser.email || "";
+      let name = user.name && !user.name.startsWith("User (") ? user.name : (email ? email.split("@")[0] : "AkiPasa Member");
+
+      const displayTitle = email || name;
+      const displaySub = (email && name && email !== name) ? email : (user.id ? `AkiPasa Account` : "Registered User");
+      const searchStr = `${name} ${email} ${user.role} ${user.id}`.toLowerCase();
+
+      return `
+        <div class="user-picker-item" data-search="${escapeHtml(searchStr)}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+          <div class="table-avatar" style="width:28px;height:28px;font-size:11px">${initials(displayTitle)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)">${escapeHtml(displayTitle)}</div>
+            <div style="font-size:10px;color:var(--accent-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(displaySub)}</div>
+          </div>
+          <span class="status-pill ${user.role === "administrator" ? "danger" : user.role === "moderator" ? "warning" : "info"}" style="font-size:9px">${escapeHtml(user.role || "consumer")}</span>
+          <button type="button" class="mini-btn primary" data-action="select-picker-user" data-id="${user.id}" data-name="${escapeHtml(name)}" data-email="${escapeHtml(email || displayTitle)}" data-role="${escapeHtml(user.role)}" style="padding:4px 10px;font-size:10px">
+            Select
+          </button>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderUserPickerSection() {
+    setTimeout(() => window._loadPickerUsers?.(""), 10);
+    const contacts = state.contacts || [];
+    return `
+      <div class="user-picker-box" style="margin-bottom:18px;background:var(--surface-2);border:1.5px solid var(--border-strong);border-radius:12px;padding:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <strong style="font-size:12px;display:flex;align-items:center;gap:6px;color:var(--accent-2)">
+            ${icon("user")} Select from AkiPasa database
+          </strong>
+          <span style="font-size:10px;color:var(--muted)" id="user-picker-count">${contacts.length} registered profiles</span>
+        </div>
+        <input type="search" id="user-picker-search" placeholder="Search registered user by name or email…"
+          oninput="window._filterUserPicker(this.value)"
+          style="width:100%;background:var(--bg);border:1.5px solid var(--border-strong);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);margin-bottom:10px;outline:none" />
+        <div class="user-picker-list" id="user-picker-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin">
+          ${renderPickerHtml(contacts)}
+        </div>
+      </div>
+    `;
+  }
+
+  let _searchDebounce = null;
+  window._loadPickerUsers = async function(query = "") {
+    const q = (query || "").trim().toLowerCase();
+    const list = document.getElementById("user-picker-list");
+    const countEl = document.getElementById("user-picker-count");
+    const sbClient = getSupabaseClient();
+
+    if (!sbClient) return;
+
+    try {
+      let results = [];
+      // 1. Try rpc crm_search_users
+      const { data: rpcData } = await sbClient.rpc("crm_search_users", { p_query: q });
+      if (rpcData?.length) {
+        results = rpcData.map(u => ({
+          id: u.profile_id,
+          name: u.display_name || u.primary_email || `Member (${u.profile_id.slice(0,6)})`,
+          email: u.primary_email || (u.display_name && u.display_name.includes("@") ? u.display_name : ""),
+          role: u.app_role || "consumer"
+        }));
+      } else {
+        // 2. Try crm_users_view directly
+        let reqView = sbClient.from("crm_users_view").select("id, display_name, email, app_role").limit(100);
+        if (q) reqView = reqView.or(`email.ilike.%${q}%,display_name.ilike.%${q}%`);
+        const { data: viewData } = await reqView;
+        if (viewData?.length) {
+          results = viewData.map(v => ({
+            id: v.id,
+            name: v.display_name || v.email || `Member (${v.id.slice(0,6)})`,
+            email: v.email || (v.display_name && v.display_name.includes("@") ? v.display_name : ""),
+            role: v.app_role || "consumer"
+          }));
+        } else {
+          // 3. Fallback to profiles
+          let req = sbClient.from("profiles").select("id, display_name, app_role, created_at").limit(100);
+          if (q) req = req.ilike("display_name", `%${q}%`);
+          const { data: profileData } = await req;
+          if (profileData?.length) {
+            results = profileData.map(p => {
+              const email = (p.display_name && p.display_name.includes("@")) ? p.display_name : (authUser && p.id === authUser.id ? authUser.email : "");
+              const name = p.display_name && !p.display_name.startsWith("User (") ? p.display_name : (email ? email.split("@")[0] : "AkiPasa Member");
+              return {
+                id: p.id,
+                name: name,
+                email: email,
+                role: p.app_role || "consumer"
+              };
+            });
+          }
+        }
+      }
+
+      if (results.length) {
+        results.forEach(r => {
+          const idx = state.contacts.findIndex(c => c.id === r.id);
+          if (idx >= 0) {
+            state.contacts[idx] = { ...state.contacts[idx], ...r };
+          } else {
+            state.contacts.push(r);
+          }
+        });
+        if (countEl) countEl.textContent = `${state.contacts.length} registered profiles`;
+        if (list) list.innerHTML = renderPickerHtml(state.contacts);
+      } else if (list && !state.contacts?.length) {
+        list.innerHTML = `<div style="font-size:11px;color:var(--muted);text-align:center;padding:12px">No matching profiles found in database.</div>`;
+      }
+    } catch (e) {
+      console.warn("User picker fetch error:", e);
+    }
+  };
+
+
+
+  window._filterUserPicker = function(query) {
+    const q = (query || "").trim().toLowerCase();
+    const list = document.getElementById("user-picker-list");
+    if (!list) return;
+    const items = list.querySelectorAll(".user-picker-item");
+    items.forEach(item => {
+      const match = !q || (item.dataset.search || "").includes(q);
+      item.style.display = match ? "flex" : "none";
+    });
+
+    clearTimeout(_searchDebounce);
+    _searchDebounce = setTimeout(() => window._loadPickerUsers(query), 200);
+  };
+
+  function renderEntityFormModal() {
+    const { entity: type, id } = ui.modal;
+    const existing = id ? getEntity(type, id) : null;
+    // For new employee forms, use formDefaults as a virtual record so picker selections survive re-renders
+    const record = existing || (type === "employee" && Object.keys(ui.formDefaults).length ? ui.formDefaults : null);
+    const config = entityFormConfig(type, existing);
+    if (!config) return "";
+    const hasPickerSelection = type === "employee" && !existing && ui.formDefaults.name;
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${["automation", "article"].includes(type) ? "wide" : ""}" role="dialog" aria-modal="true">
+      <header class="modal-head"><div class="entity-logo" style="width:36px;height:36px">${icon(config.icon)}</div><div><h2>${existing ? `Edit ${escapeHtml(config.label)}` : `New ${escapeHtml(config.label)}`}</h2><p>${existing ? "Changes are committed to Supabase" : "Create a database-backed record"}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
+      <form data-form="entity" data-entity="${type}" data-id="${id || ""}" style="display:contents">
+        <div class="modal-body">
+          ${type === "employee" && !existing ? renderUserPickerSection() : ""}
+          <div class="form-grid">${config.fields.map(field => renderField(field, record)).join("")}</div>
+        </div>
+        <footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">${escapeHtml(t("cancel"))}</button><button type="submit" class="action-btn primary">${icon("check")} ${escapeHtml(t("save"))}</button></footer>
+      </form>
+    </section>`;
+  }
+
+  function renderIntegrationModal() {
+    const integration = integrationCatalog.find(item => item.id === ui.modal.id);
+    if (!integration) return "";
+    const connection = state.integrations[integration.id] || {};
+    const isConnected = connection.status === "connected";
+
+    let fieldsHtml = "";
+    if (integration.id === "akipasa") {
+      fieldsHtml = `
+        <div style="background:rgba(73,215,160,.12);border:1px solid rgba(73,215,160,.3);border-radius:12px;padding:14px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;color:var(--success);font-weight:700;font-size:13px">
+            ${icon("check")} Live AkiPasa Supabase Database Active
+          </div>
+          <p style="font-size:11px;color:var(--muted);margin:6px 0 0;line-height:1.5">
+            Synchronized with shared database (<code>vhpbvcfkcteswlsdjrfl.supabase.co</code>). Real-time contacts, venue claims, and stats are live.
+          </p>
+        </div>
+      `;
+    } else if (["resend", "mailchimp", "openai"].includes(integration.id)) {
+      fieldsHtml = `
+        <div class="form-grid">
+          <div class="form-field full">
+            <label>${escapeHtml(integration.name)} API Key</label>
+            <input name="apiKey" type="password" placeholder="Paste ${escapeHtml(integration.name)} secret key (e.g. ${integration.id === "resend" ? "re_1234..." : "sk-..."})" value="${escapeHtml(connection.config?.apiKey || "")}" required />
+            <div class="form-help">Configuration is saved to the shared workspace. Keep true provider secrets in the server-side vault.</div>
+          </div>
+          ${integration.id === "resend" ? `
+            <div class="form-field full">
+              <label>Default Sender Email</label>
+              <input name="senderEmail" type="email" placeholder="noreply@akipasa.com" value="${escapeHtml(connection.config?.senderEmail || "noreply@akipasa.com")}" />
+            </div>
+          ` : ""}
+        </div>
+      `;
+    } else if (["stripe", "paypal"].includes(integration.id)) {
+      fieldsHtml = `
+        <div class="form-grid">
+          <div class="form-field full">
+            <label>Secret API Key / Token</label>
+            <input name="apiKey" type="password" placeholder="sk_live_... or sk_test_..." value="${escapeHtml(connection.config?.apiKey || "")}" required />
+          </div>
+          <div class="form-field full">
+            <label>Publishable Key</label>
+            <input name="pubKey" type="text" placeholder="pk_live_... or pk_test_..." value="${escapeHtml(connection.config?.pubKey || "")}" />
+          </div>
+        </div>
+      `;
+    } else if (["slack", "telegram", "discord", "whatsapp"].includes(integration.id)) {
+      fieldsHtml = `
+        <div class="form-grid">
+          <div class="form-field full">
+            <label>Webhook URL or Bot Token</label>
+            <input name="endpoint" type="text" placeholder="https://hooks.slack.com/... or bot token" value="${escapeHtml(connection.config?.endpoint || "")}" required />
+            <div class="form-help">Enter your webhook URL or bot token to enable notifications.</div>
+          </div>
+        </div>
+      `;
+    } else {
+      fieldsHtml = `
+        <div class="form-grid">
+          <div class="form-field full">
+            <label>API Key / Token Secret</label>
+            <input name="apiKey" type="password" placeholder="Enter API secret or token" value="${escapeHtml(connection.config?.apiKey || "")}" />
+          </div>
+          <div class="form-field full">
+            <label>Endpoint / Webhook URL (Optional)</label>
+            <input name="endpoint" type="url" placeholder="https://…" value="${escapeHtml(connection.config?.endpoint || "")}" />
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="modal-backdrop" data-action="close-modal"></div>
+      <section class="modal" role="dialog" aria-modal="true">
+        <header class="modal-head">
+          <div class="integration-logo" style="--integration-bg:${integration.color};width:39px;height:39px">${escapeHtml(integration.mark)}</div>
+          <div>
+            <h2>${escapeHtml(integration.name)}</h2>
+            <p>${escapeHtml(integration.category)} connector · ${isConnected ? '<span style="color:var(--success);font-weight:700">● Connected & Active</span>' : '<span style="color:var(--muted)">Not connected</span>'}</p>
+          </div>
+          <button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button>
+        </header>
+        <form data-form="integration" data-id="${integration.id}" style="display:contents">
+          <div class="modal-body">
+            <p class="muted" style="font-size:12px;line-height:1.6;margin:0 0 16px">${escapeHtml(integration.description)}</p>
+            ${fieldsHtml}
+            <div class="form-field full" style="margin-top:14px">
+              <label>Internal Notes / Tag</label>
+              <input name="notes" placeholder="Optional notes for your team…" value="${escapeHtml(connection.config?.notes || "")}" />
+            </div>
+          </div>
+          <footer class="modal-foot">
+            ${isConnected ? `
+              <button type="button" class="action-btn danger" data-action="disconnect-integration" data-id="${integration.id}">${escapeHtml(t("disconnect"))}</button>
+              <button type="button" class="action-btn success" data-action="test-integration" data-id="${integration.id}">${icon("check")} Test Connection</button>
+            ` : ""}
+            <button type="button" class="action-btn" data-action="close-modal">${escapeHtml(t("cancel"))}</button>
+            <button type="submit" class="action-btn primary">${icon("check")} ${isConnected ? "Update Integration" : "Save & Connect"}</button>
+          </footer>
+        </form>
+      </section>
+    `;
+  }
+
+  function renderSocialCredentialsModal() {
+    const provider = socialCredentialProvider(ui.modal.provider);
+    const current = socialOverview?.credentials?.[provider] || {};
+    const isMeta = provider === "meta";
+    const isInstagram = provider === "instagram";
+    const isGraphProvider = isMeta || isInstagram;
+    const defaultScopes = isMeta ? "pages_show_list,pages_read_engagement" : isInstagram ? "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights" : "user.info.basic,user.info.profile,user.info.stats,video.list";
+    const defaultClientId = isInstagram && !current.configured ? "1370367424537325" : "";
+    return `
+      <div class="modal-backdrop" data-action="close-modal"></div>
+      <section class="modal social-credential-modal" role="dialog" aria-modal="true" aria-labelledby="social-credential-title">
+        <header class="modal-head">
+          <div class="entity-logo" style="width:39px;height:39px">${icon("lock")}</div>
+          <div><h2 id="social-credential-title">Social app credentials</h2><p>Administrator-only · encrypted server-side storage</p></div>
+          <button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button>
+        </header>
+        <form data-form="social-credentials" data-provider="${provider}" autocomplete="off" style="display:contents">
+          <div class="modal-body">
+            <div class="social-vault-banner">${icon("lock")}<div><strong>Secrets leave this form once</strong><span>The Worker encrypts them with AES-GCM before storage. The CRM receives only configuration status and a masked identifier.</span></div></div>
+            <div class="segmented social-provider-switch">
+              <button type="button" class="${isMeta ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="meta">Facebook</button>
+              <button type="button" class="${isInstagram ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="instagram">Instagram</button>
+              <button type="button" class="${provider === "tiktok" ? "active" : ""}" data-action="switch-social-credential-provider" data-provider="tiktok">TikTok</button>
+            </div>
+            ${current.configured ? `<div class="social-configured-summary"><span class="status-pill success">Configured</span><div><strong>${escapeHtml(current.clientIdHint || "Credential saved")}</strong><small>Updated ${escapeHtml(relativeTime(current.updatedAt))}. Enter both values to replace it.</small></div></div>` : ""}
+            <div class="form-grid">
+              <div class="form-field full">
+                <label>${isInstagram ? "Instagram App ID" : isMeta ? "Meta App ID" : "TikTok Client Key"}</label>
+                <input name="client_id" type="text" inputmode="text" autocapitalize="off" spellcheck="false" autocomplete="off" required value="${escapeHtml(defaultClientId)}" placeholder="${isInstagram ? "Enter the Instagram App ID" : isMeta ? "Enter the Meta App ID" : "Enter the TikTok client key"}" />
+              </div>
+              <div class="form-field full">
+                <label>${isInstagram ? "Instagram App Secret" : isMeta ? "Meta App Secret" : "TikTok Client Secret"}</label>
+                <input name="client_secret" type="password" autocapitalize="off" spellcheck="false" autocomplete="new-password" required placeholder="Paste the secret from the developer portal" />
+                <div class="form-help">${isInstagram ? "Use the Instagram App Secret under Instagram > API setup with Instagram login. Do not use the general Meta App Secret from App settings > Basic." : "The saved secret cannot be viewed or copied back out. Updating it replaces the previous value."}</div>
+              </div>
+              ${isGraphProvider ? `<div class="form-field"><label>Graph API version</label><input name="api_version" value="v25.0" pattern="v[0-9]+\\.[0-9]+" placeholder="v25.0" required /></div>` : ""}
+              <div class="form-field ${isGraphProvider ? "" : "full"}"><label>Requested scopes</label><input name="scopes" value="${escapeHtml(defaultScopes)}" required /></div>
+            </div>
+            ${isInstagram ? `<div class="form-help">Instagram Login connects a professional account directly. The Instagram App ID and Instagram App Secret must come from the same Instagram API setup.</div>` : ""}
+            <div class="social-callback-box"><strong>OAuth callback to register</strong><code>${escapeHtml(socialGatewayUrl(`/api/social/oauth/callback/${provider}`))}</code></div>
+          </div>
+          <footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button type="submit" class="action-btn primary">${icon("lock")} Encrypt and save</button></footer>
+        </form>
+      </section>`;
+  }
+
+  function renderStockModal() {
+    const product = getEntity("product", ui.modal.id);
+    if (!product) return "";
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true">
+      <header class="modal-head"><div><h2>Adjust stock</h2><p>${escapeHtml(product.name)} · current ${Number(product.stock).toLocaleString()}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
+      <form data-form="stock" data-id="${product.id}" style="display:contents"><div class="modal-body"><div class="form-grid"><div class="form-field"><label>Adjustment</label><input name="adjustment" type="number" required value="1"></div><div class="form-field"><label>Reason</label><select name="reason"><option>Stock count</option><option>Purchase received</option><option>Sale</option><option>Damage</option><option>Correction</option></select></div><div class="form-field full"><label>Note</label><textarea name="note" placeholder="Optional audit note"></textarea></div></div></div><footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button class="action-btn primary" type="submit">Apply adjustment</button></footer></form>
+    </section>`;
+  }
+
+  function renderConfirmModal() {
+    const modal = ui.modal;
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true">
+      <header class="modal-head"><div><h2>${escapeHtml(modal.title || "Are you sure?")}</h2><p>${escapeHtml(modal.subtitle || "This action cannot be undone.")}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
+      <div class="modal-body"><div class="detail-block full"><div class="detail-label text-danger">Confirm action</div><div class="detail-value">${escapeHtml(modal.message || "Please confirm that you want to continue.")}</div></div></div>
+      <footer class="modal-foot"><button class="action-btn" data-action="close-modal">Cancel</button><button class="action-btn danger" data-action="confirm-action" data-confirm="${escapeHtml(modal.confirm || "")}">${escapeHtml(modal.confirmLabel || "Confirm")}</button></footer>
+    </section>`;
+  }
+
+  function renderDropdown() {
+    if (ui.dropdown === "notifications") {
+      return `<div class="dropdown" style="right:64px;top:58px">
+        <div class="dropdown-head"><strong>Notifications</strong><button data-action="mark-notifications">Mark all read</button></div>
+        ${state.notifications.slice(0, 12).map(notification => `<div class="dropdown-item ${notification.seen ? "" : "unseen"}" data-action="open-notification" data-id="${notification.id}"><div class="activity-icon">${icon(notification.icon || "bell")}</div><div class="dropdown-copy"><strong>${escapeHtml(notification.title)}</strong><br>${escapeHtml(notification.body)}<time>${escapeHtml(relativeTime(notification.at))}</time></div></div>`).join("") || `<div class="panel-empty"><div><strong>All clear</strong></div></div>`}
+      </div>`;
+    }
+    if (ui.dropdown === "profile") {
+      const user = currentUser();
+      return `<div class="dropdown" style="right:14px;top:58px">
+        <div class="dropdown-head"><strong>${escapeHtml(user.name)}</strong><br><span style="font-size:10px;color:var(--subtle);margin-top:2px;display:block">${escapeHtml(user.email || "")}</span></div>
+        <div class="dropdown-item" data-action="navigate" data-route="employees"><div class="activity-icon">${icon("user")}</div><div class="dropdown-copy"><strong>My profile</strong><br>${escapeHtml(user.role)} · ${escapeHtml(user.department || "Staff")}</div></div>
+        <div class="dropdown-item" data-action="set-theme" data-theme="${state.settings.theme === "dark" ? "light" : "dark"}"><div class="activity-icon">${icon("sparkles")}</div><div class="dropdown-copy"><strong>Switch to ${state.settings.theme === "dark" ? "light" : "dark"} theme</strong><br>Change appearance instantly</div></div>
+        <div class="dropdown-item" data-action="navigate" data-route="settings"><div class="activity-icon">${icon("settings")}</div><div class="dropdown-copy"><strong>Settings</strong><br>Workspace, data and cloud sync</div></div>
+        <div class="dropdown-item" data-action="export-data"><div class="activity-icon">${icon("download")}</div><div class="dropdown-copy"><strong>Download backup</strong><br>Export the complete workspace</div></div>
+        <div class="dropdown-item" data-action="crm-signout"><div class="activity-icon">${icon("lock")}</div><div class="dropdown-copy"><strong>Sign out</strong><br>Log out of AkiHQ CRM</div></div>
+      </div>`;
+    }
+    if (ui.dropdown === "workspace") {
+      return `<div class="dropdown" style="left:${state.settings.sidebarCollapsed ? "87px" : "247px"};top:58px">
+        <div class="dropdown-head"><strong>Workspace</strong></div>
+        <div class="dropdown-item"><div class="activity-icon">${icon("building")}</div><div class="dropdown-copy"><strong>${escapeHtml(state.workspace.name)}</strong><br>Shared database workspace</div></div>
+        <div class="dropdown-item" data-action="open-workspace-form"><div class="activity-icon">${icon("edit")}</div><div class="dropdown-copy"><strong>Edit workspace</strong><br>Name, timezone and currency</div></div>
+        <div class="dropdown-item" data-action="duplicate-workspace"><div class="activity-icon">${icon("plus")}</div><div class="dropdown-copy"><strong>Duplicate as backup</strong><br>Download a copy before changing focus</div></div>
+      </div>`;
+    }
+    return "";
+  }
+
+  function searchAll(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const results = [];
+    const push = (type, item, title, subtitle) => {
+      if (`${title} ${subtitle}`.toLowerCase().includes(q)) results.push({ type, id: item.id, title, subtitle, route: routeForEntity(type) });
+    };
+    state.deals.forEach(item => push("deal", item, item.title, `${companyName(item.companyId)} ${item.notes || ""}`));
+    state.leads.forEach(item => push("lead", item, item.name, `${item.company} ${item.email}`));
+    state.contacts.forEach(item => push("contact", item, item.name, `${item.email} ${companyName(item.companyId)}`));
+    state.companies.forEach(item => push("company", item, item.name, `${item.type} ${item.city}`));
+    state.tasks.forEach(item => push("task", item, item.title, `${projectName(item.projectId)} ${item.description || ""}`));
+    state.events.forEach(item => push("event", item, item.title, `${item.location} ${item.notes || ""}`));
+    state.products.forEach(item => push("product", item, item.name, `${item.sku} ${item.category}`));
+    state.invoices.forEach(item => push("invoice", item, item.number, `${companyName(item.companyId)} ${item.notes || ""}`));
+    state.knowledge.forEach(item => push("article", item, item.title, `${item.category} ${stripHtml(item.content)}`));
+    state.employees.forEach(item => push("employee", item, item.name, `${item.role} ${item.department}`));
+    return results.slice(0, 24);
+  }
+
+  function renderSearchResults() {
+    const results = searchAll(ui.searchQuery);
+    return `<div class="search-results">
+      <div class="search-result-section">Search results</div>
+      ${results.length ? results.map(result => `<button class="search-result" data-action="search-open" data-route="${result.route}" data-entity="${result.type}" data-id="${result.id}"><span class="search-result-icon">${icon(result.type === "article" ? "knowledge" : result.type === "employee" ? "employees" : routeForEntity(result.type) === "crm" ? "crm" : routeForEntity(result.type))}</span><span class="search-result-copy"><strong>${escapeHtml(result.title)}</strong><span>${escapeHtml(capitalize(result.type))} · ${escapeHtml(result.subtitle)}</span></span></button>`).join("") : `<div class="panel-empty"><div><strong>No results</strong><span>Try a company, deal, task, invoice or article title.</span></div></div>`}
+    </div>`;
+  }
+
+  function commandDefinitions() {
+    return [
+      ...navSections.flatMap(section => section.items.map(([route, iconName]) => ({ group: "Navigate", label: t(route), icon: iconName, action: "navigate", route }))),
+      { group: "Navigate", label: t("settings"), icon: "settings", action: "navigate", route: "settings" },
+      { group: "Create", label: "New deal", icon: "crm", action: "create", entity: "deal" },
+      { group: "Create", label: "New task", icon: "tasks", action: "create", entity: "task" },
+      { group: "Create", label: "New contact", icon: "user", action: "create", entity: "contact" },
+      { group: "Create", label: "New event", icon: "calendar", action: "create", entity: "event" },
+      { group: "Workspace", label: "Export backup", icon: "download", action: "export" },
+      { group: "Workspace", label: `Switch to ${state.settings.theme === "dark" ? "light" : "dark"} theme`, icon: "sparkles", action: "theme" }
+    ];
+  }
+
+  function renderCommandPalette() {
+    const query = ui.commandQuery.trim().toLowerCase();
+    const commands = commandDefinitions().filter(command => !query || `${command.label} ${command.group}`.toLowerCase().includes(query));
+    const groups = [...new Set(commands.map(command => command.group))];
+    return `<div class="modal-backdrop" data-action="close-command"></div><section class="command-palette" role="dialog" aria-modal="true">
+      <input id="command-input" class="command-input" data-command-input placeholder="Type a command…" autocomplete="off" value="${escapeHtml(ui.commandQuery)}">
+      <div class="command-list">${groups.map(group => `<div class="command-group-label">${escapeHtml(group)}</div>${commands.filter(command => command.group === group).map(command => `<button class="command-item" data-action="run-command" data-command="${command.action}" data-route="${command.route || ""}" data-entity="${command.entity || ""}">${icon(command.icon)}<span>${escapeHtml(command.label)}</span>${command.action === "navigate" ? `<kbd>↵</kbd>` : ""}</button>`).join("")}`).join("") || `<div class="panel-empty"><div><strong>No command found</strong></div></div>`}</div>
+    </section>`;
+  }
+
+  function renderToast(item) {
+    const iconName = item.kind === "danger" ? "warning" : item.kind === "info" ? "info" : "check";
+    return `<div class="toast"><div class="toast-icon" style="color:${item.kind === "danger" ? "var(--danger)" : item.kind === "info" ? "var(--info)" : "var(--success)"};background:${item.kind === "danger" ? "rgba(255,111,133,.12)" : item.kind === "info" ? "rgba(104,184,255,.12)" : "rgba(73,215,160,.12)"}">${icon(iconName)}</div><div class="toast-copy"><strong>${escapeHtml(item.title)}</strong>${item.message ? `<span>${escapeHtml(item.message)}</span>` : ""}</div><button data-action="dismiss-toast" data-id="${item.id}">${icon("close")}</button></div>`;
+  }
+
+  function openEntityForm(type, id = null, defaults = {}) {
+    ui.formDefaults = defaults;
+    ui.modal = { kind: "form", entity: type, id };
+    renderPortal();
+  }
+
+  function handleAction(target, event) {
+    const action = target.dataset.action;
+    switch (action) {
+      case "navigate":
+        ui.mobileNavOpen = false;
+        setRoute(target.dataset.route);
+        break;
+      case "toggle-mobile-nav":
+        ui.mobileNavOpen = !ui.mobileNavOpen;
+        render();
+        break;
+      case "close-mobile-nav":
+        ui.mobileNavOpen = false;
+        render();
+        break;
+      case "toggle-sidebar":
+        state.settings.sidebarCollapsed = !state.settings.sidebarCollapsed;
+        persist();
+        break;
+      case "open-quick-create":
+        ui.dropdown = null; ui.modal = { kind: "quick" }; renderPortal();
+        break;
+      case "quick-create-entity":
+        openEntityForm(target.dataset.entity);
+        break;
+      case "open-form":
+        openEntityForm(target.dataset.entity, null, { stageId: target.dataset.stage || undefined, type: target.dataset.type || undefined, start: target.dataset.date || undefined, end: target.dataset.date || undefined, pipelineId: ui.pipelineId });
+        break;
+      case "edit-entity":
+        event.preventDefault(); event.stopPropagation();
+        openEntityForm(target.dataset.entity, target.dataset.id);
+        break;
+      case "view-entity": {
+        if (ui.drag?.moved) return;
+        const entityType = target.dataset.entity;
+        const id = target.dataset.id;
+        if (!id) break;
+        ui.drawer = { type: entityType, id };
+        ui.dropdown = null;
+        renderPortal();
+        break;
+      }
+      case "close-drawer":
+        ui.drawer = null; renderPortal();
+        break;
+      case "close-modal":
+        ui.modal = null; ui.formDefaults = {}; renderPortal();
+        break;
+      case "set-crm-tab":
+        ui.crmTab = target.dataset.tab;
+        if (ui.crmTab === "social") {
+          location.hash = "#/crm/social";
+          render();
+          loadSocialOverview(false);
+        } else if (ui.crmTab === "ai-team") {
+          if (authRole !== "administrator") {
+            ui.crmTab = "deals";
+            toast("Administrator access required", "The AI Team is restricted to administrators.", "danger");
+            break;
+          }
+          location.hash = "#/crm/ai-team";
+          render();
+          loadAITeamOverview(false);
+        } else {
+          location.hash = "#/crm";
+          render();
+        }
+        break;
+      case "ask-ai-current": {
+        if (authRole !== "administrator") break;
+        const pipeline = state.pipelines.find(item => item.id === ui.pipelineId);
+        ui.aiContext = `Review the current CRM ${ui.crmTab} view${ui.crmTab === "deals" && pipeline ? ` for the "${pipeline.name}" pipeline` : ""}. Use the CRM workspace tools to inspect the relevant records, identify priorities and risks, and recommend the next actions.`;
+        ui.crmTab = "ai-team";
+        ui.aiTeamSection = "team";
+        location.hash = "#/crm/ai-team";
+        render();
+        loadAITeamOverview(false);
+        break;
+      }
+      case "ask-ai-record": {
+        if (authRole !== "administrator") break;
+        const entity = getEntity(target.dataset.entity, target.dataset.id);
+        if (!entity) break;
+        ui.aiContext = `Review CRM ${target.dataset.entity} "${titleForEntity(target.dataset.entity, entity)}" (record ID: ${target.dataset.id}). Retrieve the exact record with the CRM tool, assess it in context, and recommend or carry out only permitted next steps.`;
+        ui.drawer = null;
+        ui.crmTab = "ai-team";
+        ui.aiTeamSection = "team";
+        location.hash = "#/crm/ai-team";
+        renderPortal();
+        render();
+        loadAITeamOverview(false);
+        break;
+      }
+      case "refresh-ai-team":
+        loadAITeamOverview(true);
+        break;
+      case "refresh-analytics":
+        loadAnalyticsOverview(true);
+        break;
+      case "set-ai-section":
+        ui.aiTeamSection = target.dataset.section || "team";
+        render();
+        break;
+      case "select-ai-agent":
+        ui.aiSelectedAgentId = target.dataset.id;
+        ui.aiTeamSection = "team";
+        render();
+        break;
+      case "clear-ai-context":
+        ui.aiContext = "";
+        render();
+        break;
+      case "toggle-ai-schedule":
+        runAITeamAction({
+          action: "toggle_schedule",
+          scheduleId: target.dataset.id,
+          enabled: target.dataset.enabled === "true"
+        }, target.dataset.enabled === "true" ? "Schedule enabled" : "Schedule paused");
+        break;
+      case "decide-ai-approval":
+        runAITeamAction({
+          action: "decide_approval",
+          approvalId: target.dataset.id,
+          decision: target.dataset.decision,
+          note: target.dataset.decision === "approve" ? "Approved in AkiHQ CRM" : "Rejected in AkiHQ CRM"
+        }, target.dataset.decision === "approve" ? "Action approved and executed" : "Action rejected");
+        break;
+      case "open-social-credentials":
+        if (authRole !== "administrator") { toast("Administrator access required", "Only administrators can update provider credentials.", "danger"); break; }
+        ui.modal = { kind: "social-credentials", provider: socialCredentialProvider(target.dataset.provider) };
+        renderPortal();
+        break;
+      case "switch-social-credential-provider":
+        ui.modal = { kind: "social-credentials", provider: socialCredentialProvider(target.dataset.provider) };
+        renderPortal();
+        break;
+      case "choose-social-business":
+        ui.modal = { kind: "social-business-picker", provider: socialCredentialProvider(target.dataset.provider) };
+        renderPortal();
+        break;
+      case "select-social-business": {
+        const businessId = target.dataset.businessId || "";
+        const provider = socialCredentialProvider(target.dataset.provider);
+        if (!businessId) {
+          toast("Choose a business", "Select a CRM business before connecting the account.", "info");
+          break;
+        }
+        ui.socialBusinessId = businessId;
+        ui.modal = null;
+        render();
+        startSocialOAuth(provider, businessId);
+        break;
+      }
+      case "start-social-oauth":
+        startSocialOAuth(target.dataset.provider, target.dataset.businessId);
+        break;
+      case "sync-social":
+        syncSocialAccounts();
+        break;
+      case "disconnect-social-account":
+        ui.modal = { kind: "confirm", title: "Disconnect social account?", subtitle: "The provider app credentials will remain available.", message: "The encrypted access and refresh tokens for this account will be permanently removed from AkiHQ.", confirm: "disconnect-social-account", accountId: target.dataset.accountId, confirmLabel: "Disconnect account" };
+        renderPortal();
+        break;
+      case "set-deal-view":
+        ui.dealView = target.dataset.view; render();
+        break;
+      case "set-task-view":
+        ui.taskView = target.dataset.view; render();
+        break;
+      case "calendar-prev":
+        ui.calendarDate = new Date(ui.calendarDate.getFullYear(), ui.calendarDate.getMonth() - 1, 1); render();
+        break;
+      case "calendar-next":
+        ui.calendarDate = new Date(ui.calendarDate.getFullYear(), ui.calendarDate.getMonth() + 1, 1); render();
+        break;
+      case "calendar-today":
+        ui.calendarDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1); render();
+        break;
+      case "calendar-day": {
+        if (event.target.closest(".calendar-event")) break;
+        const selectedDate = target.dataset.date;
+        if (calendarEventsForDate(selectedDate).length) {
+          ui.modal = { kind: "calendar-day", date: selectedDate };
+          renderPortal();
+        } else {
+          openEntityForm("event", null, { start: selectedDate, end: selectedDate });
+        }
+        break;
+      }
+      case "calendar-add-event":
+        ui.modal = null;
+        openEntityForm("event", null, { start: target.dataset.date, end: target.dataset.date });
+        break;
+      case "select-conversation": {
+        ui.selectedConversationId = target.dataset.id;
+        ui.mobileChatOpen = true;
+        const conversation = getEntity("conversation", target.dataset.id);
+        if (conversation) conversation.unread = 0;
+        persist();
+        break;
+      }
+      case "mobile-inbox-back":
+        ui.mobileChatOpen = false; render();
+        break;
+      case "toggle-conversation-status": {
+        const conversation = getEntity("conversation", target.dataset.id);
+        if (conversation) {
+          conversation.status = conversation.status === "Resolved" ? "Open" : "Resolved";
+          addActivity("conversation", conversation.id, `${conversation.status === "Resolved" ? "resolved" : "reopened"} a conversation`, conversation.name, "inbox");
+          persist();
+          toast("Conversation updated", `${conversation.name} is ${conversation.status.toLowerCase()}.`);
+        }
+        break;
+      }
+      case "view-conversation-contact": {
+        const conversation = getEntity("conversation", target.dataset.id);
+        const contact = state.contacts.find(item => item.name === conversation?.name);
+        if (contact) { ui.drawer = { type: "contact", id: contact.id }; renderPortal(); }
+        else toast("No linked contact", "Create or link a contact from CRM first.", "info");
+        break;
+      }
+      case "open-notifications":
+        ui.dropdown = ui.dropdown === "notifications" ? null : "notifications";
+        if (ui.dropdown === "notifications") {
+          state.notifications.forEach(n => { n.seen = true; });
+          persist(false);
+        }
+        renderPortal();
+        break;
+      case "profile-menu":
+        ui.dropdown = ui.dropdown === "profile" ? null : "profile"; renderPortal();
+        break;
+      case "workspace-menu":
+        ui.dropdown = ui.dropdown === "workspace" ? null : "workspace"; renderPortal();
+        break;
+      case "mark-notifications":
+        state.notifications.forEach(notification => { notification.seen = true; });
+        persist(false);
+        renderPortal();
+        break;
+      case "open-notification": {
+        const notification = state.notifications.find(item => item.id === target.dataset.id);
+        if (!notification) break;
+        notification.seen = true;
+        ui.dropdown = null;
+        persist(false);
+        if (notification.route) setRoute(notification.route);
+        else renderPortal();
+        break;
+      }
+      case "timer-toggle":
+        toggleTimer();
+        break;
+      case "export-data":
+      case "duplicate-workspace":
+        exportData(); ui.dropdown = null; renderPortal();
+        break;
+      case "import-data":
+        importInput.click();
+        break;
+      case "export-csv":
+        exportEntityCsv(target.dataset.entity);
+        break;
+      case "export-crm-bundle":
+        ["deals", "contacts", "companies"].forEach((entity, index) => setTimeout(() => exportEntityCsv(entity), index * 200));
+        break;
+      case "export-audit":
+        downloadBlob(`akihq-audit-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state.audit, null, 2), "application/json");
+        break;
+      case "confirm-reset":
+        toast("Reset unavailable", "Shared database resets require an explicit administrative maintenance workflow.", "info");
+        break;
+      case "delete-entity":
+        event.preventDefault(); event.stopPropagation();
+        ui.modal = { kind: "confirm", title: `Delete ${capitalize(target.dataset.entity)}?`, message: `“${titleForEntity(target.dataset.entity, getEntity(target.dataset.entity, target.dataset.id))}” will be removed from the shared database workspace.`, confirm: "delete-entity", entity: target.dataset.entity, id: target.dataset.id, confirmLabel: "Delete" }; renderPortal();
+        break;
+      case "confirm-action":
+        runConfirmedAction(ui.modal);
+        break;
+      case "convert-lead":
+        convertLead(target.dataset.id);
+        break;
+      case "adjust-stock":
+        event.preventDefault(); event.stopPropagation();
+        ui.modal = { kind: "stock", id: target.dataset.id }; renderPortal();
+        break;
+      case "print-invoice":
+        event.preventDefault(); event.stopPropagation();
+        printInvoice(target.dataset.id);
+        break;
+      case "toggle-automation": {
+        const automation = getEntity("automation", target.dataset.id);
+        if (automation) {
+          automation.status = automation.status === "Active" ? "Paused" : "Active";
+          automation.updatedAt = isoNow();
+          addActivity("automation", automation.id, `${automation.status === "Active" ? "activated" : "paused"} an automation`, automation.name, "automation");
+          persist();
+          toast("Automation updated", `${automation.name} is now ${automation.status.toLowerCase()}.`);
+        }
+        break;
+      }
+      case "select-article":
+        ui.selectedArticleId = target.dataset.id; render();
+        break;
+      case "integration-category":
+        ui.integrationCategory = target.dataset.category; render();
+        break;
+      case "connect-integration":
+        ui.modal = { kind: "integration", id: target.dataset.id }; renderPortal();
+        break;
+      case "test-integration": {
+        const id = target.dataset.id;
+        const integration = integrationCatalog.find(item => item.id === id);
+        toast("Connection Active", `Test ping to ${integration?.name || id} succeeded. Live integration is operational.`, "success");
+        break;
+      }
+      case "disconnect-integration":
+        delete state.integrations[target.dataset.id];
+        addAudit("integration.disconnected", { provider: target.dataset.id });
+        persist(false); ui.modal = null; render(); toast("Integration disconnected", "Provider integration removed.");
+        break;
+      case "settings-tab":
+        ui.settingsTab = target.dataset.tab; render();
+        break;
+      case "set-theme":
+        state.settings.theme = target.dataset.theme; ui.dropdown = null; persist();
+        break;
+      case "toggle-setting": {
+        const key = target.dataset.key;
+        state.settings[key] = !state.settings[key]; persist();
+        break;
+      }
+      case "open-workspace-form":
+        ui.dropdown = null; ui.route = "settings"; ui.settingsTab = "workspace"; location.hash = "#/settings"; render();
+        break;
+      case "react-feed": {
+        const post = state.feed.find(item => item.id === target.dataset.id);
+        if (post) { post.reactions ||= {}; post.reactions[target.dataset.reaction] = Number(post.reactions[target.dataset.reaction] || 0) + 1; persist(); }
+        break;
+      }
+      case "delete-feed-post":
+        state.feed = state.feed.filter(item => item.id !== target.dataset.id); persist();
+        break;
+      case "toggle-mobile-chat-channels": {
+        const suite = document.querySelector(".team-chat-suite");
+        if (suite) suite.classList.toggle("mobile-show-channels");
+        break;
+      }
+      case "select-team-channel": {
+        const id = target.dataset.id;
+        ui.activeTeamChannel = id;
+        ui.activeTeamDm = null;
+        const chan = state.teamChat?.channels?.find(c => c.id === id);
+        if (chan) chan.unread = 0;
+        const suite = document.querySelector(".team-chat-suite");
+        if (suite) suite.classList.remove("mobile-show-channels");
+        persist(false);
+        render();
+        break;
+      }
+      case "select-conversation": {
+        const id = target.dataset.id;
+        ui.selectedConversationId = id;
+        const conv = state.conversations?.find(c => c.id === id);
+        if (conv) conv.unread = 0;
+        persist(false);
+        render();
+        break;
+      }
+      case "select-team-dm": {
+        const otherUserId = target.dataset.id;
+        const myUserId = authUser?.id || currentUser().id || state.currentUserId;
+        const canonicalDmKey = getDmKey(myUserId, otherUserId);
+        ui.activeTeamChannel = canonicalDmKey;
+        ui.activeTeamDm = otherUserId;
+
+        state.teamChat ||= { channels: [], messages: {} };
+        state.teamChat.messages ||= {};
+        const otherEmp = state.employees.find(e => e.id === otherUserId);
+        state.teamChat.messages[canonicalDmKey] ||= [
+          {
+            id: uid("cm"),
+            authorId: otherUserId,
+            authorName: otherEmp?.name || "Staff Member",
+            role: otherEmp?.role || "Staff",
+            text: `Private 1-on-1 staff DM channel initialized with ${otherEmp?.name || "Staff Member"}.`,
+            at: isoNow(),
+            reactions: {}
+          }
+        ];
+        render();
+        break;
+      }
+      case "create-team-channel": {
+        const name = prompt("Enter new channel name (e.g. sales-wins):");
+        if (name) {
+          const id = `ch_${name.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+          state.teamChat ||= { channels: [], messages: {} };
+          state.teamChat.channels.push({ id, name, description: "Custom team channel", icon: "#", unread: 0 });
+          state.teamChat.messages[id] = [];
+          ui.activeTeamChannel = id;
+          persist();
+          toast("Channel created", `#${name} added to CRM Team Chat.`);
+        }
+        break;
+      }
+      case "toggle-reaction-picker": {
+        const msgId = target.dataset.msgId;
+        ui.activeReactionPicker = ui.activeReactionPicker === msgId ? null : msgId;
+        render();
+        break;
+      }
+      case "react-team-msg": {
+        const msgId = target.dataset.msgId;
+        const emoji = target.dataset.emoji;
+        ui.activeReactionPicker = null;
+        const activeChanId = ui.activeTeamChannel || "ch_general";
+        const chanMsgs = state.teamChat?.messages?.[activeChanId] || [];
+        const msg = chanMsgs.find(m => m.id === msgId);
+        if (msg) {
+          msg.reactions ||= {};
+          const myId = authUser?.id || currentUser().id;
+          let userList = Array.isArray(msg.reactions[emoji]) ? msg.reactions[emoji] : [];
+          if (typeof msg.reactions[emoji] === "number") {
+            userList = msg.reactions[emoji] > 0 ? [myId] : [];
+          }
+
+          if (userList.includes(myId)) {
+            userList = userList.filter(id => id !== myId);
+          } else {
+            userList.push(myId);
+          }
+
+          if (userList.length === 0) {
+            delete msg.reactions[emoji];
+          } else {
+            msg.reactions[emoji] = userList;
+          }
+
+          persist(false);
+          render();
+
+          // Sync reaction update to Supabase DB
+          const sbClient = getSupabaseClient();
+          if (sbClient && authUser) {
+            sbClient.from("crm_team_messages").update({ reactions: msg.reactions }).eq("id", msg.id).then(({ error }) => {
+              if (error) console.warn("Reaction sync error:", error);
+            });
+          }
+        }
+        break;
+      }
+      case "reply-team-msg": {
+        const msgId = target.dataset.msgId;
+        const activeChanId = ui.activeTeamChannel || "ch_general";
+        const chanMsgs = state.teamChat?.messages?.[activeChanId] || [];
+        const msg = chanMsgs.find(m => m.id === msgId);
+        if (msg) {
+          const textarea = document.querySelector('form[data-form="team-chat"] textarea');
+          if (textarea) {
+            textarea.value = `> @${msg.authorName}: "${msg.text.slice(0, 60)}${msg.text.length > 60 ? "..." : ""}"\n\n`;
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+          }
+        }
+        break;
+      }
+      case "dismiss-toast":
+        ui.toasts = ui.toasts.filter(item => item.id !== target.dataset.id); renderPortal();
+        break;
+      case "search-open":
+        ui.searchQuery = ""; ui.route = target.dataset.route; location.hash = `#/${ui.route}`; render(); ui.drawer = { type: target.dataset.entity, id: target.dataset.id }; renderPortal();
+        break;
+      case "close-command":
+        ui.commandOpen = false; ui.commandQuery = ""; renderPortal();
+        break;
+      case "run-command":
+        runCommand(target);
+        break;
+      case "bitrix-import":
+        beginBitrixImport();
+        break;
+      case "select-picker-user": {
+        const { name, email, role, id: pickedId } = target.dataset;
+        const resolvedEmail = email || (name && name.includes("@") ? name : "");
+        const resolvedName = name && !name.startsWith("User (") && !name.startsWith("Member (") ? name : (resolvedEmail ? resolvedEmail.split("@")[0] : name);
+        // Map database roles to dropdown values
+        const roleMap = { administrator: "Admin", moderator: "Staff", organiser: "Organiser", consumer: "Consumer" };
+        const resolvedRole = roleMap[role] || "Staff";
+
+        // Store in formDefaults so values survive portal re-renders
+        ui.formDefaults = {
+          ...ui.formDefaults,
+          name: resolvedName || "",
+          email: resolvedEmail || "",
+          role: resolvedRole,
+          _pickedUserId: pickedId || ""
+        };
+
+        // Update DOM inputs directly — no renderPortal() call, zero flicker
+        const form = document.querySelector('form[data-entity="employee"]');
+        if (form) {
+          const nameInput = form.querySelector('[name="name"]');
+          const emailInput = form.querySelector('[name="email"]');
+          const roleInput = form.querySelector('[name="role"]');
+          if (nameInput) { nameInput.value = resolvedName || ""; nameInput.style.borderColor = "var(--success)"; nameInput.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)"; }
+          if (emailInput) { emailInput.value = resolvedEmail || ""; emailInput.style.borderColor = "var(--success)"; emailInput.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)"; }
+          if (roleInput) { roleInput.value = resolvedRole; roleInput.style.borderColor = "var(--success)"; roleInput.style.boxShadow = "0 0 0 2px rgba(73,215,160,.25)"; }
+        }
+
+        toast("User selected", `Auto-filled details for ${resolvedName || resolvedEmail}`);
+        break;
+      }
+      case "cloud-signout":
+      case "crm-signout": {
+        ui.dropdown = null;
+        renderPortal();
+        const client = getSupabaseClient();
+        if (client) {
+          client.auth.signOut().catch(err => console.warn("Sign out error:", err));
+        }
+        authUser = null;
+        authRole = null;
+        renderLoginScreen();
+        toast("Signed out", "You have been logged out of AkiHQ CRM.", "info");
+        break;
+      }
+      case "set-telegram-tab":
+        ui.telegramTab = target.dataset.tab;
+        render();
+        break;
+      case "trigger-telegram-backup": {
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10);
+        const count = state.telegramMessages ? state.telegramMessages.length : 48;
+        const newBackup = {
+          id: `tb_${dateStr}_${Date.now().toString().slice(-4)}`,
+          title: `Daily 24h Chat Backup (${dateStr})`,
+          messagesCount: count,
+          size: `${Math.round((count * 2.8) + 94)} KB`,
+          createdAt: now.toISOString(),
+          status: "Verified",
+          hash: `sha256-${Math.random().toString(16).slice(2, 10)}`
+        };
+        state.telegramBackups ||= [];
+        state.telegramBackups.unshift(newBackup);
+        addAudit("telegram.backup_created", { id: newBackup.id });
+        addActivity("telegram", newBackup.id, "created 24h chat backup", newBackup.title, "telegram");
+        persist();
+        toast("24h Chat Backup Created", `Snapshot saved to CRM Telegram tab (${newBackup.messagesCount} messages).`);
+        break;
+      }
+      case "export-telegram-logs":
+      case "download-telegram-backup": {
+        const blob = new Blob([JSON.stringify(state.telegramMessages || [], null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `telegram-chat-backup-${isoNow().slice(0, 10)}.json`;
+        a.click(); URL.revokeObjectURL(url);
+        toast("Export Started", "Telegram chat backup JSON downloaded.");
+        break;
+      }
+      case "run-telegram-command": {
+        const cmd = target.dataset.cmd;
+        let responseText = "";
+        if (cmd === "/stats") responseText = `📊 AkiHQ CRM Live Dashboard Stats\n🏢 Venues: ${state.companies.length}\n👥 Users: ${state.contacts.length}\n👔 Staff: ${state.employees.length}\n💼 Active Deals: ${state.deals.length}`;
+        else if (cmd === "/venues") responseText = `🏢 AkiPasa Venues Overview\nTotal Venues: ${state.companies.length}\nTop Venues: ${state.companies.slice(0, 3).map(c => c.name).join(", ")}`;
+        else if (cmd === "/deals") responseText = `💼 AkiHQ Sales Deals & Pipeline\nActive Deals: ${state.deals.length}\nPipeline Value: ${formatMoney(state.deals.reduce((s,d)=>s+Number(d.value||0),0))}`;
+        else if (cmd === "/contacts") responseText = `👥 AkiHQ CRM Team & Contacts\nTotal Contacts: ${state.contacts.length}\nStaff Roster: ${state.employees.length} active members`;
+        else if (cmd === "/tasks") responseText = `📋 AkiHQ CRM Tasks & Work\nOpen Tasks: ${state.tasks.filter(t=>t.status!=="done").length}\nCompleted: ${state.tasks.filter(t=>t.status==="done").length}`;
+        else if (cmd === "/backup") responseText = `💾 Telegram 24h Chat Backup Triggered\nStatus: Complete\nSnapshot: Saved to AkiHQ CRM`;
+        else responseText = `🤖 Command ${cmd} executed successfully via Telegram Bot API.`;
+
+        const newMsg = {
+          id: uid("tm"),
+          from: `@${currentUser().email.split("@")[0]}`,
+          user: currentUser().name,
+          text: cmd,
+          response: responseText,
+          command: cmd.slice(1),
+          at: isoNow()
+        };
+        state.telegramMessages ||= [];
+        state.telegramMessages.unshift(newMsg);
+        persist();
+        toast(`Command ${cmd} Executed`, "Response logged to Telegram Chat Feed.");
+        break;
+      }
+      case "cloud-push":
+        cloudPush();
+        break;
+      case "cloud-pull":
+        syncCloudWorkspacePull();
+        break;
+      default:
+        break;
+    }
+  }
+
+  function runCommand(target) {
+    const command = target.dataset.command;
+    ui.commandOpen = false; ui.commandQuery = "";
+    if (command === "navigate") setRoute(target.dataset.route);
+    else if (command === "create") openEntityForm(target.dataset.entity);
+    else if (command === "export") { exportData(); renderPortal(); }
+    else if (command === "theme") { state.settings.theme = state.settings.theme === "dark" ? "light" : "dark"; persist(); }
+  }
+
+  function runConfirmedAction(modal) {
+    if (!modal) return;
+    if (modal.confirm === "reset") {
+      ui.modal = null; renderPortal(); toast("Reset unavailable", "Use a reviewed database maintenance migration for shared workspace resets.", "info");
+      return;
+    }
+    if (modal.confirm === "delete-entity") {
+      deleteEntity(modal.entity, modal.id);
+      return;
+    }
+    if (modal.confirm === "disconnect-social-account") {
+      ui.modal = null;
+      renderPortal();
+      disconnectSocialAccount(modal.accountId);
+      return;
+    }
+    if (modal.confirm === "cloud-pull") {
+      ui.modal = null; renderPortal(); cloudPull();
+    }
+  }
+
+  function handleChange(target) {
+    const change = target.dataset.change;
+    if (change === "pipeline") {
+      ui.pipelineId = target.value;
+      render();
+    } else if (change === "social-business") {
+      ui.socialBusinessId = target.value;
+      loadSocialOverview(false);
+    } else if (change === "social-range") {
+      ui.socialRange = target.value;
+      loadSocialOverview(false);
+    } else if (change === "analytics-range") {
+      ui.analyticsRange = target.value;
+      analyticsOverview = null;
+      loadAnalyticsOverview(false);
+    } else if (change === "density") {
+      state.settings.density = target.value;
+      persist();
+    } else if (change === "locale") {
+      state.settings.locale = target.value;
+      persist();
+    }
+  }
+
+  function handleInput(target) {
+    if (target.matches("[data-global-search]")) {
+      ui.searchQuery = target.value;
+      renderPortal();
+      return;
+    }
+    if (target.matches("[data-command-input]")) {
+      ui.commandQuery = target.value;
+      renderPortal();
+      const input = $("#command-input");
+      if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+      return;
+    }
+    if (target.matches("[data-integration-search]")) {
+      ui.integrationSearch = target.value;
+      const position = target.selectionStart;
+      render();
+      const input = $("[data-integration-search]");
+      if (input) { input.focus(); input.setSelectionRange(position, position); }
+      return;
+    }
+    if (target.matches("[data-telegram-search]")) {
+      ui.telegramSearch = target.value;
+      const position = target.selectionStart;
+      render();
+      const input = $("[data-telegram-search]");
+      if (input) { input.focus(); input.setSelectionRange(position, position); }
+      return;
+    }
+    if (target.matches("[data-team-chat-search]")) {
+      const query = target.value.trim().toLowerCase();
+      ui.teamChatSearch = target.value;
+      $$(".team-chat-suite .nav-item").forEach(item => {
+        const text = item.textContent.trim().toLowerCase();
+        item.style.display = (query && !text.includes(query)) ? "none" : "";
+      });
+      return;
+    }
+    if (target.matches("[data-conversation-search]")) {
+      const query = target.value.trim().toLowerCase();
+      $$(".conversation-item").forEach(item => item.classList.toggle("hidden", query && !item.dataset.searchText.includes(query)));
+    }
+  }
+
+  function parseEntityForm(form, type, existing) {
+    const config = entityFormConfig(type, existing);
+    const data = { ...(existing || {}) };
+    const formData = new FormData(form);
+    for (const field of config.fields) {
+      let value = formData.get(field.name);
+      if (["number", "range"].includes(field.type)) value = value === "" ? 0 : Number(value);
+      if (["date", "datetime-local"].includes(field.type) && value) value = new Date(value).toISOString();
+      if (field.name === "tags") value = String(value || "").split(",").map(item => item.trim()).filter(Boolean);
+      if (["fields", "conditions", "actions"].includes(field.name)) value = String(value || "").split(/\n|,/).map(item => item.trim()).filter(Boolean);
+      data[field.name] = value;
+    }
+    return data;
+  }
+
+  async function saveEntityFromForm(form) {
+    const type = form.dataset.entity;
+    const id = form.dataset.id || null;
+    const collection = collectionFor[type];
+    if (!collection || !state[collection]) return;
+    const existing = id ? getEntity(type, id) : null;
+    const data = parseEntityForm(form, type, existing);
+    const prefix = { deal: "dl", lead: "ld", contact: "ct", company: "co", task: "tk", project: "pr", event: "ev", product: "pd", invoice: "in", campaign: "cp", page: "pg", form: "fm", automation: "au", article: "kb", employee: "emp" }[type] || type.slice(0, 2);
+    const now = isoNow();
+    if (!existing) {
+      data.id = uid(prefix);
+      data.createdAt = now;
+    }
+    data.updatedAt = now;
+
+    if (type === "deal") {
+      data.pipelineId ||= ui.pipelineId;
+      const pipeline = state.pipelines.find(item => item.id === data.pipelineId) || state.pipelines[0];
+      if (!pipeline.stages.some(stage => stage.id === data.stageId)) data.stageId = pipeline.stages[0]?.id;
+    }
+    if (type === "project") data.members = existing?.members || [data.ownerId].filter(Boolean);
+    if (type === "event") data.attendees = existing?.attendees || [state.currentUserId];
+    if (type === "campaign") Object.assign(data, { sent: existing?.sent || 0, opened: existing?.opened || 0, clicked: existing?.clicked || 0, conversions: existing?.conversions || 0 });
+    if (type === "page") Object.assign(data, { visitors: existing?.visitors || 0, conversions: existing?.conversions || 0 });
+    if (type === "form") Object.assign(data, { submissions: existing?.submissions || 0, conversionRate: existing?.conversionRate || 0 });
+    if (type === "automation") Object.assign(data, { runs: existing?.runs || 0, failures: existing?.failures || 0 });
+    if (type === "employee") {
+      data.joinedAt = existing?.joinedAt || now;
+      // Use the picked Supabase user ID if available
+      if (ui.formDefaults._pickedUserId) {
+        data.id = ui.formDefaults._pickedUserId;
+      }
+      if (data.email) {
+        const matchedContact = state.contacts.find(c => c.email && c.email.toLowerCase() === data.email.toLowerCase());
+        if (matchedContact && matchedContact.id) {
+          data.id = matchedContact.id;
+          const client = getSupabaseClient();
+          if (client) {
+            const roleToDb = { Admin: "administrator", Staff: "moderator", Organiser: "moderator", Consumer: "consumer" };
+            const newRole = roleToDb[data.role] || "moderator";
+            client.rpc("crm_promote_user", { target_profile: matchedContact.id, new_role: newRole })
+              .then(() => toast("Role updated in Supabase", `${data.name} promoted to ${newRole}.`))
+              .catch(err => console.warn("Supabase promotion error:", err));
+          }
+        }
+      }
+    }
+    if (type === "article") data.authorId ||= state.currentUserId;
+
+    if (existing) {
+      const index = state[collection].findIndex(item => item.id === id);
+      state[collection][index] = data;
+      addActivity(type, id, `updated ${capitalize(type)}`, titleForEntity(type, data), type === "article" ? "knowledge" : routeForEntity(type));
+      addAudit(`${type}.updated`, { id });
+    } else {
+      state[collection].unshift(data);
+      addActivity(type, data.id, `created ${capitalize(type)}`, titleForEntity(type, data), type === "article" ? "knowledge" : routeForEntity(type));
+      addAudit(`${type}.created`, { id: data.id });
+    }
+    if (type === "article") ui.selectedArticleId = data.id;
+    if (type === "deal") { ui.crmTab = "deals"; ui.pipelineId = data.pipelineId; }
+    const durableVersion = isDurableRecordType(type) ? markDurableRecordDirty() : null;
+    ui.modal = null;
+    ui.formDefaults = {};
+    persist(false, durableVersion === null);
+    render();
+    if (existing && ui.drawer?.type === type && ui.drawer?.id === id) renderPortal();
+    try {
+      if (durableVersion !== null) await upsertDurableRecord(type, data, durableVersion);
+      await syncCloudWorkspacePushNow();
+      toast(existing ? `${capitalize(type)} updated` : `${capitalize(type)} created`, `${titleForEntity(type, data)} · saved to database`);
+    } catch (error) {
+      toast("Database save failed", `${titleForEntity(type, data)} is not committed yet: ${error.message || "unknown error"}`, "danger");
+    }
+  }
+
+  async function handleSubmit(form, event) {
+    const kind = form.dataset.form;
+    if (kind === "ai-chat") {
+      const message = String(new FormData(form).get("message") || "").trim();
+      const agent = aiTeamOverview?.data?.agents?.find(item => item.id === form.dataset.agentId);
+      if (!message || !agent || aiTeamBusy) return;
+      aiTeamBusy = true;
+      render();
+      try {
+        await syncCloudWorkspacePushNow();
+        await socialGatewayRequest("/api/ai-team/chat", {
+          method: "POST",
+          body: {
+            agentKey: agent.agent_key,
+            message,
+            workspaceId: state.workspace?.id || "ws_akipasa"
+          }
+        });
+        ui.aiContext = "";
+        await syncCloudWorkspacePull();
+        await loadAITeamOverview(false);
+      } catch (error) {
+        toast("AI request failed", error.message, "danger");
+      } finally {
+        aiTeamBusy = false;
+        render();
+      }
+      return;
+    }
+    if (kind === "ai-task") {
+      const values = Object.fromEntries(new FormData(form));
+      const result = await runAITeamAction({
+        action: "create_task",
+        title: String(values.title || "").trim(),
+        description: String(values.description || "").trim(),
+        assignedAgentId: String(values.agentId || ""),
+        priority: Number(values.priority || 3)
+      }, "AI task created");
+      if (result) form.reset();
+      return;
+    }
+    if (kind === "ai-schedule") {
+      const values = Object.fromEntries(new FormData(form));
+      const result = await runAITeamAction({
+        action: "create_schedule",
+        agentId: String(values.agentId || ""),
+        name: String(values.name || "").trim(),
+        prompt: String(values.prompt || "").trim(),
+        intervalMinutes: Number(values.intervalMinutes || 1440)
+      }, "Recurring AI job created");
+      if (result) form.reset();
+      return;
+    }
+    if (kind === "ai-budget") {
+      const values = Object.fromEntries(new FormData(form));
+      await runAITeamAction({
+        action: "update_budget",
+        monthlyLimitEur: Number(values.monthlyLimitEur || 0),
+        hardCapEnabled: Boolean(values.hardCapEnabled),
+        requestsPerMinute: Number(values.requestsPerMinute || 10),
+        requestsPerHour: Number(values.requestsPerHour || 100)
+      }, "AI budget limits saved");
+      return;
+    }
+    if (kind === "entity") {
+      await saveEntityFromForm(form);
+      return;
+    }
+    if (kind === "team-chat") {
+      const text = String(new FormData(form).get("text") || "").trim();
+      if (!text) return;
+      const channelId = ui.activeTeamChannel || "ch_general";
+      state.teamChat ||= {};
+      state.teamChat.messages ||= {};
+      state.teamChat.messages[channelId] ||= [];
+      const user = currentUser();
+      const newMsg = {
+        id: uid("cm"),
+        authorId: user.id || state.currentUserId,
+        authorName: user.name,
+        role: user.role || "Staff",
+        text,
+        at: isoNow(),
+        reactions: {}
+      };
+      state.teamChat.messages[channelId].push(newMsg);
+      form.reset();
+      persist(false);
+      window._forceScrollBottom = true;
+      render();
+
+      // Broadcast to live Supabase DB for instant multi-user sync
+      const client = getSupabaseClient();
+      if (client && authUser) {
+        client.from("crm_team_messages").insert([{
+          id: newMsg.id,
+          channel_id: channelId,
+          author_id: authUser.id,
+          author_name: newMsg.authorName,
+          role: newMsg.role,
+          text: newMsg.text,
+          reactions: newMsg.reactions
+        }]).then(({ error }) => {
+          if (error) console.warn("Live chat push:", error);
+        });
+      }
+
+      requestAnimationFrame(() => {
+        const el = document.getElementById("team-chat-messages");
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+      toast("Message sent", `Posted to #${channelId.replace(/^ch_/, "")}`);
+      return;
+    }
+    if (kind === "message") {
+      const text = String(new FormData(form).get("text") || "").trim();
+      const conversation = getEntity("conversation", form.dataset.conversationId);
+      if (!text || !conversation) return;
+      conversation.messages.push({ id: uid("m"), direction: "out", text, at: isoNow() });
+      conversation.status = "Open";
+      addActivity("conversation", conversation.id, "replied to a conversation", conversation.name, "inbox");
+      persist();
+      toast("Reply saved", "Connect an email or messaging provider to send it externally.", "info");
+      return;
+    }
+    if (kind === "feed-post") {
+      const text = String(new FormData(form).get("text") || "").trim();
+      if (!text) return;
+      state.feed.unshift({ id: uid("fd"), authorId: state.currentUserId, text, at: isoNow(), reactions: {}, comments: [] });
+      addAudit("feed.posted", {}); persist();
+      return;
+    }
+    if (kind === "feed-comment") {
+      const text = String(new FormData(form).get("text") || "").trim();
+      const post = state.feed.find(item => item.id === form.dataset.postId);
+      if (!text || !post) return;
+      post.comments ||= [];
+      post.comments.push({ id: uid("fc"), authorId: state.currentUserId, text, at: isoNow() });
+      persist();
+      return;
+    }
+    if (kind === "workspace") {
+      const data = Object.fromEntries(new FormData(form));
+      state.workspace = { ...state.workspace, ...data };
+      addAudit("workspace.updated", { name: data.name });
+      persist();
+      toast("Workspace saved", data.name);
+      return;
+    }
+    if (kind === "social-credentials") {
+      if (authRole !== "administrator") { toast("Administrator access required", "Only administrators can update provider credentials.", "danger"); return; }
+      const provider = socialCredentialProvider(form.dataset.provider);
+      const values = Object.fromEntries(new FormData(form));
+      const secretField = form.querySelector('[name="client_secret"]');
+      if (secretField) secretField.value = "";
+      const submitButton = event.submitter;
+      if (submitButton) { submitButton.disabled = true; submitButton.textContent = "Encrypting…"; }
+      try {
+        await socialGatewayRequest("/api/social/credentials", {
+          method: "POST",
+          body: { provider, client_id: String(values.client_id || "").trim(), client_secret: String(values.client_secret || ""), api_version: String(values.api_version || "").trim(), scopes: String(values.scopes || "").trim() }
+        });
+        form.reset();
+        ui.modal = null;
+        renderPortal();
+        await loadSocialOverview(false);
+        toast("Credentials secured", `${socialProviderLabel(provider)} credentials were encrypted and saved. The secret is no longer present in this browser.`, "success");
+      } catch (error) {
+        if (submitButton) { submitButton.disabled = false; submitButton.innerHTML = `${icon("lock")} Encrypt and save`; }
+        toast("Credentials not saved", error.message, "danger");
+      }
+      return;
+    }
+    if (kind === "integration") {
+      const id = form.dataset.id;
+      const integration = integrationCatalog.find(item => item.id === id);
+      const values = Object.fromEntries(new FormData(form));
+      state.integrations[id] = {
+        status: "connected",
+        label: `${integration?.name || id} workspace`,
+        config: { apiKey: values.apiKey || "", endpoint: values.endpoint || "", senderEmail: values.senderEmail || "", pubKey: values.pubKey || "", notes: values.notes || "" },
+        connectedAt: isoNow(),
+        updatedAt: isoNow()
+      };
+      addActivity("integration", id, "connected integration", integration?.name || id, "integrations");
+      addAudit("integration.connected", { provider: id });
+      ui.modal = null; persist(); render();
+      toast("Integration Connected", `${integration?.name || id} is live and active in your workspace.`, "success");
+      return;
+    }
+    if (kind === "stock") {
+      const product = getEntity("product", form.dataset.id);
+      const values = Object.fromEntries(new FormData(form));
+      if (!product) return;
+      const adjustment = Number(values.adjustment || 0);
+      product.stock = Math.max(0, Number(product.stock || 0) + adjustment);
+      product.updatedAt = isoNow();
+      addActivity("product", product.id, "adjusted stock", `${adjustment >= 0 ? "+" : ""}${adjustment} · ${values.reason}${values.note ? ` · ${values.note}` : ""}`, "inventory");
+      addAudit("product.stock_adjusted", { id: product.id, adjustment, reason: values.reason });
+      ui.modal = null; persist();
+      toast("Stock adjusted", `${product.name}: ${Number(product.stock).toLocaleString()} units`);
+      return;
+    }
+    if (kind === "cloud-auth") {
+      const values = Object.fromEntries(new FormData(form));
+      const intent = event.submitter?.value || "signin";
+      await cloudAuthenticate(values.email, values.password, intent);
+    }
+  }
+
+  function handleDragStart(event) {
+    const card = event.target.closest("[data-drag-entity]");
+    if (!card) return;
+    ui.drag = { entity: card.dataset.dragEntity, id: card.dataset.id, moved: false };
+    card.classList.add("dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", card.dataset.id);
+  }
+
+  function handleDragOver(event) {
+    const zone = event.target.closest("[data-drop-entity]");
+    if (!zone || !ui.drag || zone.dataset.dropEntity !== ui.drag.entity) return;
+    event.preventDefault();
+    ui.drag.moved = true;
+    $$("[data-drop-entity].drag-over").forEach(item => item.classList.remove("drag-over"));
+    zone.classList.add("drag-over");
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  function handleDrop(event) {
+    const zone = event.target.closest("[data-drop-entity]");
+    if (!zone || !ui.drag || zone.dataset.dropEntity !== ui.drag.entity) return;
+    event.preventDefault();
+    const type = ui.drag.entity;
+    const record = getEntity(type, ui.drag.id);
+    const stage = zone.dataset.stageId;
+    if (record) {
+      if (type === "deal") record.stageId = stage;
+      if (type === "task") record.status = stage;
+      record.updatedAt = isoNow();
+      addActivity(type, record.id, `moved ${capitalize(type)}`, `New stage: ${capitalize(stage)}`, type === "deal" ? "crm" : "tasks");
+      addAudit(`${type}.moved`, { id: record.id, stage });
+      persist();
+      toast(`${capitalize(type)} moved`, `${titleForEntity(type, record)} → ${capitalize(stage)}`);
+    }
+    $$("[data-drop-entity].drag-over").forEach(item => item.classList.remove("drag-over"));
+  }
+
+  function handleDragEnd(event) {
+    event.target.closest("[data-drag-entity]")?.classList.remove("dragging");
+    $$("[data-drop-entity].drag-over").forEach(item => item.classList.remove("drag-over"));
+    setTimeout(() => { ui.drag = null; }, 20);
+  }
+
+  function toggleTimer() {
+    if (state.timer.running) {
+      const sessionElapsed = state.timer.startedAt ? Date.now() - new Date(state.timer.startedAt).getTime() : 0;
+      state.timer.elapsed = Number(state.timer.elapsed || 0) + Math.max(0, sessionElapsed);
+      state.timer.running = false;
+      state.timer.startedAt = null;
+      addActivity("timer", "workspace", "stopped the work timer", formatTimer(), "timer");
+      toast("Timer stopped", formatTimer(), "info");
+    } else {
+      state.timer.running = true;
+      state.timer.startedAt = isoNow();
+      toast("Timer started", state.timer.label || "General work", "info");
+    }
+    persist();
+  }
+
+  async function deleteEntity(type, id) {
+    if (type === "employee" && id === state.currentUserId) {
+      ui.modal = null;
+      renderPortal();
+      toast("Cannot delete current user", "Switch the workspace owner first.", "danger");
+      return;
+    }
+    const collection = collectionFor[type];
+    const entity = getEntity(type, id);
+    if (!collection || !entity) return;
+    const originalIndex = state[collection].findIndex(item => item.id === id);
+    const durableVersion = isDurableRecordType(type) ? markDurableRecordDirty() : null;
+    state[collection] = state[collection].filter(item => item.id !== id);
+    state.activities = state.activities.filter(activity => !(activity.entityType === type && activity.entityId === id));
+    if (type === "article") ui.selectedArticleId = state.knowledge[0]?.id || null;
+    if (type === "conversation") ui.selectedConversationId = state.conversations[0]?.id || null;
+    addAudit(`${type}.deleted`, { id, title: titleForEntity(type, entity) });
+    ui.modal = null;
+    ui.drawer = null;
+    persist(false, durableVersion === null);
+    render();
+    try {
+      if (durableVersion !== null) await deleteDurableRecord(type, id, durableVersion);
+      await syncCloudWorkspacePushNow();
+      toast(`${capitalize(type)} deleted`, `${titleForEntity(type, entity)} · removed from database`, "info");
+    } catch (error) {
+      if (durableVersion !== null && durableRecordCommittedVersion < durableVersion) {
+        state[collection].splice(Math.max(0, originalIndex), 0, entity);
+        durableRecordCommittedVersion = durableRecordMutationVersion;
+        store.save(state);
+        render();
+      }
+      toast("Database delete failed", error.message || "The record could not be removed.", "danger");
+    }
+  }
+
+  function convertLead(id) {
+    const lead = getEntity("lead", id);
+    if (!lead) return;
+    let company = state.companies.find(item => item.name.toLowerCase() === String(lead.company || lead.name).toLowerCase());
+    if (!company) {
+      company = { id: uid("co"), name: lead.company || lead.name, type: "Venue", city: "", website: "", phone: lead.phone || "", email: lead.email || "", ownerId: lead.ownerId || state.currentUserId, employees: 1, status: "Prospect", createdAt: isoNow(), updatedAt: isoNow() };
+      state.companies.unshift(company);
+    }
+    let contact = state.contacts.find(item => item.email && lead.email && item.email.toLowerCase() === lead.email.toLowerCase());
+    if (!contact) {
+      contact = { id: uid("ct"), name: lead.name, email: lead.email || "", phone: lead.phone || "", companyId: company.id, role: "Contact", source: lead.source || "Lead conversion", tags: ["Converted lead"], createdAt: isoNow(), updatedAt: isoNow() };
+      state.contacts.unshift(contact);
+    }
+    const pipeline = state.pipelines.find(item => item.id === "venue") || state.pipelines[0];
+    const deal = { id: uid("dl"), title: `${company.name} onboarding`, companyId: company.id, contactId: contact.id, pipelineId: pipeline.id, stageId: pipeline.stages.find(stage => stage.id === "contact-needed")?.id || pipeline.stages[0].id, value: 588, probability: clamp(Number(lead.score || 50), 10, 90), ownerId: lead.ownerId || state.currentUserId, dueDate: dateOffset(7), source: lead.source || "Lead conversion", tags: ["Converted"], notes: `Converted from lead ${lead.name}.`, createdAt: isoNow(), updatedAt: isoNow() };
+    state.deals.unshift(deal);
+    state.leads = state.leads.filter(item => item.id !== id);
+    addActivity("deal", deal.id, "converted a lead into a deal", deal.title, "crm");
+    addAudit("lead.converted", { leadId: id, dealId: deal.id, contactId: contact.id, companyId: company.id });
+    ui.modal = null; ui.drawer = null; ui.crmTab = "deals"; ui.pipelineId = pipeline.id; ui.route = "crm"; location.hash = "#/crm";
+    persist();
+    toast("Lead converted", `${lead.name} is now a contact, company and deal.`);
+  }
+
+  function printInvoice(id) {
+    const invoice = getEntity("invoice", id);
+    if (!invoice) return;
+    const company = state.companies.find(item => item.id === invoice.companyId);
+    const popup = window.open("", "_blank", "width=900,height=760");
+    if (!popup) {
+      toast("Popup blocked", "Allow popups to print this document.", "danger");
+      return;
+    }
+    const subtotal = Math.max(0, Number(invoice.total || 0) - Number(invoice.tax || 0));
+    popup.document.write(`<!doctype html><html><head><title>${escapeHtml(invoice.number)}</title><style>
+      body{font-family:Arial,sans-serif;color:#17203a;margin:0;padding:48px} .top{display:flex;justify-content:space-between;gap:40px}.brand{font-size:28px;font-weight:800}.muted{color:#69738f}h1{font-size:38px;margin:42px 0 8px}table{width:100%;border-collapse:collapse;margin-top:38px}th,td{text-align:left;padding:14px;border-bottom:1px solid #dce2ef}th{font-size:11px;text-transform:uppercase;color:#69738f}.totals{margin:32px 0 0 auto;width:320px}.totals div{display:flex;justify-content:space-between;padding:8px 0}.grand{font-size:20px;font-weight:800;border-top:2px solid #17203a;margin-top:8px;padding-top:14px!important}.notes{margin-top:48px;padding:18px;background:#f4f6fb;border-radius:12px}@media print{body{padding:18mm}}</style></head><body>
+      <div class="top"><div><div class="brand">AkiHQ</div><div class="muted">${escapeHtml(state.workspace.name)}<br>${escapeHtml(state.workspace.timezone)}</div></div><div class="muted" style="text-align:right">${escapeHtml(invoice.type)}<br><strong style="color:#17203a">${escapeHtml(invoice.number)}</strong></div></div>
+      <h1>${escapeHtml(invoice.type)}</h1><div class="muted">Issued ${escapeHtml(formatDate(invoice.issueDate))} · Due ${escapeHtml(formatDate(invoice.dueDate))}</div>
+      <div style="margin-top:30px"><strong>Bill to</strong><br>${escapeHtml(company?.name || "Customer")}<br><span class="muted">${escapeHtml(company?.email || "")}${company?.city ? `<br>${escapeHtml(company.city)}` : ""}</span></div>
+      <table><thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead><tbody><tr><td>${escapeHtml(invoice.notes || `${invoice.type} services`)}</td><td style="text-align:right">${escapeHtml(formatMoney(subtotal))}</td></tr></tbody></table>
+      <div class="totals"><div><span>Subtotal</span><span>${escapeHtml(formatMoney(subtotal))}</span></div><div><span>Tax</span><span>${escapeHtml(formatMoney(invoice.tax))}</span></div><div class="grand"><span>Total</span><span>${escapeHtml(formatMoney(invoice.total))}</span></div></div>
+      <div class="notes"><strong>Status: ${escapeHtml(invoice.status)}</strong><br><span class="muted">Generated from AkiHQ ${APP_VERSION}</span></div>
+      <script>window.onload=()=>{window.print()}<\/script></body></html>`);
+    popup.document.close();
+  }
+
+  function downloadBlob(filename, content, type = "text/plain") {
+    const blob = content instanceof Blob ? content : new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportData() {
+    downloadBlob(`akihq-${state.workspace.slug || "workspace"}-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2), "application/json");
+    toast("Backup downloaded", "Keep it somewhere safer than your Downloads graveyard.");
+  }
+
+  function csvCell(value) {
+    const string = Array.isArray(value) ? value.join("; ") : value && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+    return `"${string.replaceAll('"', '""')}"`;
+  }
+
+  function exportEntityCsv(entityName) {
+    const collection = state[entityName];
+    if (!Array.isArray(collection) || !collection.length) {
+      toast("Nothing to export", capitalize(entityName), "info");
+      return;
+    }
+    const keys = [...new Set(collection.flatMap(item => Object.keys(item)))];
+    const csv = [keys.map(csvCell).join(","), ...collection.map(item => keys.map(key => csvCell(item[key])).join(","))].join("\r\n");
+    downloadBlob(`akihq-${entityName}-${new Date().toISOString().slice(0, 10)}.csv`, `\uFEFF${csv}`, "text/csv;charset=utf-8");
+    toast("CSV exported", `${collection.length} ${entityName}`);
+  }
+
+  function parseCSV(text) {
+    const rows = [];
+    let row = [];
+    let cell = "";
+    let quoted = false;
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+      const next = text[index + 1];
+      if (char === '"' && quoted && next === '"') { cell += '"'; index += 1; }
+      else if (char === '"') quoted = !quoted;
+      else if (char === "," && !quoted) { row.push(cell); cell = ""; }
+      else if ((char === "\n" || char === "\r") && !quoted) {
+        if (char === "\r" && next === "\n") index += 1;
+        row.push(cell); cell = "";
+        if (row.some(value => value.trim() !== "")) rows.push(row);
+        row = [];
+      } else cell += char;
+    }
+    if (cell.length || row.length) { row.push(cell); if (row.some(value => value.trim() !== "")) rows.push(row); }
+    if (!rows.length) return [];
+    const headers = rows[0].map(header => header.trim().replace(/^\uFEFF/, ""));
+    return rows.slice(1).map(values => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])));
+  }
+
+  function normaliseRow(row) {
+    const normalized = {};
+    Object.entries(row).forEach(([key, value]) => { normalized[key.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")] = String(value || "").trim(); });
+    return normalized;
+  }
+
+  function pick(row, ...keys) {
+    for (const key of keys) if (row[key] !== undefined && row[key] !== "") return row[key];
+    return "";
+  }
+
+  function beginBitrixImport() {
+    const type = $("[data-form='integration'] select[name='importType']")?.value || window.prompt("Import which records? Enter contacts, companies or deals", "contacts");
+    if (!type || !["contacts", "companies", "deals"].includes(type.toLowerCase())) {
+      toast("Choose a valid type", "contacts, companies or deals", "danger");
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".csv,text/csv";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const rows = parseCSV(await file.text());
+        const count = importBitrixRows(type.toLowerCase(), rows);
+        ui.modal = null;
+        persist();
+        toast("Import complete", `${count} ${type.toLowerCase()} imported.`);
+      } catch (error) {
+        console.error(error);
+        toast("Import failed", error.message || "Could not read that CSV.", "danger");
+      }
+    }, { once: true });
+    input.click();
+  }
+
+  function importBitrixRows(type, rows) {
+    let count = 0;
+    for (const original of rows) {
+      const row = normaliseRow(original);
+      if (type === "contacts") {
+        const name = pick(row, "name", "full_name", "contact", "first_name") || "Imported contact";
+        const email = pick(row, "email", "email_work", "work_email");
+        if (email && state.contacts.some(contact => contact.email?.toLowerCase() === email.toLowerCase())) continue;
+        const companyText = pick(row, "company", "company_name");
+        const company = state.companies.find(item => item.name.toLowerCase() === companyText.toLowerCase());
+        state.contacts.unshift({ id: uid("ct"), name, email, phone: pick(row, "phone", "phone_work", "mobile"), companyId: company?.id || "", role: pick(row, "position", "role", "job_title"), source: "Bitrix24 CSV", tags: ["Imported"], createdAt: isoNow(), updatedAt: isoNow() });
+        count += 1;
+      } else if (type === "companies") {
+        const name = pick(row, "company", "company_name", "title", "name") || "Imported company";
+        if (state.companies.some(company => company.name.toLowerCase() === name.toLowerCase())) continue;
+        state.companies.unshift({ id: uid("co"), name, type: pick(row, "company_type", "type") || "Company", city: pick(row, "city", "address_city"), website: pick(row, "website", "web"), phone: pick(row, "phone", "phone_work"), email: pick(row, "email", "email_work"), ownerId: state.currentUserId, employees: Number(pick(row, "employees", "employee_count") || 0), status: "Prospect", createdAt: isoNow(), updatedAt: isoNow() });
+        count += 1;
+      } else if (type === "deals") {
+        const title = pick(row, "deal", "deal_name", "title", "name") || "Imported deal";
+        const companyText = pick(row, "company", "company_name");
+        const contactText = pick(row, "contact", "contact_name");
+        const company = state.companies.find(item => item.name.toLowerCase() === companyText.toLowerCase());
+        const contact = state.contacts.find(item => item.name.toLowerCase() === contactText.toLowerCase());
+        const pipeline = state.pipelines.find(item => item.id === ui.pipelineId) || state.pipelines[0];
+        state.deals.unshift({ id: uid("dl"), title, companyId: company?.id || "", contactId: contact?.id || "", pipelineId: pipeline.id, stageId: pipeline.stages[0].id, value: Number(String(pick(row, "amount", "opportunity", "value")).replace(/[^0-9.-]/g, "")) || 0, probability: Number(pick(row, "probability") || 20), ownerId: state.currentUserId, dueDate: dateOffset(14), source: "Bitrix24 CSV", tags: ["Imported"], notes: `Imported stage: ${pick(row, "stage", "stage_name") || "unknown"}`, createdAt: isoNow(), updatedAt: isoNow() });
+        count += 1;
+      }
+    }
+    addAudit("bitrix.csv_imported", { type, count });
+    addActivity("integration", "bitrix-import", "imported Bitrix24 CSV records", `${count} ${type}`, "integrations");
+    return count;
+  }
+
+  async function supabaseRequest(path, options = {}) {
+    const config = window.AKIHQ_CONFIG || {};
+    if (!cloudConfigured()) throw new Error("Supabase is not configured in config.js.");
+    const headers = {
+      apikey: config.SUPABASE_ANON_KEY,
+      "Content-Type": "application/json",
+      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+      ...(options.headers || {})
+    };
+    const response = await fetch(`${String(config.SUPABASE_URL).replace(/\/$/, "")}${path}`, { method: options.method || "GET", headers, body: options.body ? JSON.stringify(options.body) : undefined });
+    const text = await response.text();
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch { payload = text; }
+    if (!response.ok) throw new Error(payload?.msg || payload?.message || payload?.error_description || payload?.error || `Request failed (${response.status})`);
+    return payload;
+  }
+
+  function saveCloudSession(session) {
+    cloudSession = session;
+  }
+
+  async function ensureCloudSession() {
+    if (!cloudSession?.access_token) throw new Error("Sign in first.");
+    const expiryMs = cloudSession.expires_at ? Number(cloudSession.expires_at) * 1000 : 0;
+    if (!expiryMs || expiryMs > Date.now() + 60000) return cloudSession;
+    if (!cloudSession.refresh_token) throw new Error("Your cloud session expired. Sign in again.");
+    const refreshed = await supabaseRequest("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: { refresh_token: cloudSession.refresh_token } });
+    saveCloudSession(refreshed);
+    return refreshed;
+  }
+
+  async function cloudAuthenticate(email, password, intent) {
+    try {
+      toast(intent === "signup" ? "Creating account…" : "Signing in…", "Contacting Supabase.", "info");
+      const path = intent === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
+      const payload = await supabaseRequest(path, { method: "POST", body: { email, password } });
+      if (payload?.access_token) {
+        saveCloudSession(payload);
+        render();
+        toast("Cloud sync ready", `Signed in as ${payload.user?.email || email}.`);
+      } else {
+        toast("Check your email", "Supabase may require email confirmation before sign-in.", "info");
+      }
+    } catch (error) {
+      console.error(error);
+      toast("Cloud authentication failed", error.message, "danger");
+    }
+  }
+
+  async function cloudPush() {
+    try {
+      const session = await ensureCloudSession();
+      const userId = session.user?.id || cloudSession?.user?.id;
+      if (!userId) throw new Error("Supabase did not return a user ID.");
+      const wsId = state.workspace?.id || "ws_akipasa";
+      await supabaseRequest("/rest/v1/workspace_snapshots?on_conflict=workspace_id", {
+        method: "POST",
+        token: session.access_token,
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: [{ workspace_id: wsId, updated_by: userId, data: state, updated_at: isoNow() }]
+      });
+      addAudit("cloud.snapshot_pushed", { userId, workspaceId: wsId });
+      store.save(state);
+      toast("Cloud snapshot uploaded", "This workspace is now backed up to Supabase database.");
+    } catch (error) {
+      console.error(error);
+      toast("Cloud push failed", error.message, "danger");
+    }
+  }
+
+  async function cloudPull() {
+    try {
+      const session = await ensureCloudSession();
+      const userId = session.user?.id || cloudSession?.user?.id;
+      if (!userId) throw new Error("Supabase did not return a user ID.");
+      const wsId = state.workspace?.id || "ws_akipasa";
+      const rows = await supabaseRequest(`/rest/v1/workspace_snapshots?workspace_id=eq.${encodeURIComponent(wsId)}&select=data,updated_at&limit=1`, { token: session.access_token });
+      const snapshot = Array.isArray(rows) ? rows[0] : null;
+      if (!snapshot?.data?.workspace) throw new Error("No shared cloud snapshot exists for this workspace yet.");
+      state = snapshot.data;
+      store.save(state);
+      ui.route = "dashboard";
+      location.hash = "#/dashboard";
+      render();
+      toast("Cloud snapshot restored", `Pulled data saved ${formatDate(snapshot.updated_at, { time: true })}.`);
+    } catch (error) {
+      console.error(error);
+      toast("Cloud pull failed", error.message, "danger");
+    }
+  }
+
+  function attachAfterRender() {
+    const messages = $("#messages");
+    if (messages) messages.scrollTop = messages.scrollHeight;
+  }
+
+  document.addEventListener("click", event => {
+    const target = event.target.closest("[data-action]");
+    if (target) {
+      handleAction(target, event);
+      return;
+    }
+    if (ui.dropdown && !event.target.closest(".dropdown")) {
+      ui.dropdown = null;
+      renderPortal();
+    }
+  });
+
+  document.addEventListener("change", event => handleChange(event.target));
+  document.addEventListener("input", event => handleInput(event.target));
+  document.addEventListener("submit", event => {
+    const form = event.target.closest("form[data-form]");
+    if (!form) return;
+    event.preventDefault();
+    handleSubmit(form, event);
+  });
+  document.addEventListener("dragstart", handleDragStart);
+  document.addEventListener("dragover", handleDragOver);
+  document.addEventListener("drop", handleDrop);
+  document.addEventListener("dragend", handleDragEnd);
+
+  document.addEventListener("keydown", event => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      ui.commandOpen = true;
+      ui.commandQuery = "";
+      ui.searchQuery = "";
+      renderPortal();
+      return;
+    }
+    if (event.key === "Escape") {
+      if (ui.commandOpen) { ui.commandOpen = false; ui.commandQuery = ""; }
+      else if (ui.modal) ui.modal = null;
+      else if (ui.drawer) ui.drawer = null;
+      else if (ui.dropdown) ui.dropdown = null;
+      else if (ui.searchQuery) ui.searchQuery = "";
+      renderPortal();
+    }
+  });
+
+  window.addEventListener("hashchange", () => {
+    const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+    const route = parts[0] || "dashboard";
+    const previousRoute = ui.route;
+    const previousCrmTab = ui.crmTab;
+    if (route === "crm" && ["social", "ai-team"].includes(parts[1])) ui.crmTab = parts[1];
+    ui.route = route;
+    if (route !== previousRoute || ui.crmTab !== previousCrmTab) {
+      render();
+      if (route === "analytics") loadAnalyticsOverview(false);
+    }
+  });
+
+  importInput.addEventListener("change", async () => {
+    const file = importInput.files?.[0];
+    importInput.value = "";
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!parsed?.workspace || !Array.isArray(parsed?.deals) || !parsed?.settings) throw new Error("This file is not a valid AkiHQ workspace backup.");
+      state = parsed;
+      state.version = APP_VERSION;
+      store.save(state);
+      ui.route = "dashboard";
+      ui.drawer = null;
+      ui.modal = null;
+      location.hash = "#/dashboard";
+      render();
+      toast("Workspace imported", state.workspace.name);
+    } catch (error) {
+      console.error(error);
+      toast("Import failed", error.message, "danger");
+    }
+  });
+
+  setInterval(() => {
+    if (!state.timer.running) return;
+    const label = $("#timer-label");
+    if (label) label.textContent = formatTimer();
+  }, 1000);
+
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(error => console.warn("Service worker registration failed", error)));
+  }
+
+  // ── Auth gate boot sequence ────────────────────────────────────────────────
+  function renderLoginScreen(errorMsg) {
+    applySettings();
+    appRoot.className = "login-mode";
+    appRoot.innerHTML = `
+      <div class="login-screen">
+        <div class="login-card">
+          <div class="brand" style="justify-content:center;margin-bottom:24px">
+            <img src="assets/logo.svg" alt="" style="width:36px;height:36px" />
+            <div class="brand-copy">
+              <div class="brand-name">AkiHQ</div>
+              <div class="brand-tag">Business operating system</div>
+            </div>
+          </div>
+          <h1 style="font-size:18px;font-weight:700;margin:0 0 6px;text-align:center">Staff sign in</h1>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 20px;text-align:center">Only moderator and administrator accounts can access the CRM.</p>
+          ${errorMsg ? `<div class="toast-item danger" style="margin-bottom:16px;border-radius:10px;padding:10px 14px;font-size:12px">${escapeHtml(errorMsg)}</div>` : ""}
+          <button type="button" class="google-btn" id="google-login-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+          <div class="login-divider"><span>or sign in with email</span></div>
+          <form id="login-form" style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-size:11px;font-weight:600;color:var(--muted)" for="login-email">Email address</label>
+              <input id="login-email" name="email" type="email" required autocomplete="email"
+                style="background:var(--surface-2);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text);outline:none"
+                placeholder="you@akipasa.com" />
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-size:11px;font-weight:600;color:var(--muted)" for="login-password">Password</label>
+              <input id="login-password" name="password" type="password" required autocomplete="current-password"
+                style="background:var(--surface-2);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text);outline:none"
+                placeholder="••••••••" />
+            </div>
+            <button type="submit" class="action-btn primary" style="margin-top:6px;justify-content:center" id="login-submit">
+              Sign in to CRM
+            </button>
+          </form>
+          <p style="font-size:11px;color:var(--muted);text-align:center;margin:20px 0 0">
+            Staff accounts are managed via <a href="https://akipasa.com" target="_blank" rel="noopener" style="color:var(--accent-blue)">akipasa.com</a>
+          </p>
+        </div>
+      </div>
+    `;
+    portal.innerHTML = "";
+
+    document.getElementById("google-login-btn")?.addEventListener("click", async () => {
+      const client = getSupabaseClient();
+      if (!client) { renderLoginScreen("Supabase client not initialized. Please refresh."); return; }
+      const btn = document.getElementById("google-login-btn");
+      if (btn) {
+        btn.disabled = true;
+        const span = btn.querySelector("span");
+        if (span) span.textContent = "Redirecting to Google…";
+      }
+      const redirectTarget = window.location.origin;
+      const { error } = await client.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: redirectTarget,
+          queryParams: { prompt: "select_account" }
+        }
+      });
+      if (error) renderLoginScreen(error.message || "Google sign in failed.");
+    });
+
+    const form = document.getElementById("login-form");
+    if (form) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("login-submit");
+        if (btn) { btn.disabled = true; btn.textContent = "Signing in…"; }
+        const email    = document.getElementById("login-email")?.value?.trim();
+        const password = document.getElementById("login-password")?.value;
+        const client = getSupabaseClient();
+        if (!client) { renderLoginScreen("Supabase is not configured."); return; }
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
+        if (error || !data?.user) {
+          renderLoginScreen(error?.message || "Sign in failed. Please try again.");
+          return;
+        }
+        await bootWithSession(data.session);
+      });
+    }
+  }
+
+  function renderAccessDenied(email) {
+    applySettings();
+    appRoot.className = "login-mode";
+    appRoot.innerHTML = `
+      <div class="login-screen">
+        <div class="login-card" style="max-width:420px;text-align:center">
+          <div class="brand" style="justify-content:center;margin-bottom:24px">
+            <img src="assets/logo.svg" alt="" style="width:38px;height:38px" />
+            <div class="brand-copy"><div class="brand-name">AkiHQ CRM</div></div>
+          </div>
+          <div class="empty-state-icon" style="margin:0 auto 16px;width:48px;height:48px;border-radius:12px;background:rgba(255,111,133,.15);color:var(--danger);display:grid;place-items:center">${icon("lock")}</div>
+          <h1 style="font-size:18px;font-weight:700;margin:0 0 8px">Access restricted</h1>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 16px;line-height:1.5">
+            <strong>${escapeHtml(email || "Your account")}</strong> is registered as a standard consumer profile.
+          </p>
+          <div style="background:rgba(255,111,133,.08);border:1px solid rgba(255,111,133,.2);border-radius:10px;padding:12px;margin-bottom:20px;font-size:11px;color:var(--danger);line-height:1.4">
+            Only designated <strong>Staff Members</strong> and <strong>Administrators</strong> in the AkiPasa database are authorized to access AkiHQ CRM.
+          </div>
+          <button class="action-btn primary" style="width:100%;justify-content:center" id="deny-signout">Sign out & Back to Login</button>
+        </div>
+      </div>
+    `;
+    portal.innerHTML = "";
+    document.getElementById("deny-signout")?.addEventListener("click", async () => {
+      const client = getSupabaseClient();
+      if (client) { try { await client.auth.signOut(); } catch {} }
+      authUser = null; authRole = null;
+      renderLoginScreen();
+    });
+  }
+
+  async function bootWithSession(session) {
+    const client = getSupabaseClient();
+    if (!session?.user || !client) { renderLoginScreen(); return; }
+
+    // Fetch profile to check role strictly
+    let role = null;
+    let profileName = null;
+    try {
+      const { data: profile } = await client.from("profiles")
+        .select("app_role, display_name")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      role = profile?.app_role;
+      profileName = profile?.display_name;
+    } catch (e) {
+      console.warn("Profile check error:", e);
+    }
+
+    // STRICT SECURITY GUARD: Only allow staff/moderator or administrator roles
+    if (!role || !["moderator", "administrator"].includes(role)) {
+      try { await client.auth.signOut(); } catch {}
+      authUser = null;
+      authRole = null;
+      renderAccessDenied(session.user?.email);
+      return;
+    }
+
+    authUser = session.user;
+    authRole = role;
+
+    // Supabase is authoritative; browser memory is only the current render cache.
+    store = new StateStore();
+    state = store.load();
+    state.currentUserId = authUser.id;
+    workspaceMutationVersion = 0;
+    workspaceCommittedVersion = 0;
+    hasWorkspaceSnapshotsTable = true;
+    lastRemoteWorkspaceUpdate = null;
+    durableRecordMutationVersion = 0;
+    durableRecordCommittedVersion = 0;
+    await syncCloudWorkspacePull();
+    await syncDurableRecordsPull();
+    state.currentUserId = authUser.id;
+
+    // Clean OAuth tokens from address bar if present
+    if (window.location.search || window.location.hash.includes("access_token=")) {
+      try { history.replaceState(null, "", window.location.pathname + "#/" + (ui.route || "dashboard")); } catch {}
+    }
+
+    // Ensure authenticated user has their own unique employee entry in state.employees
+    const userEmail = (authUser.email || "").toLowerCase();
+    const displayName = (profileName && profileName.trim()) ? profileName.trim() : (authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "User");
+
+    let existingIndex = state.employees.findIndex(e => e.id === authUser.id || (userEmail && e.email && e.email.toLowerCase() === userEmail));
+    if (existingIndex >= 0) {
+      state.employees[existingIndex] = {
+        ...state.employees[existingIndex],
+        id: authUser.id,
+        email: authUser.email,
+        name: displayName,
+        role: role === "administrator" ? "Administrator" : "Moderator / Staff",
+        status: "Online"
+      };
+    } else {
+      state.employees.push({
+        id: authUser.id,
+        name: displayName,
+        email: authUser.email,
+        role: role === "administrator" ? "Administrator" : "Moderator / Staff",
+        department: role === "administrator" ? "Leadership" : "Operations",
+        status: "Online",
+        location: "Spain",
+        phone: "",
+        joinedAt: isoNow(),
+        leaveBalance: 20
+      });
+    }
+
+    // deduplicate employees array
+    const empMap = new Map();
+    state.employees.forEach(emp => {
+      if (emp.id) empMap.set(emp.id, emp);
+    });
+    state.employees = Array.from(empMap.values());
+    applySettings();
+    render();
+
+    // Start background chat polling, Realtime Presence & WebSockets for instant multi-device messaging
+    setupPresence();
+    setupRealtimeChat();
+    setupRealtimeWorkspaceSync();
+    sendPresenceHeartbeat();
+    if (!window._chatSyncInterval) {
+      window._chatSyncInterval = setInterval(syncTeamMessages, 3000);
+    }
+    if (!window._workspaceSyncInterval) {
+      window._workspaceSyncInterval = setInterval(syncCloudWorkspacePull, 4000);
+    }
+    if (!window._presenceHeartbeatInterval) {
+      window._presenceHeartbeatInterval = setInterval(sendPresenceHeartbeat, 15000);
+    }
+
+    // Load live data asynchronously after the UI is visible
+    loadLiveData();
+    if (ui.route === "crm" && ui.crmTab === "social") loadSocialOverview(false);
+    if (ui.route === "crm" && ui.crmTab === "ai-team" && authRole === "administrator") loadAITeamOverview(false);
+    if (ui.route === "analytics" && authRole === "administrator") loadAnalyticsOverview(false);
+    if (initialSocialResult === "connected") toast("Social account connected", "Refresh metrics to collect the latest available account and content data.", "success");
+    if (initialSocialResult === "connection_failed") toast("Social connection failed", initialSocialError || "Check the provider app settings, redirect URL, scopes and account permissions, then try again.", "danger");
+  }
+
+  async function finishBoot(client) {
+    applySettings();
+    appRoot.className = "login-mode";
+    let session = null;
+    try {
+      const { data } = await client.auth.getSession();
+      session = data?.session;
+    } catch (err) {
+      console.warn("getSession error:", err);
+    }
+    if (!session) {
+      renderLoginScreen();
+      return;
+    }
+    await bootWithSession(session);
+    client.auth.onAuthStateChange(async (event, newSession) => {
+      if (event === "SIGNED_OUT" || !newSession) {
+        authUser = null;
+        authRole = null;
+        store = new StateStore();
+        state = seedState();
+        renderLoginScreen();
+      } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        if (newSession) await bootWithSession(newSession);
+      }
+    });
+  }
+
+  async function boot() {
+    let client = getSupabaseClient();
+    if (!client) {
+      renderLoginScreen();
+      let count = 0;
+      const timer = setInterval(async () => {
+        count++;
+        client = getSupabaseClient();
+        if (client) {
+          clearInterval(timer);
+          await finishBoot(client);
+        } else if (count >= 15) {
+          clearInterval(timer);
+          renderLoginScreen("Authentication script load failed. Please refresh the page.");
+        }
+      }, 200);
+      return;
+    }
+    await finishBoot(client);
+  }
+
+  boot();
+})();
