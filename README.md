@@ -1,6 +1,6 @@
 # AkiHQ
 
-**AkiHQ is an original, open-source, local-first business operating system.** It combines CRM, projects, inbox, calendar, stock, invoicing, marketing, internal collaboration, reporting and integration management in one browser app.
+**AkiHQ is an original, database-backed business operating system.** It combines CRM, projects, inbox, calendar, stock, invoicing, marketing, internal collaboration, reporting and integration management in one browser app.
 
 This repository contains a **working alpha**, not a mock-up and not a prompt for another AI to build later. It runs without npm, Docker or a VPS.
 
@@ -38,7 +38,7 @@ Then visit `http://127.0.0.1:8080`.
 - Social CRM for Facebook Pages, Instagram professional accounts and TikTok metrics
 - Multiple pipelines, Kanban drag-and-drop, list view and record drawers
 - Lead conversion into contact, company and deal records
-- Shared inbox with conversations and local replies
+- Shared inbox with database-backed conversations and replies
 - Tasks, projects, board/list views, deadlines and work timer
 - Calendar events and month navigation
 - Product catalogue, warehouses and stock adjustments
@@ -49,23 +49,21 @@ Then visit `http://127.0.0.1:8080`.
 - Team feed, posts, comments and reactions
 - Employee directory and HR-lite records
 - Knowledge-base articles with Markdown rendering
-- Analytics and funnel views
+- Live personalisation, recommendation, catalogue, CRM and funnel analytics
 - Integration marketplace and connection configuration
 - JSON backup/restore, CSV export and Bitrix24 CSV migration
 - Global search, command palette (`Ctrl/Cmd + K`), notifications and themes
 - English/Spanish interface setting, responsive layout and offline app shell
-- Optional Supabase account sign-in and encrypted-in-transit workspace snapshot sync
+- Required Supabase staff sign-in, RLS-protected persistence and realtime workspace sync
 - Encrypted Cloudflare credential vault and server-side social OAuth/token handling
-
-The default workspace starts clean. Use **Settings → Data → Reset local workspace** when you need a fresh start.
 
 ## Data model and privacy
 
-By default, all workspace data is stored in the browser's `localStorage` on that device. No account or external server is required.
+Supabase is the authoritative store for workspace records. Browser memory is only a temporary render cache; Calendar, Knowledge and the other CRM modules are committed to the shared `workspace_snapshots` row and synchronized with authenticated staff sessions.
 
-Use **Dashboard → Backup** regularly. Browser storage can be removed if site data is cleared, a browser profile is deleted or private-browsing storage expires.
+Use **Dashboard → Backup** for portable recovery exports. Clearing browser storage no longer deletes workspace business records.
 
-The optional Supabase feature uploads one complete JSON workspace snapshot per authenticated user. It is suitable for personal backup/sync in this alpha. It is **not yet a conflict-safe, real-time, multi-user collaboration engine**.
+Personalisation analytics are returned through an administrator-only aggregate RPC. The dashboard does not expose individual visitor histories or precise location data.
 
 ## Deploy with no VPS
 
@@ -83,15 +81,15 @@ Output directory:  /
 
 The included `_headers` file adds sensible browser security headers.
 
-### Optional Supabase cloud backup
+### Required Supabase database
 
 1. Create a Supabase project.
 2. Run `supabase/schema.sql` in the SQL editor.
 3. Enable Email/Password authentication.
 4. Put the project URL and anon key in `config.js`.
-5. Open **Settings → Cloud sync** inside AkiHQ.
+5. Sign in with a moderator or administrator account.
 
-The anon key is expected to be visible in a browser app. Row Level Security in the included schema is what prevents users from reading each other's snapshots.
+The publishable key is expected to be visible in a browser app. Row Level Security and staff-role policies protect the shared workspace.
 
 ### Optional Cloudflare integration gateway
 
@@ -111,16 +109,16 @@ See `docs/DEPLOY.md` and `docs/INTEGRATIONS.md`.
 
 AkiHQ contains configuration screens and a provider catalogue for the major CRM/business integrations. External OAuth services do not become live just because their logo appears on a card. Gmail, Microsoft, Meta, Stripe, Zoom and similar services require your own developer application, credentials, approval scopes, callback URLs and provider-specific code.
 
-The browser app, import/export flows, local modules, Supabase snapshot sync and included Worker endpoints are implemented. The remaining provider cards are clearly marked as setup/adapters rather than pretending to be connected. No smoke, mirrors or tiny salesman living in the ZIP.
+The browser app, import/export flows, database-backed modules, Supabase realtime sync and included Worker endpoints are implemented. The remaining provider cards are clearly marked as setup/adapters rather than pretending to be connected. No smoke, mirrors or tiny salesman living in the ZIP.
 
 ## Project structure
 
 ```text
 assets/                 App JavaScript, CSS and logo
 cloudflare/             Optional secret-holding integration Worker
-supabase/schema.sql     Optional cloud snapshot and webhook-event schema
+supabase/schema.sql     Shared workspace and webhook-event schema
 docs/                   Architecture, features, deployment and test notes
-config.js               Optional public browser configuration
+config.js               Public Supabase and gateway configuration
 index.html              App entry point
 manifest.webmanifest    Installable PWA metadata
 sw.js                   Offline shell service worker
@@ -128,7 +126,7 @@ sw.js                   Offline shell service worker
 
 ## Current scope
 
-AkiHQ is a solid local-first alpha and a strong base for a proper hosted product. It is not yet a drop-in replacement for every Bitrix24 enterprise feature. In particular, production multi-user permissions, simultaneous editing, complete mail ingestion, voice/video calling, payroll, accounting compliance and every third-party OAuth adapter require further backend work and provider credentials.
+AkiHQ is a database-backed alpha and a strong base for a hosted product. It is not yet a drop-in replacement for every Bitrix24 enterprise feature. Complete mail ingestion, voice/video calling, payroll, accounting compliance and every third-party OAuth adapter still require further backend work and provider credentials.
 
 See `docs/FEATURES.md` for the precise implemented/adapter/planned split.
 

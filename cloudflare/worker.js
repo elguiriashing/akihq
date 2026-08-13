@@ -33,6 +33,12 @@ export default {
         return await receiveWebhook(request, env, url, cors);
       }
 
+      if (url.pathname.startsWith("/api/ai-team/")) {
+        const staff = await authenticateStaff(request, env);
+        requireAdministrator(staff);
+        return await proxyAiTeam(request, env, url, cors);
+      }
+
       if (url.pathname.startsWith("/api/social/")) {
         const staff = await authenticateStaff(request, env);
         if (request.method === "GET" && url.pathname === "/api/social/overview") {
@@ -169,7 +175,54 @@ async function authenticateStaff(request, env) {
 }
 
 function requireAdministrator(staff) {
-  if (staff?.role !== "administrator") throw new HttpError(403, "administrator_required", "Only an administrator can change social credentials or connections.");
+  if (staff?.role !== "administrator") throw new HttpError(403, "administrator_required", "Only an administrator can use this operation.");
+}
+
+async function proxyAiTeam(request, env, url, cors) {
+  const route = request.method + " " + url.pathname;
+  const allowedRoutes = new Set([
+    "GET /api/ai-team/overview",
+    "POST /api/ai-team/chat",
+    "POST /api/ai-team/actions"
+  ]);
+  if (!allowedRoutes.has(route)) {
+    return json({ ok: false, error: "not_found" }, 404, cors);
+  }
+  if (!env.AI_GATEWAY || typeof env.AI_GATEWAY.fetch !== "function") {
+    throw new HttpError(503, "ai_gateway_not_configured", "The AI gateway service binding is unavailable.");
+  }
+
+  let body;
+  if (request.method !== "GET") {
+    body = await request.arrayBuffer();
+    if (body.byteLength > MAX_BODY_BYTES) {
+      throw new HttpError(413, "request_too_large", "The request body exceeds 1 MB.");
+    }
+  }
+  const headers = new Headers({
+    authorization: request.headers.get("authorization") || "",
+    "content-type": request.headers.get("content-type") || "application/json",
+    "x-akipasa-ai-crm": requireEnv(env, "AI_CRM_PROXY_SECRET")
+  });
+  const requestId = request.headers.get("x-request-id");
+  if (requestId) headers.set("x-request-id", requestId);
+
+  const response = await env.AI_GATEWAY.fetch(
+    new Request("https://akipasa.internal" + url.pathname + url.search, {
+      method: request.method,
+      headers,
+      body
+    })
+  );
+  const responseHeaders = new Headers(response.headers);
+  responseHeaders.delete("set-cookie");
+  responseHeaders.set("cache-control", "no-store");
+  Object.entries(cors).forEach(([key, value]) => responseHeaders.set(key, value));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders
+  });
 }
 
 async function requireApiToken(request, env) {

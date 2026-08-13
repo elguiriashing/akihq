@@ -15,6 +15,10 @@ SOCIAL_RETURN_URL = "https://crm.akipasa.com/#/crm/social"
 binding = "SOCIAL_STORE"
 id = "d9fe3743bdfb4c9ab3ee31dc2764c61b"
 
+[[services]]
+binding = "AI_GATEWAY"
+service = "akipasa"
+
 [triggers]
 crons = [ "15 4 * * *" ]
 
@@ -32,3 +36,4 @@ crons = [ "15 4 * * *" ]
 #   npx wrangler secret put TWILIO_AUTH_TOKEN
 #   npx wrangler secret put TWILIO_FROM_NUMBER
 #   npx wrangler secret put SOCIAL_ENCRYPTION_KEY
+#   npx wrangler secret put AI_CRM_PROXY_SECRET

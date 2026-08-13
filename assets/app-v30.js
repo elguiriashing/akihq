@@ -1,9 +1,6 @@
 (() => {
   "use strict";
 
-  const GLOBAL_STORAGE_KEY = "akihq_state_v1";
-  const STORAGE_KEY_PREFIX = "akihq_state_v1_";
-  const SESSION_KEY = "akihq_supabase_session_v1";
   const APP_VERSION = "0.1.0";
   const initialRouteParts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   const initialSearchParams = new URLSearchParams(location.search);
@@ -257,30 +254,12 @@
   }
 
   class StateStore {
-    constructor(key) { this.key = key; }
+    constructor() { this.value = null; }
     load() {
-      try {
-        const raw = localStorage.getItem(this.key);
-        if (!raw) return seedState();
-        const parsed = JSON.parse(raw);
-        if (!parsed || !parsed.workspace || !parsed.isCleanWorkspace) {
-          const fresh = seedState();
-          this.save(fresh);
-          return fresh;
-        }
-        return parsed;
-      } catch (error) {
-        console.warn("Could not load AkiHQ state; initializing clean workspace.", error);
-        return seedState();
-      }
+      return this.value || seedState();
     }
     save(value) {
-      try {
-        localStorage.setItem(this.key, JSON.stringify(value));
-      } catch (error) {
-        console.error("Could not save AkiHQ state.", error);
-        toast("Storage error", "Your latest change could not be saved locally.", "danger");
-      }
+      this.value = value;
     }
     reset() {
       const fresh = seedState();
@@ -289,7 +268,7 @@
     }
   }
 
-  let store = new StateStore(GLOBAL_STORAGE_KEY);
+  let store = new StateStore();
   let state = store.load();
 
   // ── Supabase client helper ──────────────────────────────────────────────────
@@ -324,13 +303,20 @@
   let aiTeamLoading = false;
   let aiTeamBusy = false;
   let aiTeamError = "";
+  let analyticsOverview = null;
+  let analyticsLoading = false;
+  let analyticsError = "";
 
   let isSyncingWorkspace = false;
   let lastRemoteWorkspaceUpdate = null;
   let hasWorkspaceSnapshotsTable = true;
+  let workspaceMutationVersion = 0;
+  let workspaceCommittedVersion = 0;
+  let workspacePushInFlight = null;
 
   function applyRemoteStateSnapshot(remote, updatedAt) {
     if (!remote || typeof remote !== "object") return;
+    if (workspaceMutationVersion !== workspaceCommittedVersion) return;
     if (updatedAt && updatedAt === lastRemoteWorkspaceUpdate) return;
     if (updatedAt) lastRemoteWorkspaceUpdate = updatedAt;
 
@@ -371,6 +357,8 @@
   async function syncCloudWorkspacePull() {
     const sbClient = getSupabaseClient();
     if (!sbClient || !authUser || isSyncingWorkspace || !hasWorkspaceSnapshotsTable) return;
+    if (workspaceMutationVersion !== workspaceCommittedVersion) return;
+    const mutationVersionAtStart = workspaceMutationVersion;
     isSyncingWorkspace = true;
     try {
       const wsId = state.workspace?.id || "ws_akipasa";
@@ -390,7 +378,7 @@
         }
       }
 
-      if (!error && snapshot && snapshot.data) {
+      if (!error && snapshot && snapshot.data && mutationVersionAtStart === workspaceMutationVersion) {
         hasWorkspaceSnapshotsTable = true;
         applyRemoteStateSnapshot(snapshot.data, snapshot.updated_at);
       }
@@ -402,31 +390,45 @@
   }
 
   let pushWorkspaceTimer = null;
-  async function syncCloudWorkspacePush() {
+  function markWorkspaceDirty() {
+    workspaceMutationVersion += 1;
+    return workspaceMutationVersion;
+  }
+
+  async function pushWorkspaceSnapshot(version = workspaceMutationVersion) {
     const sbClient = getSupabaseClient();
-    if (!sbClient || !authUser) return;
+    if (!sbClient || !authUser) throw new Error("Database authentication is unavailable.");
+    if (workspacePushInFlight) await workspacePushInFlight;
+    const wsId = state.workspace?.id || "ws_akipasa";
+    const cleanState = JSON.parse(JSON.stringify(state));
+    const nowStr = isoNow();
+    workspacePushInFlight = sbClient.from("workspace_snapshots").upsert({
+      workspace_id: wsId,
+      updated_by: authUser.id,
+      data: cleanState,
+      updated_at: nowStr
+    }, { onConflict: "workspace_id" }).then(({ data, error }) => {
+      if (error) throw error;
+      hasWorkspaceSnapshotsTable = true;
+      workspaceCommittedVersion = Math.max(workspaceCommittedVersion, version);
+      lastRemoteWorkspaceUpdate = data?.updated_at || nowStr;
+      broadcastWorkspaceState();
+    }).finally(() => {
+      workspacePushInFlight = null;
+    });
+    return workspacePushInFlight;
+  }
+
+  function syncCloudWorkspacePush() {
     if (pushWorkspaceTimer) clearTimeout(pushWorkspaceTimer);
-    pushWorkspaceTimer = setTimeout(async () => {
-      try {
-        const wsId = state.workspace?.id || "ws_akipasa";
-        const cleanState = JSON.parse(JSON.stringify(state));
-        const nowStr = isoNow();
-        lastRemoteWorkspaceUpdate = nowStr;
-        const { error } = await sbClient.from("workspace_snapshots").upsert({
-          workspace_id: wsId,
-          updated_by: authUser.id,
-          data: cleanState,
-          updated_at: nowStr
-        }, { onConflict: "workspace_id" });
-        if (!error) {
-          hasWorkspaceSnapshotsTable = true;
-        } else if (error.code === "PGRST205" || error.status === 404) {
-          hasWorkspaceSnapshotsTable = false;
-        }
-      } catch (e) {
-        console.warn("Workspace snapshot push error:", e);
-      }
-    }, 100);
+    const version = workspaceMutationVersion;
+    pushWorkspaceTimer = setTimeout(() => {
+      pushWorkspaceTimer = null;
+      pushWorkspaceSnapshot(version).catch(error => {
+        console.error("Workspace database save failed:", error);
+        toast("Database save failed", "Your change is still visible, but it has not been committed. Check the connection and retry.", "danger");
+      });
+    }, 120);
   }
 
   function broadcastWorkspaceState() {
@@ -525,7 +527,7 @@
         state.employees.forEach(e => {
           if (e.id) existingMap.set(e.id, e);
         });
-        
+
         staffContacts.forEach(c => {
           if (existingMap.has(c.id)) {
             const existing = existingMap.get(c.id);
@@ -714,6 +716,7 @@
     integrationSearch: "",
     socialBusinessId: "",
     socialRange: "30",
+    analyticsRange: "30",
     aiTeamSection: "team",
     aiSelectedAgentId: null,
     aiContext: "",
@@ -729,7 +732,8 @@
     formDefaults: {},
     userPickerQuery: "",
     telegramTab: "chats",
-    telegramSearch: ""
+    telegramSearch: "",
+    mobileNavOpen: false
   };
 
   function t(key) {
@@ -848,7 +852,7 @@
     state.version = APP_VERSION;
     store.save(state);
     applySettings();
-    broadcastWorkspaceState();
+    markWorkspaceDirty();
     syncCloudWorkspacePush();
     if (renderAfter) render();
   }
@@ -889,6 +893,7 @@
     ui.dropdown = null;
     ui.searchQuery = "";
     render();
+    if (route === "analytics") loadAnalyticsOverview(false);
   }
 
   function socialGatewayUrl(path = "") {
@@ -920,24 +925,36 @@
   }
 
   async function syncCloudWorkspacePushNow() {
-    const client = getSupabaseClient();
-    if (!client || !authUser) throw new Error("Sign in before using the AI Team.");
+    if (!getSupabaseClient() || !authUser) throw new Error("Sign in before using the AI Team.");
     if (pushWorkspaceTimer) {
       clearTimeout(pushWorkspaceTimer);
       pushWorkspaceTimer = null;
     }
-    const workspaceId = state.workspace?.id || "ws_akipasa";
-    const updatedAt = isoNow();
-    const cleanState = JSON.parse(JSON.stringify(state));
-    const { error } = await client.from("workspace_snapshots").upsert({
-      workspace_id: workspaceId,
-      updated_by: authUser.id,
-      data: cleanState,
-      updated_at: updatedAt
-    }, { onConflict: "workspace_id" });
-    if (error) throw new Error(error.message || "The CRM workspace could not be synchronized.");
-    hasWorkspaceSnapshotsTable = true;
-    lastRemoteWorkspaceUpdate = updatedAt;
+    await pushWorkspaceSnapshot(workspaceMutationVersion);
+  }
+
+  async function loadAnalyticsOverview(showToast = false) {
+    if (authRole !== "administrator" || analyticsLoading) return;
+    analyticsLoading = true;
+    analyticsError = "";
+    if (ui.route === "analytics") render();
+    try {
+      const client = getSupabaseClient();
+      if (!client) throw new Error("Supabase is not available.");
+      const days = clamp(Number(ui.analyticsRange || 30), 7, 365);
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const { data, error } = await client.rpc("crm_analytics_overview", { p_since: since });
+      if (error) throw error;
+      analyticsOverview = data || {};
+      if (showToast) toast("Analytics refreshed", `Loaded ${days} days of live database activity.`, "success");
+    } catch (error) {
+      console.error("Analytics overview:", error);
+      analyticsError = error.message || "Analytics could not be loaded.";
+      if (showToast) toast("Analytics refresh failed", analyticsError, "danger");
+    } finally {
+      analyticsLoading = false;
+      if (ui.route === "analytics") render();
+    }
   }
 
   async function loadAITeamOverview(showToast = false) {
@@ -1085,9 +1102,11 @@
     window._lastChatChannel = ui.activeTeamChannel;
 
     const collapsed = state.settings.sidebarCollapsed ? "sidebar-collapsed" : "";
-    appRoot.className = `app-shell ${collapsed}`;
+    const mobileNav = ui.mobileNavOpen ? "mobile-nav-open" : "";
+    appRoot.className = `app-shell ${collapsed} ${mobileNav}`;
     appRoot.innerHTML = `
       ${renderSidebar()}
+      <button class="mobile-nav-scrim" data-action="close-mobile-nav" aria-label="Close navigation"></button>
       <main class="app-main">
         ${renderTopbar()}
         <section class="content-shell">
@@ -1096,7 +1115,8 @@
             ${renderView()}
           </div>
         </section>
-      </main>`;
+      </main>
+      ${renderMobileTabbar()}`;
     renderPortal();
     attachAfterRender();
 
@@ -1122,6 +1142,7 @@
             <div class="brand-name">AkiHQ</div>
             <div class="brand-tag">${escapeHtml(t("allSystems"))}</div>
           </div>
+          <button class="mobile-nav-close" data-action="close-mobile-nav" aria-label="Close navigation">${icon("close")}</button>
         </div>
         <nav class="nav-scroll">
           ${navSections.map(section => `
@@ -1157,12 +1178,36 @@
       </aside>`;
   }
 
+  function renderMobileTabbar() {
+    const unread = state.conversations.reduce((sum, conversation) => sum + Number(conversation.unread || 0), 0);
+    const isSpanish = (state.settings?.locale || "en") === "es";
+    const primary = [
+      ["dashboard", "dashboard", isSpanish ? "Inicio" : "Home"],
+      ["crm", "crm", "CRM"],
+      ["tasks", "tasks", isSpanish ? "Tareas" : "Tasks"],
+      ["inbox", "inbox", isSpanish ? "Bandeja" : "Inbox"]
+    ];
+    const primaryRoutes = primary.map(([route]) => route);
+    return `<nav class="mobile-tabbar" aria-label="Mobile navigation">
+      ${primary.map(([route, iconName, label]) => `<button class="mobile-tab ${ui.route === route ? "active" : ""}" data-action="navigate" data-route="${route}" aria-label="${escapeHtml(t(route))}">
+        <span class="mobile-tab-icon">${icon(iconName)}${route === "inbox" && unread ? `<i>${unread > 99 ? "99+" : unread}</i>` : ""}</span>
+        <span>${escapeHtml(label)}</span>
+      </button>`).join("")}
+      <button class="mobile-tab ${!primaryRoutes.includes(ui.route) ? "active" : ""}" data-action="toggle-mobile-nav" aria-label="More tools" aria-expanded="${ui.mobileNavOpen ? "true" : "false"}">
+        <span class="mobile-tab-icon">${icon("menu")}</span>
+        <span>${isSpanish ? "Más" : "More"}</span>
+      </button>
+    </nav>`;
+  }
+
   function renderTopbar() {
     const user = currentUser();
     const unseen = state.notifications.filter(notification => !notification.seen).length;
     const siteUrl = (window.AKIHQ_CONFIG && window.AKIHQ_CONFIG.SITE_URL) || "https://akipasa.com";
     return `
       <header class="topbar">
+        <button class="icon-btn mobile-menu-btn" data-action="toggle-mobile-nav" aria-label="Open navigation">${icon("menu")}</button>
+        <div class="mobile-wordmark"><img src="assets/logo.svg" alt="" /><span>AkiHQ</span></div>
         <button class="workspace-switcher" data-action="workspace-menu" title="Workspace switcher">
           <span class="workspace-dot"></span>
           <span>${escapeHtml(state.workspace.name)}</span>
@@ -1209,7 +1254,7 @@
           <h1>${escapeHtml(title)}</h1>
           <p>${escapeHtml(subtitle)}</p>
         </div>
-        ${renderContextControls()}
+        <div class="context-actions">${renderContextControls()}</div>
       </div>`;
   }
 
@@ -1305,6 +1350,14 @@
         return `<span class="context-spacer"></span><button class="action-btn primary" data-action="open-form" data-entity="employee">${icon("plus")} Team member</button>`;
       case "knowledge":
         return `<span class="context-spacer"></span><button class="action-btn primary" data-action="open-form" data-entity="article">${icon("plus")} Article</button>`;
+      case "analytics":
+        return `
+          <select class="filter-select" data-change="analytics-range" aria-label="Analytics date range">
+            ${[["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last 12 months"]].map(([value, label]) => `<option value="${value}" ${ui.analyticsRange === value ? "selected" : ""}>${label}</option>`).join("")}
+          </select>
+          <span class="context-spacer"></span>
+          <span class="status-pill success">${icon("cloud")} Live database</span>
+          <button class="action-btn primary" data-action="refresh-analytics" ${analyticsLoading ? "disabled" : ""}>${icon("refresh")} ${analyticsLoading ? "Refreshing…" : "Refresh analytics"}</button>`;
       case "telegram":
         return `
           <div class="segmented">
@@ -1811,7 +1864,7 @@
       return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("inbox")}</div><h2>Your shared inbox is empty</h2><p>Connect Resend, Gmail, Outlook, WhatsApp or another channel from Integrations.</p><button class="action-btn primary" data-action="navigate" data-route="integrations">Open integrations</button></div></section>`;
     }
     return `
-      <div style="margin-bottom:12px;padding:10px 14px;background:rgba(124,140,255,.08);border:1px solid rgba(124,140,255,.2);border-radius:var(--radius);display:flex;align-items:center;gap:12px">
+      <div class="inbox-route-note" style="margin-bottom:12px;padding:10px 14px;background:rgba(124,140,255,.08);border:1px solid rgba(124,140,255,.2);border-radius:var(--radius);display:flex;align-items:center;gap:12px">
         <div style="font-size:11px;color:var(--text);flex:1">
           💬 <strong>Shared Customer Inbox</strong> — This view displays external customer conversations (WhatsApp, Email & Webhooks). Looking for internal staff channels & DMs?
         </div>
@@ -2135,7 +2188,7 @@
 
     const activeKey = ui.activeTeamChannel || state.teamChat.activeChannelId || "ch_general";
     ui.activeTeamChannel = activeKey;
-    
+
     let currentChan = state.teamChat.channels.find(c => c.id === activeKey);
     let isDm = false;
     let dmOtherUser = null;
@@ -2156,7 +2209,7 @@
 
     return `
       <div class="team-chat-suite panel">
-        
+
         <!-- LEFT NAVIGATION COL: Operation Channels & Staff DMs -->
         <div class="team-chat-sidebar-left">
           <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -2236,7 +2289,7 @@
                     }).join("")}
                     <button class="chip ghost" data-action="toggle-reaction-picker" data-msg-id="${msg.id}" style="height:22px;padding:0 7px;font-size:10px" title="Add reaction">+ 😊</button>
                     <button class="mini-btn ghost" data-action="reply-team-msg" data-msg-id="${msg.id}" style="height:22px;font-size:10px;margin-left:4px;padding:0 6px">${icon("send")} Reply</button>
-                    
+
                     ${ui.activeReactionPicker === msg.id ? `
                       <div style="position:absolute;bottom:28px;left:0;z-index:30;background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:4px 8px;display:flex;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.4)">
                         ${["👍", "🔥", "👏", "❤️", "🎉", "😂"].map(e => `
@@ -2369,38 +2422,98 @@
   }
 
   function renderAnalytics() {
-    const stages = state.pipelines[0].stages;
-    const funnel = stages.map(stage => ({ stage: stage.name, count: state.deals.filter(deal => deal.pipelineId === "venue" && deal.stageId === stage.id).length, color: stage.color }));
-    const maxFunnel = Math.max(...funnel.map(item => item.count), 1);
-    const campaignData = state.campaigns.filter(campaign => campaign.sent > 0);
-    const revenueByCompany = state.companies.map(company => ({ company: company.name, value: state.invoices.filter(invoice => invoice.companyId === company.id && invoice.status === "Paid").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0) })).filter(item => item.value > 0).sort((a, b) => b.value - a.value);
-    return `<div class="page-grid">
-      <div class="page-grid grid-4">
-        ${renderMetric("Venue conversion", "24%", "imported venue to claimed", "analytics", "#7c8cff", "+4.2%")}
-        ${renderMetric("Average deal", formatMoney(state.deals.reduce((sum, deal) => sum + Number(deal.value || 0), 0) / Math.max(state.deals.length, 1)), "across all pipelines", "money", "#49d7a0")}
-        ${renderMetric("Campaign ROI", "4.8×", "tracked campaign revenue", "marketing", "#ffbd55", "+0.6×")}
-        ${renderMetric("Support response", "18 min", "median first reply", "inbox", "#52d9e9", "-7 min")}
+    if (authRole !== "administrator") {
+      return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("lock")}</div><h2>Administrator analytics</h2><p>Aggregate personalisation and catalogue analytics are restricted to administrators.</p></div></section>`;
+    }
+    if (analyticsLoading && !analyticsOverview) {
+      return `<section class="panel empty-state analytics-loading"><div><div class="empty-state-icon">${icon("refresh")}</div><h2>Loading live analytics</h2><p>Aggregating tracker, recommendation, catalogue and CRM data from Supabase.</p></div></section>`;
+    }
+    if (analyticsError && !analyticsOverview) {
+      return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("warning")}</div><h2>Analytics unavailable</h2><p>${escapeHtml(analyticsError)}</p><button class="action-btn primary" data-action="refresh-analytics">Try again</button></div></section>`;
+    }
+
+    const overview = analyticsOverview || {};
+    const summary = overview.summary || {};
+    const catalogue = overview.catalogue || {};
+    const daily = overview.daily || [];
+    const eventTypes = overview.event_types || [];
+    const surfaces = overview.surfaces || [];
+    const topEntities = overview.top_entities || [];
+    const preferences = overview.preferences || [];
+    const ranking = overview.active_ranking || {};
+    const weights = Object.entries(ranking.weights || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
+    const number = value => Number(value || 0).toLocaleString();
+    const percent = (value, total) => total > 0 ? Math.round(Number(value || 0) / total * 100) : 0;
+    const impressions = Number(summary.impressions || 0);
+    const opens = Number(summary.opens || 0);
+    const engagement = opens + Number(summary.saves || 0) + Number(summary.going || 0) + Number(summary.directions || 0) + Number(summary.verified_check_ins || 0);
+    const maxDaily = Math.max(1, ...daily.map(item => Number(item.interactions || 0) + Number(item.analytics_events || 0) + Number(item.recommendations || 0)));
+    const fallbackRate = percent(summary.fallback_requests, summary.recommendation_requests);
+    const paidRevenue = state.invoices.filter(invoice => invoice.status === "Paid").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
+    const activeTasks = state.tasks.filter(task => !["done", "completed"].includes(String(task.status || "").toLowerCase())).length;
+    const funnel = [
+      ["Impressions", summary.impressions, "#7c8cff"],
+      ["Opens", summary.opens, "#52d9e9"],
+      ["Saved", summary.saves, "#49d7a0"],
+      ["Going", summary.going, "#ffbd55"],
+      ["Directions", summary.directions, "#e77eac"],
+      ["Verified check-ins", summary.verified_check_ins, "#9a73ea"]
+    ];
+    const maxFunnel = Math.max(1, ...funnel.map(item => Number(item[1] || 0)));
+
+    return `<div class="analytics-dashboard">
+      <section class="analytics-hero panel">
+        <div><span class="analytics-eyebrow">PERSONALISATION INTELLIGENCE</span><h2>Real behaviour, recommendation and business signals</h2><p>Privacy-safe aggregates from Supabase. No individual visitor history or precise location data is exposed.</p></div>
+        <div class="analytics-freshness"><span class="live-dot"></span><div><strong>Database connected</strong><small>Generated ${escapeHtml(relativeTime(overview.generated_at))} · ${escapeHtml(ui.analyticsRange)}-day window</small></div></div>
+      </section>
+
+      <div class="analytics-metric-grid">
+        ${renderMetric("Tracked activity", number(summary.tracked_events), `${number(summary.behaviour_events)} tracker · ${number(summary.analytics_events)} legacy`, "activity", "#7c8cff")}
+        ${renderMetric("Recommendations", number(summary.recommendation_requests), `${number(summary.recommendation_items)} ranked results · ${fallbackRate}% fallback`, "sparkles", "#52d9e9")}
+        ${renderMetric("Known audience", number(Number(summary.known_visitors || 0) + Number(summary.anonymous_visitors || 0)), `${number(summary.known_visitors)} signed-in · ${number(summary.anonymous_visitors)} anonymous`, "user", "#49d7a0")}
+        ${renderMetric("Published catalogue", number(catalogue.published_events), `${number(catalogue.venues)} venues · ${number(catalogue.upcoming_occurrences)} upcoming`, "calendar", "#ffbd55")}
       </div>
-      <div class="page-grid grid-2">
-        <section class="panel"><div class="panel-header"><div><h2>Venue onboarding funnel</h2><p>Current record count per stage</p></div></div><div class="panel-body">
-          ${funnel.map(item => `<div style="margin-bottom:11px"><div class="flex items-center" style="font-size:10px"><strong>${escapeHtml(item.stage)}</strong><span class="ml-auto muted">${item.count}</span></div><div style="height:10px;border-radius:999px;background:var(--surface-3);margin-top:6px;overflow:hidden"><div style="height:100%;width:${Math.max(4, item.count / maxFunnel * 100)}%;background:${item.color};border-radius:inherit"></div></div></div>`).join("")}
-        </div></section>
-        <section class="panel"><div class="panel-header"><div><h2>Campaign engagement</h2><p>Open and click rates</p></div></div><div class="panel-body">
-          ${campaignData.map(campaign => {
-            const open = Math.round(campaign.opened / campaign.sent * 100);
-            const click = Math.round(campaign.clicked / campaign.sent * 100);
-            return `<div style="margin-bottom:14px"><div class="flex items-center" style="font-size:10px"><strong>${escapeHtml(campaign.name)}</strong><span class="ml-auto muted">${open}% open · ${click}% click</span></div><div style="height:10px;border-radius:999px;background:var(--surface-3);margin-top:6px;overflow:hidden;position:relative"><div style="position:absolute;height:100%;width:${open}%;background:rgba(82,217,233,.7);border-radius:inherit"></div><div style="position:absolute;height:100%;width:${click}%;background:#7c8cff;border-radius:inherit"></div></div></div>`;
-          }).join("")}
-        </div></section>
+
+      <div class="analytics-main-grid">
+        <section class="panel analytics-trend-panel">
+          <div class="panel-header"><div><h2>Activity over time</h2><p>Tracker events, legacy analytics and recommendation requests by day</p></div><span class="status-pill info">${number(summary.tracked_events)} signals</span></div>
+          <div class="analytics-chart" role="img" aria-label="Daily analytics activity">
+            ${daily.map(item => {
+              const trackerHeight = Math.max(Number(item.interactions || 0) ? 3 : 0, Math.round(Number(item.interactions || 0) / maxDaily * 100));
+              const legacyHeight = Math.max(Number(item.analytics_events || 0) ? 3 : 0, Math.round(Number(item.analytics_events || 0) / maxDaily * 100));
+              const recommendationHeight = Math.max(Number(item.recommendations || 0) ? 3 : 0, Math.round(Number(item.recommendations || 0) / maxDaily * 100));
+              return `<div class="analytics-day" title="${escapeHtml(item.date)} · ${number(item.interactions)} tracker · ${number(item.analytics_events)} analytics · ${number(item.recommendations)} recommendations"><div class="analytics-day-bars"><i class="tracker" style="height:${trackerHeight}%"></i><i class="legacy" style="height:${legacyHeight}%"></i><i class="recommendation" style="height:${recommendationHeight}%"></i></div><span>${escapeHtml(item.date.slice(5))}</span></div>`;
+            }).join("")}
+          </div>
+          <div class="analytics-legend"><span><i class="tracker"></i>Tracker events</span><span><i class="legacy"></i>Legacy analytics</span><span><i class="recommendation"></i>Recommendations</span></div>
+        </section>
+
+        <section class="panel analytics-health-panel">
+          <div class="panel-header"><div><h2>Recommendation health</h2><p>Current weighted-ranker performance and delivery</p></div><span class="status-pill success">${escapeHtml(ranking.key || "weighted_ranker")} v${number(ranking.version || 1)}</span></div>
+          <div class="analytics-health-score"><strong>${number(summary.average_latency_ms)}<small> ms</small></strong><span>average ranking latency</span></div>
+          <div class="analytics-health-stats"><div><strong>${fallbackRate}%</strong><span>fallback rate</span></div><div><strong>${Math.round(Number(ranking.exploration_ratio || 0) * 100)}%</strong><span>exploration</span></div><div><strong>${number(catalogue.preference_profiles)}</strong><span>learning profiles</span></div></div>
+          <div class="analytics-weight-list">${weights.slice(0, 5).map(([key, value]) => `<div><span>${escapeHtml(capitalize(key))}</span><strong>${Math.round(Number(value || 0) * 100)}%</strong><i><b style="width:${clamp(Number(value || 0) * 250, 3, 100)}%"></b></i></div>`).join("") || `<div class="analytics-inline-empty">Ranking weights will appear after configuration is available.</div>`}</div>
+        </section>
       </div>
-      <div class="page-grid grid-2">
-        <section class="panel"><div class="panel-header"><div><h2>Revenue by customer</h2><p>Paid invoices</p></div></div><div class="panel-body">
-          ${revenueByCompany.map(item => `<div class="activity-item"><div class="table-avatar">${initials(item.company)}</div><div class="activity-copy"><strong>${escapeHtml(item.company)}</strong><br><span>Collected revenue</span></div><div><strong>${escapeHtml(formatMoney(item.value))}</strong></div></div>`).join("") || `<div class="panel-empty"><div><strong>No paid invoices</strong></div></div>`}
-        </div></section>
-        <section class="panel"><div class="panel-header"><div><h2>Project progress</h2><p>Completion across active work</p></div></div><div class="panel-body">
-          ${state.projects.map(project => `<div style="margin-bottom:14px"><div class="flex items-center" style="font-size:10px"><strong>${escapeHtml(project.name)}</strong><span class="ml-auto muted">${Number(project.progress || 0)}%</span></div><div style="height:9px;border-radius:999px;background:var(--surface-3);margin-top:6px;overflow:hidden"><div style="height:100%;width:${clamp(project.progress,0,100)}%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:inherit"></div></div></div>`).join("")}
-        </div></section>
+
+      <div class="analytics-detail-grid">
+        <section class="panel">
+          <div class="panel-header"><div><h2>Engagement journey</h2><p>Measured actions, never estimated placeholders</p></div><span class="status-pill">${impressions ? percent(engagement, impressions) : 0}% engaged</span></div>
+          <div class="panel-body analytics-funnel">${funnel.map(([label, value, color]) => `<div><div><strong>${escapeHtml(label)}</strong><span>${number(value)}${label === "Opens" && impressions ? ` · ${percent(value, impressions)}% of impressions` : ""}</span></div><i><b style="width:${Math.max(Number(value || 0) ? 4 : 0, Number(value || 0) / maxFunnel * 100)}%;background:${color}"></b></i></div>`).join("")}</div>
+        </section>
+        <section class="panel">
+          <div class="panel-header"><div><h2>Signal mix</h2><p>Top events across the selected period</p></div></div>
+          <div class="panel-body analytics-ranked-list">${eventTypes.map((item, index) => `<div><span>${index + 1}</span><strong>${escapeHtml(capitalize(item.key))}</strong><b>${number(item.total)}</b></div>`).join("") || `<div class="analytics-inline-empty">No interaction signals in this period yet.</div>`}</div>
+        </section>
       </div>
+
+      <div class="analytics-detail-grid analytics-lower-grid">
+        <section class="panel"><div class="panel-header"><div><h2>Top content and venues</h2><p>Most interacted-with catalogue entities</p></div></div><div class="panel-body analytics-ranked-list">${topEntities.map((item, index) => `<div><span>${index + 1}</span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(capitalize(item.entity_type))}</small><b>${number(item.interactions)}</b></div>`).join("") || `<div class="analytics-inline-empty">Entity-level tracker activity will appear after visitors interact with events or venues.</div>`}</div></section>
+        <section class="panel"><div class="panel-header"><div><h2>Discovery surfaces</h2><p>Where measured interactions originated</p></div></div><div class="panel-body analytics-ranked-list">${surfaces.map((item, index) => `<div><span>${index + 1}</span><strong>${escapeHtml(capitalize(item.key))}</strong><b>${number(item.total)}</b></div>`).join("") || `<div class="analytics-inline-empty">No surface attribution is available yet.</div>`}</div></section>
+        <section class="panel"><div class="panel-header"><div><h2>Audience affinities</h2><p>Aggregate high-confidence preference signals</p></div></div><div class="panel-body analytics-ranked-list">${preferences.map((item, index) => `<div><span>${index + 1}</span><strong>${escapeHtml(capitalize(item.key))}</strong><small>${escapeHtml(capitalize(item.dimension))} · ${Math.round(Number(item.confidence || 0) * 100)}% confidence</small><b>${number(item.profiles)}</b></div>`).join("") || `<div class="analytics-inline-empty">Affinity insights will appear as visitors opt in and the model learns.</div>`}</div></section>
+      </div>
+
+      <section class="panel analytics-business-panel"><div class="panel-header"><div><h2>CRM outcomes</h2><p>Operational records persisted in the shared database workspace</p></div></div><div class="analytics-business-grid"><div><span>Pipeline value</span><strong>${escapeHtml(formatMoney(state.deals.reduce((sum, deal) => sum + Number(deal.value || 0), 0)))}</strong><small>${number(state.deals.length)} deals</small></div><div><span>Collected revenue</span><strong>${escapeHtml(formatMoney(paidRevenue))}</strong><small>${number(state.invoices.filter(invoice => invoice.status === "Paid").length)} paid invoices</small></div><div><span>Active work</span><strong>${number(activeTasks)}</strong><small>${number(state.projects.length)} projects</small></div><div><span>Negative signals</span><strong>${number(summary.negative_signals)}</strong><small>skips, exits, dislikes and hidden venues</small></div></div></section>
     </div>`;
   }
 
@@ -2590,7 +2703,7 @@
           <div class="form-field full"><div class="flex"><button class="action-btn primary ml-auto" type="submit">Save workspace</button></div></div>
         </form>
       </section>
-      <section class="panel settings-section"><h2>Workspace statistics</h2><p>Local records currently stored in this browser.</p>
+      <section class="panel settings-section"><h2>Workspace statistics</h2><p>Shared records currently stored in the Supabase workspace.</p>
         <div class="page-grid grid-4">
           <div class="detail-block"><div class="detail-label">CRM records</div><div class="detail-value">${state.deals.length + state.leads.length + state.contacts.length + state.companies.length}</div></div>
           <div class="detail-block"><div class="detail-label">Tasks & projects</div><div class="detail-value">${state.tasks.length + state.projects.length}</div></div>
@@ -2600,32 +2713,24 @@
       </section>`;
     }
     if (ui.settingsTab === "data") {
-      return `<section class="panel settings-section"><h2>Data and backup</h2><p>AkiHQ is local-first. Export a complete JSON backup before clearing browser data or moving devices.</p>
-        <div class="setting-row"><div class="setting-copy"><strong>Export complete workspace</strong><span>Downloads CRM, tasks, messages, settings and every other local record.</span></div><button class="action-btn" data-action="export-data">${icon("download")} Export JSON</button></div>
+      return `<section class="panel settings-section"><h2>Data and backup</h2><p>Supabase is the authoritative workspace. Exports are portable backups, not the primary data store.</p>
+        <div class="setting-row"><div class="setting-copy"><strong>Export complete workspace</strong><span>Downloads CRM, tasks, messages, settings and every other database-backed record.</span></div><button class="action-btn" data-action="export-data">${icon("download")} Export JSON</button></div>
         <div class="setting-row"><div class="setting-copy"><strong>Import workspace backup</strong><span>Replaces the current workspace after validating the file.</span></div><button class="action-btn" data-action="import-data">${icon("upload")} Import JSON</button></div>
         <div class="setting-row"><div class="setting-copy"><strong>Export CRM CSV</strong><span>Creates separate CSV downloads for deals, contacts and companies.</span></div><button class="action-btn" data-action="export-crm-bundle">${icon("download")} Export CSVs</button></div>
-        <div class="setting-row"><div class="setting-copy"><strong>Reset local workspace</strong><span>Deletes local changes and restores a clean AkiHQ workspace.</span></div><button class="action-btn danger" data-action="confirm-reset">${icon("trash")} Reset</button></div>
       </section>
-      <section class="panel settings-section"><h2>Storage</h2><p>Browser storage usage is approximate and varies by browser.</p>
-        <div class="detail-grid"><div class="detail-block"><div class="detail-label">Serialized size</div><div class="detail-value">${(new Blob([JSON.stringify(state)]).size / 1024).toFixed(1)} KB</div></div><div class="detail-block"><div class="detail-label">Storage key</div><div class="detail-value"><code>${store.key}</code></div></div></div>
+      <section class="panel settings-section"><h2>Storage</h2><p>Business data is committed to the shared RLS-protected Supabase row; browser memory is only a render cache.</p>
+        <div class="detail-grid"><div class="detail-block"><div class="detail-label">Snapshot size</div><div class="detail-value">${(new Blob([JSON.stringify(state)]).size / 1024).toFixed(1)} KB</div></div><div class="detail-block"><div class="detail-label">Database table</div><div class="detail-value"><code>workspace_snapshots</code></div></div></div>
       </section>`;
     }
     if (ui.settingsTab === "cloud") {
       const configured = cloudConfigured();
-      const sessionEmail = cloudSession?.user?.email || cloudSession?.email || "";
-      return `<section class="panel settings-section"><h2>Optional Supabase sync</h2><p>Use your existing managed Supabase project to move this local workspace between devices—still no VPS required.</p>
-        ${!configured ? `<div class="detail-block full" style="border-color:rgba(255,189,85,.4)"><div class="detail-label text-warning">Configuration needed</div><div class="detail-value">Copy <code>config.example.js</code> to <code>config.js</code>, add your Supabase URL and anon key, then run <code>supabase/schema.sql</code> in the SQL editor.</div></div>` : cloudSession ? `
-          <div class="setting-row"><div class="setting-copy"><strong>Signed in as ${escapeHtml(sessionEmail)}</strong><span>Cloud sync is manual in this alpha so local edits are never silently overwritten.</span></div><button class="action-btn" data-action="cloud-signout">Sign out</button></div>
-          <div class="setting-row"><div class="setting-copy"><strong>Push this workspace</strong><span>Uploads the current encrypted transport snapshot to your RLS-protected row.</span></div><button class="action-btn primary" data-action="cloud-push">${icon("upload")} Push</button></div>
-          <div class="setting-row"><div class="setting-copy"><strong>Pull cloud workspace</strong><span>Replaces local data with the latest snapshot after confirmation.</span></div><button class="action-btn" data-action="cloud-pull">${icon("download")} Pull</button></div>` : `
-          <form class="form-grid" data-form="cloud-auth">
-            <div class="form-field full"><label>Email</label><input name="email" type="email" autocomplete="email" required></div>
-            <div class="form-field full"><label>Password</label><input name="password" type="password" minlength="6" autocomplete="current-password" required></div>
-            <div class="form-field full"><div class="flex gap-8"><button class="action-btn primary" type="submit" name="intent" value="signin">Sign in</button><button class="action-btn" type="submit" name="intent" value="signup">Create account</button></div><div class="form-help">Supabase handles authentication. AkiHQ never places your password in local workspace data.</div></div>
-          </form>`}
+      return `<section class="panel settings-section"><h2>Supabase database</h2><p>The authenticated Supabase session is the only workspace connection; there is no separate browser-local mode.</p>
+        ${!configured ? `<div class="detail-block full" style="border-color:rgba(255,189,85,.4)"><div class="detail-label text-warning">Configuration needed</div><div class="detail-value">Add the Supabase URL and publishable key to <code>config.js</code>.</div></div>` : `
+          <div class="setting-row"><div class="setting-copy"><strong>Connected as ${escapeHtml(authUser?.email || "staff user")}</strong><span>Reads, writes and realtime updates use the signed-in staff session and database RLS.</span></div><span class="status-pill success">Live</span></div>
+          <div class="setting-row"><div class="setting-copy"><strong>Automatic persistence</strong><span>Every CRM mutation is committed to Supabase before it is reported as saved.</span></div><span class="status-pill success">Enabled</span></div>`}
       </section>
-      <section class="panel settings-section"><h2>Current sync scope</h2><p>This alpha uses one JSON workspace snapshot per signed-in account.</p>
-        <div class="page-grid grid-3"><div class="detail-block"><div class="detail-label">Included</div><div class="detail-value">All workspace records, UI settings and local integration setup state.</div></div><div class="detail-block"><div class="detail-label">Not included</div><div class="detail-value">Provider secrets, large binary files and real-time multi-user conflict resolution.</div></div><div class="detail-block"><div class="detail-label">Next backend step</div><div class="detail-value">Move each module to relational Supabase tables and use Realtime subscriptions.</div></div></div>
+      <section class="panel settings-section"><h2>Persistence scope</h2><p>The shared snapshot is synchronized across authenticated staff devices.</p>
+        <div class="page-grid grid-3"><div class="detail-block"><div class="detail-label">Included</div><div class="detail-value">CRM, Calendar, Knowledge, tasks, operations, UI settings and audit state.</div></div><div class="detail-block"><div class="detail-label">Realtime</div><div class="detail-value">Database changes and workspace broadcasts update active staff sessions.</div></div><div class="detail-block"><div class="detail-label">Protected elsewhere</div><div class="detail-value">Provider credentials remain encrypted in the server-side integration vault.</div></div></div>
       </section>`;
     }
     if (ui.settingsTab === "security") {
@@ -2644,7 +2749,7 @@
       return `<section class="panel settings-section"><h2>AkiHQ ${APP_VERSION}</h2><p>An original, open-source business workspace built for Alex—not a Bitrix24 source-code copy or branded skin.</p>
         <div class="detail-grid"><div class="detail-block"><div class="detail-label">License</div><div class="detail-value">Apache License 2.0</div></div><div class="detail-block"><div class="detail-label">Runtime</div><div class="detail-value">Static PWA + optional Supabase + optional Cloudflare Worker</div></div><div class="detail-block full"><div class="detail-label">Modules in this build</div><div class="detail-value">Dashboard, CRM, inbox, projects, calendar, inventory, billing, marketing, sites/forms, automation, collaboration, people, knowledge, analytics, integrations and settings.</div></div></div>
       </section>
-      <section class="panel settings-section"><h2>Honest status</h2><p>This package is a working local-first alpha, not finished parity with every feature of a mature commercial suite.</p>
+      <section class="panel settings-section"><h2>Honest status</h2><p>This package is a working database-backed alpha, not finished parity with every feature of a mature commercial suite.</p>
         <div class="page-grid grid-3"><div class="detail-block"><div class="detail-label">Working now</div><div class="detail-value">Persistent CRUD, boards, drag-and-drop, search, activity, messages, exports, PWA shell and optional personal cloud sync.</div></div><div class="detail-block"><div class="detail-label">Adapter UI included</div><div class="detail-value">Major integration catalogue with configuration states and serverless architecture.</div></div><div class="detail-block"><div class="detail-label">Requires implementation</div><div class="detail-value">Production OAuth flows, provider webhooks, relational multi-tenant backend, files, payments and true realtime collaboration.</div></div></div>
       </section>`;
     }
@@ -3177,7 +3282,7 @@
     if (!config) return "";
     const hasPickerSelection = type === "employee" && !existing && ui.formDefaults.name;
     return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${["automation", "article"].includes(type) ? "wide" : ""}" role="dialog" aria-modal="true">
-      <header class="modal-head"><div class="entity-logo" style="width:36px;height:36px">${icon(config.icon)}</div><div><h2>${existing ? `Edit ${escapeHtml(config.label)}` : `New ${escapeHtml(config.label)}`}</h2><p>${existing ? "Changes are saved to the local workspace" : "Create a persistent record"}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
+      <header class="modal-head"><div class="entity-logo" style="width:36px;height:36px">${icon(config.icon)}</div><div><h2>${existing ? `Edit ${escapeHtml(config.label)}` : `New ${escapeHtml(config.label)}`}</h2><p>${existing ? "Changes are committed to Supabase" : "Create a database-backed record"}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
       <form data-form="entity" data-entity="${type}" data-id="${id || ""}" style="display:contents">
         <div class="modal-body">
           ${type === "employee" && !existing ? renderUserPickerSection() : ""}
@@ -3212,7 +3317,7 @@
           <div class="form-field full">
             <label>${escapeHtml(integration.name)} API Key</label>
             <input name="apiKey" type="password" placeholder="Paste ${escapeHtml(integration.name)} secret key (e.g. ${integration.id === "resend" ? "re_1234..." : "sk-..."})" value="${escapeHtml(connection.config?.apiKey || "")}" required />
-            <div class="form-help">Your key is saved in your local workspace configuration.</div>
+            <div class="form-help">Configuration is saved to the shared workspace. Keep true provider secrets in the server-side vault.</div>
           </div>
           ${integration.id === "resend" ? `
             <div class="form-field full">
@@ -3378,7 +3483,7 @@
     if (ui.dropdown === "workspace") {
       return `<div class="dropdown" style="left:${state.settings.sidebarCollapsed ? "87px" : "247px"};top:58px">
         <div class="dropdown-head"><strong>Workspace</strong></div>
-        <div class="dropdown-item"><div class="activity-icon">${icon("building")}</div><div class="dropdown-copy"><strong>${escapeHtml(state.workspace.name)}</strong><br>Current local workspace</div></div>
+        <div class="dropdown-item"><div class="activity-icon">${icon("building")}</div><div class="dropdown-copy"><strong>${escapeHtml(state.workspace.name)}</strong><br>Shared database workspace</div></div>
         <div class="dropdown-item" data-action="open-workspace-form"><div class="activity-icon">${icon("edit")}</div><div class="dropdown-copy"><strong>Edit workspace</strong><br>Name, timezone and currency</div></div>
         <div class="dropdown-item" data-action="duplicate-workspace"><div class="activity-icon">${icon("plus")}</div><div class="dropdown-copy"><strong>Duplicate as backup</strong><br>Download a copy before changing focus</div></div>
       </div>`;
@@ -3452,7 +3557,16 @@
     const action = target.dataset.action;
     switch (action) {
       case "navigate":
+        ui.mobileNavOpen = false;
         setRoute(target.dataset.route);
+        break;
+      case "toggle-mobile-nav":
+        ui.mobileNavOpen = !ui.mobileNavOpen;
+        render();
+        break;
+      case "close-mobile-nav":
+        ui.mobileNavOpen = false;
+        render();
         break;
       case "toggle-sidebar":
         state.settings.sidebarCollapsed = !state.settings.sidebarCollapsed;
@@ -3534,6 +3648,9 @@
       }
       case "refresh-ai-team":
         loadAITeamOverview(true);
+        break;
+      case "refresh-analytics":
+        loadAnalyticsOverview(true);
         break;
       case "set-ai-section":
         ui.aiTeamSection = target.dataset.section || "team";
@@ -3695,11 +3812,11 @@
         downloadBlob(`akihq-audit-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state.audit, null, 2), "application/json");
         break;
       case "confirm-reset":
-        ui.modal = { kind: "confirm", title: "Reset local workspace?", message: "Every local change in this browser will be replaced with a clean AkiHQ workspace.", confirm: "reset", confirmLabel: "Reset workspace" }; renderPortal();
+        toast("Reset unavailable", "Shared database resets require an explicit administrative maintenance workflow.", "info");
         break;
       case "delete-entity":
         event.preventDefault(); event.stopPropagation();
-        ui.modal = { kind: "confirm", title: `Delete ${capitalize(target.dataset.entity)}?`, message: `“${titleForEntity(target.dataset.entity, getEntity(target.dataset.entity, target.dataset.id))}” will be removed from this local workspace.`, confirm: "delete-entity", entity: target.dataset.entity, id: target.dataset.id, confirmLabel: "Delete" }; renderPortal();
+        ui.modal = { kind: "confirm", title: `Delete ${capitalize(target.dataset.entity)}?`, message: `“${titleForEntity(target.dataset.entity, getEntity(target.dataset.entity, target.dataset.id))}” will be removed from the shared database workspace.`, confirm: "delete-entity", entity: target.dataset.entity, id: target.dataset.id, confirmLabel: "Delete" }; renderPortal();
         break;
       case "confirm-action":
         runConfirmedAction(ui.modal);
@@ -3851,7 +3968,7 @@
           if (typeof msg.reactions[emoji] === "number") {
             userList = msg.reactions[emoji] > 0 ? [myId] : [];
           }
-          
+
           if (userList.includes(myId)) {
             userList = userList.filter(id => id !== myId);
           } else {
@@ -4017,7 +4134,7 @@
         cloudPush();
         break;
       case "cloud-pull":
-        ui.modal = { kind: "confirm", title: "Replace local workspace?", message: "Pulling from Supabase will replace the current browser workspace with the latest cloud snapshot.", confirm: "cloud-pull", confirmLabel: "Pull cloud data" }; renderPortal();
+        syncCloudWorkspacePull();
         break;
       default:
         break;
@@ -4036,8 +4153,7 @@
   function runConfirmedAction(modal) {
     if (!modal) return;
     if (modal.confirm === "reset") {
-      state = store.reset();
-      ui.modal = null; ui.drawer = null; ui.route = "dashboard"; location.hash = "#/dashboard"; render(); toast("Workspace reset", "AkiHQ is ready with a clean local workspace.");
+      ui.modal = null; renderPortal(); toast("Reset unavailable", "Use a reviewed database maintenance migration for shared workspace resets.", "info");
       return;
     }
     if (modal.confirm === "delete-entity") {
@@ -4066,6 +4182,10 @@
     } else if (change === "social-range") {
       ui.socialRange = target.value;
       loadSocialOverview(false);
+    } else if (change === "analytics-range") {
+      ui.analyticsRange = target.value;
+      analyticsOverview = null;
+      loadAnalyticsOverview(false);
     } else if (change === "density") {
       state.settings.density = target.value;
       persist();
@@ -4134,7 +4254,7 @@
     return data;
   }
 
-  function saveEntityFromForm(form) {
+  async function saveEntityFromForm(form) {
     const type = form.dataset.entity;
     const id = form.dataset.id || null;
     const collection = collectionFor[type];
@@ -4200,7 +4320,12 @@
     persist(false);
     render();
     if (existing && ui.drawer?.type === type && ui.drawer?.id === id) renderPortal();
-    toast(existing ? `${capitalize(type)} updated` : `${capitalize(type)} created`, titleForEntity(type, data));
+    try {
+      await syncCloudWorkspacePushNow();
+      toast(existing ? `${capitalize(type)} updated` : `${capitalize(type)} created`, `${titleForEntity(type, data)} · saved to database`);
+    } catch (error) {
+      toast("Database save failed", `${titleForEntity(type, data)} is not committed yet: ${error.message || "unknown error"}`, "danger");
+    }
   }
 
   async function handleSubmit(form, event) {
@@ -4268,7 +4393,7 @@
       return;
     }
     if (kind === "entity") {
-      saveEntityFromForm(form);
+      await saveEntityFromForm(form);
       return;
     }
     if (kind === "team-chat") {
@@ -4687,7 +4812,6 @@
 
   function saveCloudSession(session) {
     cloudSession = session;
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   }
 
   async function ensureCloudSession() {
@@ -4810,8 +4934,16 @@
   });
 
   window.addEventListener("hashchange", () => {
-    const route = location.hash.replace(/^#\/?/, "") || "dashboard";
-    if (route !== ui.route) { ui.route = route; render(); }
+    const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+    const route = parts[0] || "dashboard";
+    const previousRoute = ui.route;
+    const previousCrmTab = ui.crmTab;
+    if (route === "crm" && ["social", "ai-team"].includes(parts[1])) ui.crmTab = parts[1];
+    ui.route = route;
+    if (route !== previousRoute || ui.crmTab !== previousCrmTab) {
+      render();
+      if (route === "analytics") loadAnalyticsOverview(false);
+    }
   });
 
   importInput.addEventListener("change", async () => {
@@ -4972,7 +5104,7 @@
   async function bootWithSession(session) {
     const client = getSupabaseClient();
     if (!session?.user || !client) { renderLoginScreen(); return; }
-    
+
     // Fetch profile to check role strictly
     let role = null;
     let profileName = null;
@@ -4995,13 +5127,19 @@
       renderAccessDenied(session.user?.email);
       return;
     }
-    
+
     authUser = session.user;
     authRole = role;
-    
-    // Switch to user-specific store
-    store = new StateStore(STORAGE_KEY_PREFIX + authUser.id);
+
+    // Supabase is authoritative; browser memory is only the current render cache.
+    store = new StateStore();
     state = store.load();
+    state.currentUserId = authUser.id;
+    workspaceMutationVersion = 0;
+    workspaceCommittedVersion = 0;
+    hasWorkspaceSnapshotsTable = true;
+    lastRemoteWorkspaceUpdate = null;
+    await syncCloudWorkspacePull();
     state.currentUserId = authUser.id;
 
     // Clean OAuth tokens from address bar if present
@@ -5066,6 +5204,7 @@
     loadLiveData();
     if (ui.route === "crm" && ui.crmTab === "social") loadSocialOverview(false);
     if (ui.route === "crm" && ui.crmTab === "ai-team" && authRole === "administrator") loadAITeamOverview(false);
+    if (ui.route === "analytics" && authRole === "administrator") loadAnalyticsOverview(false);
     if (initialSocialResult === "connected") toast("Social account connected", "Refresh metrics to collect the latest available account and content data.", "success");
     if (initialSocialResult === "connection_failed") toast("Social connection failed", initialSocialError || "Check the provider app settings, redirect URL, scopes and account permissions, then try again.", "danger");
   }
@@ -5089,7 +5228,7 @@
       if (event === "SIGNED_OUT" || !newSession) {
         authUser = null;
         authRole = null;
-        store = new StateStore(GLOBAL_STORAGE_KEY);
+        store = new StateStore();
         state = seedState();
         renderLoginScreen();
       } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
