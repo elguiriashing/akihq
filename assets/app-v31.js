@@ -1058,6 +1058,20 @@
     }
   }
 
+  function appendLocalAIMessage(message) {
+    if (!aiTeamOverview) aiTeamOverview = { ok: true, data: {} };
+    if (!aiTeamOverview.data) aiTeamOverview.data = {};
+    if (!Array.isArray(aiTeamOverview.data.messages)) aiTeamOverview.data.messages = [];
+    aiTeamOverview.data.messages.push(message);
+  }
+
+  function scrollAIChatToBottom() {
+    requestAnimationFrame(() => {
+      const messages = document.getElementById("ai-chat-messages");
+      if (messages) messages.scrollTop = messages.scrollHeight;
+    });
+  }
+
   async function runAITeamAction(body, successMessage = "AI Team updated") {
     if (aiTeamBusy) return null;
     aiTeamBusy = true;
@@ -1637,21 +1651,23 @@
       content = `
         <div class="ai-split">
           <section class="panel">
-            <div class="panel-header"><div><h2>Agent tasks</h2><p>Create and assign bounded work</p></div></div>
+            <div class="panel-header"><div><h2>Agent tasks</h2><p>Every result stays on its task and can also be delivered to Knowledge, Calendar, or the CRM task board.</p></div></div>
             <form class="panel-body ai-inline-form" data-form="ai-task">
               <input name="title" maxlength="200" required placeholder="Task title">
               <textarea name="description" maxlength="8000" required placeholder="Expected outcome and CRM scope"></textarea>
               <div class="ai-form-row"><select name="agentId" required>${agents.map(agent => `<option value="${escapeHtml(agent.id)}">${escapeHtml(agent.display_name)}</option>`).join("")}</select><select name="priority"><option value="3">Normal priority</option><option value="2">High priority</option><option value="1">Urgent</option><option value="4">Low priority</option></select></div>
+              <label>Deliver output to<select name="outputTarget"><option value="task">Task result only</option><option value="knowledge">Knowledge article + task result</option><option value="calendar">Calendar entry + task result</option><option value="crm_task">CRM follow-up task + task result</option></select></label>
               <button class="action-btn primary" type="submit" ${aiTeamBusy ? "disabled" : ""}>Create AI task</button>
             </form>
             <div class="panel-body ai-item-list">${(data.tasks || []).map(task => `<article><header><strong>${escapeHtml(task.title)}</strong><span class="status-pill">${escapeHtml(task.status)}</span></header><p>${escapeHtml(task.description)}</p><small>${escapeHtml(task.assigned?.display_name || "Unassigned")} · P${task.priority} · ${escapeHtml(formatDate(task.created_at, { time: true }))}</small>${task.result || task.error ? `<details><summary>${task.error ? "Error" : "Result"}</summary><p>${escapeHtml(task.error || task.result)}</p></details>` : ""}</article>`).join("") || `<div class="panel-empty"><div><strong>No tasks yet</strong></div></div>`}</div>
           </section>
           <section class="panel">
-            <div class="panel-header"><div><h2>Recurring jobs</h2><p>Schedules run through the same budget and permissions</p></div></div>
+            <div class="panel-header"><div><h2>Recurring jobs</h2><p>Schedules run through the same budget and permissions; each run remains visible in task history.</p></div></div>
             <form class="panel-body ai-inline-form" data-form="ai-schedule">
               <input name="name" maxlength="120" required placeholder="Schedule name">
               <textarea name="prompt" maxlength="8000" required placeholder="Recurring CRM job instructions"></textarea>
               <div class="ai-form-row"><select name="agentId" required>${agents.map(agent => `<option value="${escapeHtml(agent.id)}">${escapeHtml(agent.display_name)}</option>`).join("")}</select><input name="intervalMinutes" type="number" min="5" max="43200" value="1440" required></div>
+              <label>Deliver each run to<select name="outputTarget"><option value="task">Task result only</option><option value="knowledge">Knowledge article + task result</option><option value="calendar">Calendar entry + task result</option><option value="crm_task">CRM follow-up task + task result</option></select></label>
               <button class="action-btn primary" type="submit" ${aiTeamBusy ? "disabled" : ""}>Create schedule</button>
             </form>
             <div class="panel-body ai-item-list">${(data.schedules || []).map(schedule => `<article><header><strong>${escapeHtml(schedule.name)}</strong><span class="status-pill ${schedule.enabled ? "success" : ""}">${schedule.enabled ? "enabled" : "paused"}</span></header><p>${escapeHtml(schedule.prompt)}</p><small>${escapeHtml(schedule.agent?.display_name || "Agent")} · every ${schedule.interval_minutes} min · next ${escapeHtml(formatDate(schedule.next_run_at, { time: true }))}</small><button class="action-btn" data-action="toggle-ai-schedule" data-id="${escapeHtml(schedule.id)}" data-enabled="${schedule.enabled ? "false" : "true"}">${schedule.enabled ? "Pause" : "Enable"}</button></article>`).join("") || `<div class="panel-empty"><div><strong>No schedules yet</strong></div></div>`}</div>
@@ -4453,11 +4469,22 @@
       const message = String(new FormData(form).get("message") || "").trim();
       const agent = aiTeamOverview?.data?.agents?.find(item => item.id === form.dataset.agentId);
       if (!message || !agent || aiTeamBusy) return;
+      ui.aiContext = "";
+      appendLocalAIMessage({
+        id: "local-user-" + Date.now(),
+        agent_id: agent.id,
+        actor_id: authUser?.id || null,
+        role: "user",
+        content: message,
+        created_at: isoNow(),
+        local: true
+      });
       aiTeamBusy = true;
       render();
+      scrollAIChatToBottom();
       try {
         await syncCloudWorkspacePushNow();
-        await socialGatewayRequest("/api/ai-team/chat", {
+        const payload = await socialGatewayRequest("/api/ai-team/chat", {
           method: "POST",
           body: {
             agentKey: agent.agent_key,
@@ -4465,23 +4492,42 @@
             workspaceId: state.workspace?.id || "ws_akipasa"
           }
         });
-        ui.aiContext = "";
-        await syncCloudWorkspacePull();
-        await loadAITeamOverview(false);
+        appendLocalAIMessage({
+          id: "local-assistant-" + Date.now(),
+          agent_id: agent.id,
+          actor_id: authUser?.id || null,
+          role: "assistant",
+          content: String(payload?.text || ""),
+          created_at: isoNow(),
+          local: true
+        });
+        render();
+        scrollAIChatToBottom();
+        await Promise.allSettled([
+          syncCloudWorkspacePull(),
+          loadAITeamOverview(false)
+        ]);
       } catch (error) {
         toast("AI request failed", error.message, "danger");
       } finally {
         aiTeamBusy = false;
         render();
+        scrollAIChatToBottom();
       }
       return;
     }
     if (kind === "ai-task") {
       const values = Object.fromEntries(new FormData(form));
+      const delivery = {
+        task: "Keep the complete deliverable in this AI task result.",
+        knowledge: "Also save the reusable final deliverable as an AkiHQ Knowledge article using crm_create_knowledge_article.",
+        calendar: "Also save the requested dated outcome as an AkiHQ Calendar entry using crm_create_calendar_event. If dates are missing, state that clearly in the task result instead of inventing them.",
+        crm_task: "Also create the concrete follow-up as an AkiHQ CRM task using crm_create_workspace_task."
+      }[String(values.outputTarget || "task")] || "Keep the complete deliverable in this AI task result.";
       const result = await runAITeamAction({
         action: "create_task",
         title: String(values.title || "").trim(),
-        description: String(values.description || "").trim(),
+        description: `${String(values.description || "").trim()}\n\nOutput delivery: ${delivery}`,
         assignedAgentId: String(values.agentId || ""),
         priority: Number(values.priority || 3)
       }, "AI task created");
@@ -4490,11 +4536,17 @@
     }
     if (kind === "ai-schedule") {
       const values = Object.fromEntries(new FormData(form));
+      const delivery = {
+        task: "Keep the complete deliverable in the scheduled AI task result.",
+        knowledge: "Also save each reusable final deliverable as an AkiHQ Knowledge article using crm_create_knowledge_article.",
+        calendar: "Also save each requested dated outcome as an AkiHQ Calendar entry using crm_create_calendar_event. Never invent missing dates.",
+        crm_task: "Also create each concrete follow-up as an AkiHQ CRM task using crm_create_workspace_task."
+      }[String(values.outputTarget || "task")] || "Keep the complete deliverable in the scheduled AI task result.";
       const result = await runAITeamAction({
         action: "create_schedule",
         agentId: String(values.agentId || ""),
         name: String(values.name || "").trim(),
-        prompt: String(values.prompt || "").trim(),
+        prompt: `${String(values.prompt || "").trim()}\n\nOutput delivery: ${delivery}`,
         intervalMinutes: Number(values.intervalMinutes || 1440)
       }, "Recurring AI job created");
       if (result) form.reset();
