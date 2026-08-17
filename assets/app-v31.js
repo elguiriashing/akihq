@@ -1042,6 +1042,18 @@
     if (ui.route === "crm" && ui.crmTab === "ai-team") render();
     try {
       const payload = await socialGatewayRequest("/api/ai-team/overview");
+      const optimistic = aiTeamOverview?.data?.messages?.filter(message => message.local) || [];
+      if (!payload.data) payload.data = {};
+      const serverMessages = Array.isArray(payload.data.messages) ? payload.data.messages : [];
+      payload.data.messages = [...serverMessages];
+      for (const message of optimistic) {
+        const exists = serverMessages.some(server =>
+          server.agent_id === message.agent_id &&
+          server.role === message.role &&
+          server.content === message.content
+        );
+        if (!exists) payload.data.messages.push(message);
+      }
       aiTeamOverview = payload;
       const agents = payload?.data?.agents || [];
       if (!ui.aiSelectedAgentId || !agents.some(agent => agent.id === ui.aiSelectedAgentId)) {
@@ -1638,6 +1650,7 @@
                     <header><strong>${message.role === "user" ? "You" : selectedAgent.display_name}</strong><time>${escapeHtml(formatDate(message.created_at, { time: true }))}</time></header>
                     <p>${escapeHtml(message.content).replace(/\n/g, "<br>")}</p>
                   </article>`).join("") : `<div class="panel-empty"><div><strong>Start a CRM conversation</strong><span>Ask for a pipeline review, record research, follow-up task, or approval-controlled change.</span></div></div>`}
+                ${aiTeamBusy ? `<article class="ai-message assistant"><header><strong>${escapeHtml(selectedAgent.display_name)}</strong><time>now</time></header><p>Working on it...</p></article>` : ""}
               </div>
               <form class="ai-chat-form" data-form="ai-chat" data-agent-id="${escapeHtml(selectedAgent.id)}">
                 ${ui.aiContext ? `<div class="ai-context-chip">${icon("link")} CRM context attached <button type="button" data-action="clear-ai-context">${icon("close")}</button></div>` : ""}
@@ -1659,7 +1672,7 @@
               <label>Deliver output to<select name="outputTarget"><option value="task">Task result only</option><option value="knowledge">Knowledge article + task result</option><option value="calendar">Calendar entry + task result</option><option value="crm_task">CRM follow-up task + task result</option></select></label>
               <button class="action-btn primary" type="submit" ${aiTeamBusy ? "disabled" : ""}>Create AI task</button>
             </form>
-            <div class="panel-body ai-item-list">${(data.tasks || []).map(task => `<article><header><strong>${escapeHtml(task.title)}</strong><span class="status-pill">${escapeHtml(task.status)}</span></header><p>${escapeHtml(task.description)}</p><small>${escapeHtml(task.assigned?.display_name || "Unassigned")} · P${task.priority} · ${escapeHtml(formatDate(task.created_at, { time: true }))}</small>${task.result || task.error ? `<details><summary>${task.error ? "Error" : "Result"}</summary><p>${escapeHtml(task.error || task.result)}</p></details>` : ""}</article>`).join("") || `<div class="panel-empty"><div><strong>No tasks yet</strong></div></div>`}</div>
+            <div class="panel-body ai-item-list">${(data.tasks || []).map(task => `<article><header><strong>${escapeHtml(task.title)}</strong><span class="status-pill">${escapeHtml(task.status)}</span></header><p>${escapeHtml(task.description)}</p><small>${escapeHtml(task.assigned?.display_name || "Unassigned")} · P${task.priority} · ${escapeHtml(formatDate(task.created_at, { time: true }))}</small>${task.status === "queued" ? `<div class="ai-approval-actions"><button class="action-btn primary" data-action="run-ai-task" data-id="${escapeHtml(task.id)}" ${aiTeamBusy ? "disabled" : ""}>Run now</button><button class="action-btn" data-action="cancel-ai-task" data-id="${escapeHtml(task.id)}" ${aiTeamBusy ? "disabled" : ""}>Cancel</button></div>` : ""}${task.result || task.error ? `<details><summary>${task.error ? "Error" : "Result"}</summary><p>${escapeHtml(task.error || task.result)}</p></details>` : ""}</article>`).join("") || `<div class="panel-empty"><div><strong>No tasks yet</strong></div></div>`}</div>
           </section>
           <section class="panel">
             <div class="panel-header"><div><h2>Recurring jobs</h2><p>Schedules run through the same budget and permissions; each run remains visible in task history.</p></div></div>
@@ -3794,6 +3807,12 @@
           enabled: target.dataset.enabled === "true"
         }, target.dataset.enabled === "true" ? "Schedule enabled" : "Schedule paused");
         break;
+      case "run-ai-task":
+        runAITeamAction({ action: "run_task", taskId: target.dataset.id }, "AI task completed");
+        break;
+      case "cancel-ai-task":
+        runAITeamAction({ action: "cancel_task", taskId: target.dataset.id }, "AI task cancelled");
+        break;
       case "decide-ai-approval":
         runAITeamAction({
           action: "decide_approval",
@@ -4479,6 +4498,7 @@
         created_at: isoNow(),
         local: true
       });
+      form.reset();
       aiTeamBusy = true;
       render();
       scrollAIChatToBottom();
@@ -4508,6 +4528,15 @@
           loadAITeamOverview(false)
         ]);
       } catch (error) {
+        appendLocalAIMessage({
+          id: "local-error-" + Date.now(),
+          agent_id: agent.id,
+          actor_id: authUser?.id || null,
+          role: "assistant",
+          content: "I could not complete that request: " + String(error.message || "unknown error"),
+          created_at: isoNow(),
+          local: true
+        });
         toast("AI request failed", error.message, "danger");
       } finally {
         aiTeamBusy = false;
