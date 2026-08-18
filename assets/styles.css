@@ -554,6 +554,20 @@ html[data-theme="light"] .tag { color: #4f5b9c; }
 .modal-head .close-btn { margin-left: auto; }
 .modal-body { flex: 1; overflow-y: auto; padding: 20px; scrollbar-width: thin; scrollbar-color: rgba(124,140,255,.3) transparent; }
 .modal-foot { min-height: 64px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--border); flex: 0 0 auto; }
+.prospect-import-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.prospect-import-summary article { padding: 16px; border: 1px solid var(--border); border-radius: 15px; background: color-mix(in srgb, var(--panel) 88%, transparent); display: grid; gap: 5px; }
+.prospect-import-summary strong { font-size: 26px; line-height: 1; color: var(--text); }
+.prospect-import-summary span, .import-row-sub, .import-truncated { color: var(--muted); font-size: 12px; }
+.import-note { display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; margin-bottom: 14px; border: 1px solid color-mix(in srgb, var(--info) 35%, var(--border)); border-radius: 12px; color: var(--muted); background: color-mix(in srgb, var(--info) 8%, transparent); }
+.import-note svg { width: 17px; height: 17px; flex: 0 0 auto; color: var(--info); }
+.prospect-import-table { max-height: 430px; border: 1px solid var(--border); border-radius: 14px; }
+.prospect-import-table td:first-child { min-width: 190px; }
+.prospect-import-table td:last-child { min-width: 220px; color: var(--muted); }
+.import-row-sub { display: block; margin-top: 3px; }
+.import-truncated { margin: 10px 2px 0; }
+.prospect-import-loading { min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--muted); }
+.loading-spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
 .form-field { min-width: 0; }
 .form-field.full { grid-column: 1 / -1; }
@@ -946,6 +960,10 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
 .ai-inline-form { display: grid; gap: 8px; border-bottom: 1px solid var(--border); }
 .ai-inline-form input,.ai-inline-form textarea,.ai-inline-form select,.ai-chat-form textarea { width: 100%; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text); padding: 9px 10px; font: inherit; font-size: 9px; }
 .ai-inline-form textarea { min-height: 70px; resize: vertical; }.ai-inline-form label { display: grid; gap: 5px; color: var(--muted); font-size: 8px; }.ai-form-row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }.ai-inline-form .check-row { display: flex; align-items: center; }.ai-inline-form .check-row input { width: auto; }
+.ai-research-consent { gap: 7px; align-items: center; color: var(--text); font-size: 9px; line-height: 1.35; }
+.ai-research-consent input { flex: 0 0 auto; width: auto; }
+.ai-research-consent small { flex-basis: 100%; color: var(--muted); padding-left: 20px; }
+.ai-chat-form .ai-research-consent { display: flex; flex-wrap: wrap; grid-column: 1 / -1; }
 .ai-item-list { display: grid; gap: 8px; max-height: 620px; overflow-y: auto; }
 .ai-item-list article { padding: 11px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-2); }
 .ai-item-list article header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }.ai-item-list article strong { font-size: 10px; }.ai-item-list article p { margin: 7px 0; color: var(--muted); font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }.ai-item-list article small { color: var(--subtle); font-size: 8px; }.ai-item-list article pre { max-height: 230px; overflow: auto; padding: 9px; border-radius: 8px; background: var(--surface-3); color: var(--muted); font-size: 8px; white-space: pre-wrap; }.ai-item-list article > .action-btn { margin-top: 9px; }
@@ -1047,6 +1065,8 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
 }
 
 @media (max-width: 767px) {
+  .prospect-import-summary { grid-template-columns: 1fr; }
+  .prospect-import-table { max-height: 48vh; }
   :root {
     --topbar-height: 58px;
     --mobile-tabbar-height: 72px;

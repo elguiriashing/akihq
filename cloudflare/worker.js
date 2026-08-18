@@ -1,3 +1,5 @@
+import { parseProspectWorkbook } from "./prospect-import.js";
+
 /**
  * AkiHQ optional integration gateway for Cloudflare Workers.
  *
@@ -8,6 +10,7 @@
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 const MAX_BODY_BYTES = 1024 * 1024;
+const MAX_SPREADSHEET_BYTES = 10 * 1024 * 1024;
 const SOCIAL_PROVIDERS = new Set(["meta", "instagram", "tiktok"]);
 const SOCIAL_ACCOUNT_PREFIX = "social:account:";
 
@@ -37,6 +40,15 @@ export default {
         const staff = await authenticateStaff(request, env);
         requireAdministrator(staff);
         return await proxyAiTeam(request, env, url, cors);
+      }
+
+      if (url.pathname === "/api/crm/prospect-import") {
+        const staff = await authenticateStaff(request, env);
+        requireAdministrator(staff);
+        if (request.method !== "POST") {
+          return json({ ok: false, error: "method_not_allowed" }, 405, cors);
+        }
+        return await handleProspectImport(request, cors);
       }
 
       if (url.pathname.startsWith("/api/social/")) {
@@ -176,6 +188,34 @@ async function authenticateStaff(request, env) {
 
 function requireAdministrator(staff) {
   if (staff?.role !== "administrator") throw new HttpError(403, "administrator_required", "Only an administrator can use this operation.");
+}
+
+async function handleProspectImport(request, cors) {
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("multipart/form-data")) {
+    throw new HttpError(415, "unsupported_media_type", "Upload the workbook as multipart form data.");
+  }
+  const form = await request.formData();
+  const file = form.get("file");
+  if (!file || typeof file.arrayBuffer !== "function") {
+    throw new HttpError(400, "file_required", "Choose an Excel or CSV file to import.");
+  }
+  const fileName = String(file.name || "prospects.xlsx");
+  if (!/\.(xlsx|xls|csv)$/i.test(fileName)) {
+    throw new HttpError(415, "unsupported_file", "Use an .xlsx, .xls, or .csv prospect file.");
+  }
+  if (Number(file.size || 0) > MAX_SPREADSHEET_BYTES) {
+    throw new HttpError(413, "request_too_large", "The prospect file exceeds 10 MB.");
+  }
+  const bytes = await file.arrayBuffer();
+  if (!bytes.byteLength) {
+    throw new HttpError(400, "empty_file", "The uploaded prospect file is empty.");
+  }
+  try {
+    return json({ ok: true, data: parseProspectWorkbook(bytes, fileName) }, 200, cors);
+  } catch (error) {
+    throw new HttpError(422, "invalid_workbook", safeError(error));
+  }
 }
 
 async function proxyAiTeam(request, env, url, cors) {

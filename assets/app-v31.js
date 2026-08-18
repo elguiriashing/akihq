@@ -43,6 +43,26 @@
       return "";
     }
   };
+  const normalizeProspectText = value => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const normalizeProspectPhone = value => {
+    const digits = String(value || "").replace(/\D/g, "");
+    return digits.length > 9 ? digits.slice(-9) : digits;
+  };
+  const normalizeProspectUrl = value => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+      const parsed = new URL(/^https?:\/\//i.test(raw) ? raw : "https://" + raw);
+      return (parsed.hostname.replace(/^www\./, "") + parsed.pathname.replace(/\/+$/, "")).toLowerCase();
+    } catch {
+      return normalizeProspectText(raw);
+    }
+  };
 
   const ICONS = {
     dashboard: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
@@ -563,7 +583,8 @@
         .limit(500);
 
       if (profiles?.length) {
-        state.contacts = profiles.map(p => ({
+        const importedContacts = state.contacts.filter(contact => contact.source === "Excel prospect import");
+        const liveContacts = profiles.map(p => ({
           id: p.id,
           name: p.display_name || `User (${p.id.slice(0, 6)})`,
           email: "",
@@ -574,13 +595,16 @@
           updatedAt: p.created_at,
           createdAt: p.created_at
         }));
+        const liveContactIds = new Set(liveContacts.map(contact => contact.id));
+        state.contacts = [...liveContacts, ...importedContacts.filter(contact => !liveContactIds.has(contact.id))];
       }
 
       // Companies — venues directly from Supabase venues table
       try {
         const { data: venueRows } = await sbClient.from("venues").select("*").limit(500);
         if (venueRows?.length) {
-          state.companies = venueRows.map(row => ({
+          const importedCompanies = state.companies.filter(company => company.source === "Excel prospect import");
+          const liveCompanies = venueRows.map(row => ({
             id: row.id,
             name: row.name || row.venue_name || "Venue",
             email: row.email || "",
@@ -594,6 +618,12 @@
             source: "AkiPasa",
             createdAt: row.created_at || isoNow()
           }));
+          const liveCompanyIds = new Set(liveCompanies.map(company => company.id));
+          const liveCompanyKeys = new Set(liveCompanies.map(company => normalizeProspectText(company.name) + "|" + normalizeProspectText(company.city)));
+          state.companies = [
+            ...liveCompanies,
+            ...importedCompanies.filter(company => !liveCompanyIds.has(company.id) && !liveCompanyKeys.has(normalizeProspectText(company.name) + "|" + normalizeProspectText(company.city)))
+          ];
         }
       } catch (e) {}
 
@@ -999,6 +1029,24 @@
     let payload = null;
     try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
     if (!response.ok) throw new Error(payload?.message || payload?.error || `Gateway request failed (${response.status}).`);
+    return payload;
+  }
+
+  async function socialGatewayFormRequest(path, formData) {
+    const client = getSupabaseClient();
+    if (!client) throw new Error("Supabase authentication is unavailable.");
+    const { data, error } = await client.auth.getSession();
+    if (error || !data?.session?.access_token) throw new Error("Your session expired. Sign in again.");
+    const response = await fetch(socialGatewayUrl(path), {
+      method: "POST",
+      headers: { Authorization: "Bearer " + data.session.access_token },
+      body: formData,
+      cache: "no-store"
+    });
+    const text = await response.text();
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+    if (!response.ok) throw new Error(payload?.message || payload?.error || "Gateway request failed (" + response.status + ").");
     return payload;
   }
 
@@ -1421,6 +1469,7 @@
             </div>` : ""}
           <span class="context-spacer"></span>
           ${authRole === "administrator" ? `<button class="action-btn" data-action="ask-ai-current">${icon("sparkles")} Ask AI</button>` : ""}
+          ${authRole === "administrator" && ["leads", "companies"].includes(ui.crmTab) ? `<button class="action-btn" data-action="open-prospect-import">${icon("upload")} Import Excel</button>` : ""}
           <button class="action-btn" data-action="export-csv" data-entity="${ui.crmTab}">${icon("download")} CSV</button>
           <button class="action-btn primary" data-action="open-form" data-entity="${ui.crmTab === "deals" ? "deal" : ui.crmTab.slice(0, -1)}">${icon("plus")} ${escapeHtml(t("newRecord"))}</button>`}`;
       case "tasks":
@@ -1654,6 +1703,7 @@
               </div>
               <form class="ai-chat-form" data-form="ai-chat" data-agent-id="${escapeHtml(selectedAgent.id)}">
                 ${ui.aiContext ? `<div class="ai-context-chip">${icon("link")} CRM context attached <button type="button" data-action="clear-ai-context">${icon("close")}</button></div>` : ""}
+                ${(selectedAgent.permissions || []).includes("web:search") ? `<label class="check-row ai-research-consent"><input name="allowWebSearch" type="checkbox"> Allow external web research for this message <small>May send the minimum necessary prompt context to OpenAI web search. Off by default.</small></label>` : ""}
                 <textarea name="message" rows="3" maxlength="8000" placeholder="Ask this agent to analyze or work in the CRM⬦">${escapeHtml(ui.aiContext)}</textarea>
                 <button class="action-btn primary" type="submit" ${aiTeamBusy || !selectedAgent.enabled ? "disabled" : ""}>${icon("send")} ${aiTeamBusy ? "Working⬦" : "Send"}</button>
               </form>
@@ -1670,6 +1720,7 @@
               <textarea name="description" maxlength="8000" required placeholder="Expected outcome and CRM scope"></textarea>
               <div class="ai-form-row"><select name="agentId" required>${agents.map(agent => `<option value="${escapeHtml(agent.id)}">${escapeHtml(agent.display_name)}</option>`).join("")}</select><select name="priority"><option value="3">Normal priority</option><option value="2">High priority</option><option value="1">Urgent</option><option value="4">Low priority</option></select></div>
               <label>Deliver output to<select name="outputTarget"><option value="task">Task result only</option><option value="knowledge">Knowledge article + task result</option><option value="calendar">Calendar entry + task result</option><option value="crm_task">CRM follow-up task + task result</option></select></label>
+              <label class="check-row ai-research-consent"><input name="allowWebSearch" type="checkbox"> Allow external web research for this task <small>Only agents with web-search permission can use it.</small></label>
               <button class="action-btn primary" type="submit" ${aiTeamBusy ? "disabled" : ""}>Create AI task</button>
             </form>
             <div class="panel-body ai-item-list">${(data.tasks || []).map(task => `<article><header><strong>${escapeHtml(task.title)}</strong><span class="status-pill">${escapeHtml(task.status)}</span></header><p>${escapeHtml(task.description)}</p><small>${escapeHtml(task.assigned?.display_name || "Unassigned")} · P${task.priority} · ${escapeHtml(formatDate(task.created_at, { time: true }))}</small>${task.status === "queued" ? `<div class="ai-approval-actions"><button class="action-btn primary" data-action="run-ai-task" data-id="${escapeHtml(task.id)}" ${aiTeamBusy ? "disabled" : ""}>Run now</button><button class="action-btn" data-action="cancel-ai-task" data-id="${escapeHtml(task.id)}" ${aiTeamBusy ? "disabled" : ""}>Cancel</button></div>` : ""}${task.result || task.error ? `<details><summary>${task.error ? "Error" : "Result"}</summary><p>${escapeHtml(task.error || task.result)}</p></details>` : ""}</article>`).join("") || `<div class="panel-empty"><div><strong>No tasks yet</strong></div></div>`}</div>
@@ -1681,6 +1732,7 @@
               <textarea name="prompt" maxlength="8000" required placeholder="Recurring CRM job instructions"></textarea>
               <div class="ai-form-row"><select name="agentId" required>${agents.map(agent => `<option value="${escapeHtml(agent.id)}">${escapeHtml(agent.display_name)}</option>`).join("")}</select><input name="intervalMinutes" type="number" min="5" max="43200" value="1440" required></div>
               <label>Deliver each run to<select name="outputTarget"><option value="task">Task result only</option><option value="knowledge">Knowledge article + task result</option><option value="calendar">Calendar entry + task result</option><option value="crm_task">CRM follow-up task + task result</option></select></label>
+              <label class="check-row ai-research-consent"><input name="allowWebSearch" type="checkbox"> Allow external web research on every run <small>This remains enabled until the schedule is paused or removed.</small></label>
               <button class="action-btn primary" type="submit" ${aiTeamBusy ? "disabled" : ""}>Create schedule</button>
             </form>
             <div class="panel-body ai-item-list">${(data.schedules || []).map(schedule => `<article><header><strong>${escapeHtml(schedule.name)}</strong><span class="status-pill ${schedule.enabled ? "success" : ""}">${schedule.enabled ? "enabled" : "paused"}</span></header><p>${escapeHtml(schedule.prompt)}</p><small>${escapeHtml(schedule.agent?.display_name || "Agent")} · every ${schedule.interval_minutes} min · next ${escapeHtml(formatDate(schedule.next_run_at, { time: true }))}</small><button class="action-btn" data-action="toggle-ai-schedule" data-id="${escapeHtml(schedule.id)}" data-enabled="${schedule.enabled ? "false" : "true"}">${schedule.enabled ? "Pause" : "Enable"}</button></article>`).join("") || `<div class="panel-empty"><div><strong>No schedules yet</strong></div></div>`}</div>
@@ -3200,8 +3252,224 @@
       </aside>`;
   }
 
+  function prospectDuplicateIndex() {
+    const index = {
+      emails: new Set(),
+      phones: new Set(),
+      websites: new Set(),
+      nameTown: new Set(),
+      nameAddress: new Set()
+    };
+    const add = record => {
+      const email = String(record.email || "").trim().toLowerCase();
+      const phone = normalizeProspectPhone(record.phone);
+      const website = normalizeProspectUrl(record.website);
+      const name = normalizeProspectText(record.name || record.company);
+      const town = normalizeProspectText(record.town || record.city);
+      const address = normalizeProspectText(record.address);
+      if (email) index.emails.add(email);
+      if (phone) index.phones.add(phone);
+      if (website) index.websites.add(website);
+      if (name && town) index.nameTown.add(name + "|" + town);
+      if (name && address) index.nameAddress.add(name + "|" + address);
+    };
+    state.companies.forEach(add);
+    state.leads.forEach(add);
+    state.contacts.forEach(add);
+    index.add = add;
+    return index;
+  }
+
+  function prospectDuplicateReason(row, index) {
+    const email = String(row.email || "").trim().toLowerCase();
+    const phone = normalizeProspectPhone(row.phone);
+    const website = normalizeProspectUrl(row.website);
+    const name = normalizeProspectText(row.businessName);
+    const town = normalizeProspectText(row.town);
+    const address = normalizeProspectText(row.address);
+    if (email && index.emails.has(email)) return "Email already exists";
+    if (phone && index.phones.has(phone)) return "Phone already exists";
+    if (website && index.websites.has(website)) return "Website already exists";
+    if (name && address && index.nameAddress.has(name + "|" + address)) return "Business and address already exist";
+    if (name && town && index.nameTown.has(name + "|" + town)) return "Business and town already exist";
+    return "";
+  }
+
+  function buildProspectImportPreview(payload) {
+    const index = prospectDuplicateIndex();
+    const rows = (payload.rows || []).map(row => {
+      const duplicateReason = prospectDuplicateReason(row, index);
+      const item = { ...row, importStatus: duplicateReason ? "duplicate" : "new", duplicateReason };
+      if (!duplicateReason) index.add({ name: row.businessName, town: row.town, city: row.town, address: row.address, email: row.email, phone: row.phone, website: row.website });
+      return item;
+    });
+    const invalidRows = (payload.invalidRows || payload.invalid || []).map(row => ({ ...row, reason: row.reason || (row.reasons || []).join("; "), importStatus: "invalid" }));
+    return {
+      filename: payload.filename || "Workbook",
+      sheetName: payload.sheetName || "",
+      rows,
+      invalidRows,
+      newCount: rows.filter(row => row.importStatus === "new").length,
+      duplicateCount: rows.filter(row => row.importStatus === "duplicate").length,
+      invalidCount: invalidRows.length
+    };
+  }
+
+  async function beginProspectImport() {
+    if (authRole !== "administrator") {
+      toast("Administrator access required", "Only administrators can import CRM prospects.", "danger");
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".xlsx,.xls,.csv";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (!file) return;
+      ui.modal = { kind: "prospect-import", loading: true, filename: file.name };
+      renderPortal();
+      try {
+        const formData = new FormData();
+        formData.append("file", file, file.name);
+        const response = await socialGatewayFormRequest("/api/crm/prospect-import", formData);
+        const payload = response?.data || response || {};
+        ui.modal = { kind: "prospect-import", loading: false, preview: buildProspectImportPreview({ ...payload, filename: file.name }) };
+        renderPortal();
+      } catch (error) {
+        ui.modal = null;
+        renderPortal();
+        toast("Import preview failed", error.message || "Could not read that workbook.", "danger");
+      }
+    }, { once: true });
+    input.click();
+  }
+
+  function importedLeadStatus(value) {
+    const status = normalizeProspectText(value);
+    if (status.includes("qualified")) return "Qualified";
+    if (status.includes("contacted") || status.includes("follow up")) return "Contacted";
+    return "New";
+  }
+
+  async function commitProspectImport() {
+    if (authRole !== "administrator" || ui.modal?.kind !== "prospect-import" || !ui.modal.preview) return;
+    const preview = ui.modal.preview;
+    const index = prospectDuplicateIndex();
+    const rows = preview.rows.filter(row => row.importStatus === "new" && !prospectDuplicateReason(row, index));
+    if (!rows.length) {
+      toast("Nothing to import", "Every valid row is already in the CRM.", "info");
+      return;
+    }
+    const now = isoNow();
+    const companies = [];
+    const leads = [];
+    const contacts = [];
+    rows.forEach(row => {
+      const companyId = uid("co");
+      const shared = {
+        source: "Excel prospect import",
+        sourceRow: row.sourceRow,
+        rank: row.rank || null,
+        distance: row.distance || null,
+        googleRating: row.googleRating || null,
+        reviewCount: row.reviewCount || null,
+        popularityScore: row.popularityScore || null,
+        createdAt: now,
+        updatedAt: now
+      };
+      const tags = ["Imported", "Prospect", row.category, row.town].filter(Boolean);
+      companies.push({
+        ...shared,
+        id: companyId,
+        name: row.businessName,
+        type: row.category || "Prospect venue",
+        city: row.town || "",
+        town: row.town || "",
+        address: row.address || "",
+        phone: row.phone || "",
+        email: row.email || "",
+        website: row.website || "",
+        status: "Prospect",
+        employees: 0,
+        ownerId: state.currentUserId,
+        tags
+      });
+      const scoreBase = Number(row.popularityScore || (Number(row.googleRating || 0) * 20) || 0);
+      leads.push({
+        ...shared,
+        id: uid("ld"),
+        name: row.businessName,
+        company: row.businessName,
+        companyId,
+        email: row.email || "",
+        phone: row.phone || "",
+        website: row.website || "",
+        address: row.address || "",
+        city: row.town || "",
+        town: row.town || "",
+        category: row.category || "",
+        ownerManager: row.ownerManager || "",
+        bestContactMethod: row.bestContactMethod || "",
+        pitchAngle: row.pitchAngle || "",
+        notes: row.notes || "",
+        status: importedLeadStatus(row.crmStage),
+        score: clamp(Math.round(scoreBase), 0, 100),
+        ownerId: state.currentUserId,
+        tags
+      });
+      if (row.ownerManager) {
+        contacts.push({
+          id: uid("ct"),
+          name: row.ownerManager,
+          email: row.email || "",
+          phone: row.phone || "",
+          companyId,
+          role: "Owner / Manager",
+          source: "Excel prospect import",
+          tags,
+          createdAt: now,
+          updatedAt: now
+        });
+      }
+      index.add({ name: row.businessName, town: row.town, city: row.town, address: row.address, email: row.email, phone: row.phone, website: row.website });
+    });
+    state.companies = [...companies, ...state.companies];
+    state.leads = [...leads, ...state.leads];
+    state.contacts = [...contacts, ...state.contacts];
+    addAudit("crm.prospects_imported", { filename: preview.filename, companies: companies.length, contacts: contacts.length, leads: leads.length, duplicates: preview.duplicateCount });
+    addActivity("integration", "prospect-import", "imported Excel prospects", companies.length + " businesses from " + preview.filename, "crm");
+    ui.modal = null;
+    ui.crmTab = "leads";
+    location.hash = "#/crm";
+    persist(false);
+    render();
+    try {
+      await syncCloudWorkspacePushNow();
+      toast("Prospects imported", companies.length + " businesses added; " + preview.duplicateCount + " duplicates skipped.");
+    } catch (error) {
+      toast("Imported locally", "Cloud sync still needs attention: " + (error.message || "unknown error"), "danger");
+    }
+  }
+
+  function renderProspectImportModal() {
+    const modal = ui.modal || {};
+    if (modal.loading) {
+      return '<div class="modal-backdrop" data-action="close-modal"></div><section class="modal wide prospect-import-modal" role="dialog" aria-modal="true"><header class="modal-head"><div><h2>Reading ' + escapeHtml(modal.filename || "workbook") + '</h2><p>Validating columns and preparing a duplicate-safe preview...</p></div></header><div class="modal-body"><div class="prospect-import-loading"><span class="loading-spinner"></span><strong>Analysing workbook</strong></div></div></section>';
+    }
+    const preview = modal.preview || { rows: [], invalidRows: [], newCount: 0, duplicateCount: 0, invalidCount: 0 };
+    const displayRows = [...preview.rows, ...preview.invalidRows].slice(0, 150);
+    const rowHtml = displayRows.map(row => {
+      const status = row.importStatus || "invalid";
+      const detail = status === "duplicate" ? row.duplicateReason : status === "invalid" ? (row.reason || "Required data missing") : [row.category, row.address].filter(Boolean).join(" - ");
+      return '<tr><td><strong>' + escapeHtml(row.businessName || "Row " + (row.sourceRow || "?")) + '</strong><span class="import-row-sub">' + escapeHtml(row.town || "") + '</span></td><td>' + escapeHtml(row.phone || row.email || row.website || "-") + '</td><td><span class="status-pill ' + (status === "new" ? "success" : status === "duplicate" ? "warning" : "danger") + '">' + escapeHtml(status) + '</span></td><td>' + escapeHtml(detail) + '</td></tr>';
+    }).join("");
+    return '<div class="modal-backdrop" data-action="close-modal"></div><section class="modal wide prospect-import-modal" role="dialog" aria-modal="true" aria-labelledby="prospect-import-title"><header class="modal-head"><div class="entity-logo">' + icon("upload") + '</div><div><h2 id="prospect-import-title">Review prospect import</h2><p>' + escapeHtml(preview.filename) + (preview.sheetName ? " - " + escapeHtml(preview.sheetName) : "") + '</p></div><button class="icon-btn close-btn" data-action="close-modal">' + icon("close") + '</button></header><div class="modal-body"><div class="prospect-import-summary"><article><strong>' + preview.newCount + '</strong><span>New prospects</span></article><article><strong>' + preview.duplicateCount + '</strong><span>Duplicates skipped</span></article><article><strong>' + preview.invalidCount + '</strong><span>Invalid rows</span></article></div><div class="import-note">' + icon("info") + '<span>Matching uses email, phone, website, then business plus address or town. Nothing is written until you confirm.</span></div><div class="table-scroll prospect-import-table"><table class="data-table"><thead><tr><th>Business</th><th>Contact</th><th>Decision</th><th>Reason / details</th></tr></thead><tbody>' + rowHtml + '</tbody></table></div>' + (displayRows.length < preview.rows.length + preview.invalidRows.length ? '<p class="import-truncated">Showing the first 150 rows. All reviewed new rows will be imported.</p>' : "") + '</div><footer class="modal-foot"><button class="action-btn" data-action="close-modal">Cancel</button><button class="action-btn primary" data-action="commit-prospect-import"' + (preview.newCount ? "" : " disabled") + '>' + icon("upload") + ' Import ' + preview.newCount + ' prospects</button></footer></section>';
+  }
+
   function renderModal() {
     if (ui.modal.kind === "quick") return renderQuickCreateModal();
+    if (ui.modal.kind === "prospect-import") return renderProspectImportModal();
     if (ui.modal.kind === "form") return renderEntityFormModal();
     if (ui.modal.kind === "calendar-day") return renderCalendarDayModal();
     if (ui.modal.kind === "integration") return renderIntegrationModal();
@@ -3715,6 +3983,12 @@
         break;
       case "open-form":
         openEntityForm(target.dataset.entity, null, { stageId: target.dataset.stage || undefined, type: target.dataset.type || undefined, start: target.dataset.date || undefined, end: target.dataset.date || undefined, pipelineId: ui.pipelineId });
+        break;
+      case "open-prospect-import":
+        beginProspectImport();
+        break;
+      case "commit-prospect-import":
+        commitProspectImport();
         break;
       case "edit-entity":
         event.preventDefault(); event.stopPropagation();
@@ -4485,7 +4759,9 @@
   async function handleSubmit(form, event) {
     const kind = form.dataset.form;
     if (kind === "ai-chat") {
-      const message = String(new FormData(form).get("message") || "").trim();
+      const chatValues = new FormData(form);
+      const message = String(chatValues.get("message") || "").trim();
+      const allowWebSearch = chatValues.has("allowWebSearch");
       const agent = aiTeamOverview?.data?.agents?.find(item => item.id === form.dataset.agentId);
       if (!message || !agent || aiTeamBusy) return;
       ui.aiContext = "";
@@ -4509,7 +4785,8 @@
           body: {
             agentKey: agent.agent_key,
             message,
-            workspaceId: state.workspace?.id || "ws_akipasa"
+            workspaceId: state.workspace?.id || "ws_akipasa",
+            allowWebSearch
           }
         });
         appendLocalAIMessage({
@@ -4558,7 +4835,8 @@
         title: String(values.title || "").trim(),
         description: `${String(values.description || "").trim()}\n\nOutput delivery: ${delivery}`,
         assignedAgentId: String(values.agentId || ""),
-        priority: Number(values.priority || 3)
+        priority: Number(values.priority || 3),
+        allowWebSearch: Boolean(values.allowWebSearch)
       }, "AI task created");
       if (result) form.reset();
       return;
@@ -4576,7 +4854,8 @@
         agentId: String(values.agentId || ""),
         name: String(values.name || "").trim(),
         prompt: `${String(values.prompt || "").trim()}\n\nOutput delivery: ${delivery}`,
-        intervalMinutes: Number(values.intervalMinutes || 1440)
+        intervalMinutes: Number(values.intervalMinutes || 1440),
+        allowWebSearch: Boolean(values.allowWebSearch)
       }, "Recurring AI job created");
       if (result) form.reset();
       return;

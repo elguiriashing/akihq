@@ -1,0 +1,11 @@
+{
+  "name": "akihq-integration-gateway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test prospect-import.test.js"
+  },
+  "dependencies": {
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  }
+}
