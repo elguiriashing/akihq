@@ -6,6 +6,10 @@
     "test": "node --test prospect-import.test.js"
   },
   "dependencies": {
+    "postal-mime": "^2.4.3",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "wrangler": "^4.124.0"
   }
 }

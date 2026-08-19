@@ -1,4 +1,5 @@
 import { parseProspectWorkbook } from "./prospect-import.js";
+import PostalMime from "postal-mime";
 
 /**
  * AkiHQ optional integration gateway for Cloudflare Workers.
@@ -13,8 +14,26 @@ const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_SPREADSHEET_BYTES = 10 * 1024 * 1024;
 const SOCIAL_PROVIDERS = new Set(["meta", "instagram", "tiktok"]);
 const SOCIAL_ACCOUNT_PREFIX = "social:account:";
+const MAIL_MESSAGE_PREFIX = "mail:message:";
+const DEFAULT_MAIL_ALIASES = [
+  "alex@akipasa.com", "andrew@akipasa.com", "business@akipasa.com",
+  "contact@akipasa.com", "info@akipasa.com", "legal@akipasa.com",
+  "press@akipasa.com", "social@akipasa.com", "social.en@akipasa.com",
+  "social.es@akipasa.com", "support@akipasa.com"
+];
 
 export default {
+  async email(message, env, ctx) {
+    ctx.waitUntil(archiveIncomingEmail(message, env).catch(error => {
+      console.error("AkiHQ inbound email archive failed", error);
+    }));
+    const destination = mailForwardDestination(message.to, env);
+    if (!destination) {
+      message.setReject("This AkiPasa address is not configured.");
+      return;
+    }
+    await message.forward(destination);
+  },
   async fetch(request, env) {
     const url = new URL(request.url);
     const cors = corsHeaders(request, env);
@@ -70,6 +89,20 @@ export default {
         if (request.method === "POST" && url.pathname === "/api/social/accounts/disconnect") {
           requireAdministrator(staff);
           return await disconnectSocialAccount(request, env, cors);
+        }
+        return json({ ok: false, error: "not_found" }, 404, cors);
+      }
+
+      if (url.pathname.startsWith("/api/mail/")) {
+        await authenticateStaff(request, env);
+        if (request.method === "GET" && url.pathname === "/api/mail/overview") {
+          return json(await mailboxOverview(env), 200, cors);
+        }
+        if (request.method === "POST" && url.pathname === "/api/mail/send") {
+          return json(await sendMailboxMessage(request, env), 200, cors);
+        }
+        if (request.method === "POST" && url.pathname === "/api/mail/read") {
+          return json(await markMailboxRead(request, env), 200, cors);
         }
         return json({ ok: false, error: "not_found" }, 404, cors);
       }
@@ -517,6 +550,183 @@ async function storeIntegrationEvent(env, event) {
 function requireSocialStore(env) {
   if (!env.SOCIAL_STORE) throw new HttpError(503, "social_store_not_configured", "The encrypted social account store is not configured.");
   return env.SOCIAL_STORE;
+}
+
+function requireMailStore(env) {
+  if (!env.SOCIAL_STORE) throw new HttpError(503, "mail_store_not_configured", "The shared mailbox store is not configured.");
+  return env.SOCIAL_STORE;
+}
+
+function normalizeEmail(value) {
+  const match = String(value || "").trim().toLowerCase().match(/<?([^<>\s]+@[^<>\s]+)>?$/);
+  return match ? match[1] : "";
+}
+
+function isEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
+}
+
+function mailAliases(env) {
+  const configured = String(env.MAIL_FROM_ADDRESSES || "").split(",").map(normalizeEmail).filter(isEmail);
+  return [...new Set(configured.length ? configured : DEFAULT_MAIL_ALIASES)].sort();
+}
+
+function mailForwardDestination(recipient, env) {
+  const address = normalizeEmail(recipient);
+  const overrides = String(env.MAIL_FORWARD_OVERRIDES || "").split(",").map(entry => entry.trim()).filter(Boolean)
+    .reduce((result, entry) => {
+      const separator = entry.indexOf("=");
+      if (separator > 0) result[normalizeEmail(entry.slice(0, separator))] = normalizeEmail(entry.slice(separator + 1));
+      return result;
+    }, {});
+  const destination = overrides[address] || normalizeEmail(env.MAIL_FORWARD_DEFAULT);
+  return isEmail(destination) ? destination : "";
+}
+
+function mailboxTimestampKey(isoTimestamp, id) {
+  const timestamp = Number.isFinite(Date.parse(isoTimestamp)) ? Date.parse(isoTimestamp) : Date.now();
+  return MAIL_MESSAGE_PREFIX + String(timestamp).padStart(13, "0") + ":" + id;
+}
+
+function normalizeSubject(value) {
+  return String(value || "(no subject)").replace(/^(re|fw|fwd)\s*:\s*/gi, "").trim().toLowerCase();
+}
+
+function mailboxThreadId(from, to, subject) {
+  return [normalizeEmail(from), normalizeEmail(to), normalizeSubject(subject)].sort().join("|");
+}
+
+function addressName(address) {
+  if (!address) return "";
+  if (typeof address === "string") return address.replace(/<[^>]+>/g, "").replace(/^["']|["']$/g, "").trim();
+  return String(address.name || "").trim();
+}
+
+function plainEmailText(value) {
+  return String(value || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function archiveIncomingEmail(message, env) {
+  const store = requireMailStore(env);
+  const raw = await new Response(message.raw).arrayBuffer();
+  const parsed = await PostalMime.parse(raw);
+  const id = crypto.randomUUID();
+  const timestamp = parsed.date && Number.isFinite(Date.parse(parsed.date)) ? new Date(parsed.date).toISOString() : new Date().toISOString();
+  const from = normalizeEmail(parsed.from?.address || message.from);
+  const to = normalizeEmail(parsed.to?.[0]?.address || message.to);
+  const subject = String(parsed.subject || message.headers.get("subject") || "(no subject)").slice(0, 500);
+  const text = String(parsed.text || plainEmailText(parsed.html)).slice(0, 120000);
+  const record = {
+    id, direction: "inbound", from, from_name: addressName(parsed.from), to, subject, text, timestamp, unread: true,
+    thread_id: mailboxThreadId(from, to, subject),
+    message_id: String(parsed.messageId || message.headers.get("message-id") || ""),
+    in_reply_to: String(parsed.inReplyTo || message.headers.get("in-reply-to") || ""),
+    attachments: (parsed.attachments || []).map(attachment => ({
+      filename: String(attachment.filename || "attachment"),
+      mime_type: String(attachment.mimeType || "application/octet-stream"),
+      size: Number(attachment.content?.byteLength || 0)
+    }))
+  };
+  await store.put(mailboxTimestampKey(timestamp, id), JSON.stringify(record), {
+    metadata: { direction: "inbound", timestamp, unread: true, thread_id: record.thread_id }
+  });
+  return record;
+}
+
+async function listMailboxMessages(env, limit = 300) {
+  const store = requireMailStore(env);
+  const listed = await store.list({ prefix: MAIL_MESSAGE_PREFIX, limit: Math.min(Math.max(Number(limit) || 300, 1), 1000) });
+  const records = await Promise.all(listed.keys.map(async key => {
+    try {
+      const value = await store.get(key.name, "json");
+      return value ? { ...value, _key: key.name } : null;
+    } catch {
+      return null;
+    }
+  }));
+  return records.filter(Boolean).sort((a, b) => Date.parse(b.timestamp || 0) - Date.parse(a.timestamp || 0));
+}
+
+async function mailboxOverview(env) {
+  const messages = await listMailboxMessages(env);
+  return {
+    ok: true,
+    configured: Boolean(env.EMAIL && env.SOCIAL_STORE),
+    aliases: mailAliases(env),
+    forwarding: { default: normalizeEmail(env.MAIL_FORWARD_DEFAULT), overrides: String(env.MAIL_FORWARD_OVERRIDES || "") },
+    unread: messages.filter(message => message.direction === "inbound" && message.unread).length,
+    messages
+  };
+}
+
+async function sendMailboxMessage(request, env) {
+  if (!env.EMAIL) throw new HttpError(503, "email_sending_not_configured", "Cloudflare Email Sending is not configured.");
+  const store = requireMailStore(env);
+  const body = await readJson(request);
+  const from = normalizeEmail(cleanText(body.from, 320, "from"));
+  const to = normalizeEmail(cleanText(body.to, 320, "to"));
+  const subject = cleanText(body.subject, 500, "subject");
+  const text = cleanText(body.text, 120000, "text");
+  if (!mailAliases(env).includes(from)) throw new HttpError(400, "invalid_sender", "Choose an approved AkiPasa sender address.");
+  if (!isEmail(to)) throw new HttpError(400, "invalid_recipient", "Enter a valid recipient email address.");
+
+  const id = crypto.randomUUID();
+  const timestamp = new Date().toISOString();
+  const headers = {};
+  const inReplyTo = String(body.in_reply_to || "").trim().slice(0, 1000);
+  if (inReplyTo) {
+    headers["In-Reply-To"] = inReplyTo;
+    headers.References = inReplyTo;
+  }
+  await env.EMAIL.send({
+    from, to, subject, text,
+    html: '<div style="font-family:Arial,sans-serif;white-space:pre-wrap">' + escapeEmailHtml(text) + "</div>",
+    replyTo: from,
+    ...(Object.keys(headers).length ? { headers } : {})
+  });
+
+  const record = {
+    id, direction: "outbound", from, from_name: "AkiPasa", to, subject, text, timestamp, unread: false,
+    thread_id: String(body.thread_id || mailboxThreadId(to, from, subject)).slice(0, 1000),
+    message_id: "", in_reply_to: inReplyTo, attachments: []
+  };
+  await store.put(mailboxTimestampKey(timestamp, id), JSON.stringify(record), {
+    metadata: { direction: "outbound", timestamp, unread: false, thread_id: record.thread_id }
+  });
+  return { ok: true, message: record };
+}
+
+async function markMailboxRead(request, env) {
+  const store = requireMailStore(env);
+  const body = await readJson(request);
+  const ids = new Set((Array.isArray(body.ids) ? body.ids : []).map(value => String(value)));
+  const threadId = String(body.thread_id || "");
+  if (!ids.size && !threadId) throw new HttpError(400, "missing_selection", "Provide ids or thread_id.");
+  const messages = await listMailboxMessages(env, 1000);
+  const matches = messages.filter(message => message.direction === "inbound" && message.unread && (ids.has(String(message.id)) || (threadId && message.thread_id === threadId)));
+  await Promise.all(matches.map(message => {
+    const updated = { ...message, unread: false };
+    delete updated._key;
+    return store.put(message._key, JSON.stringify(updated), {
+      metadata: { direction: "inbound", timestamp: updated.timestamp, unread: false, thread_id: updated.thread_id }
+    });
+  }));
+  return { ok: true, updated: matches.length };
+}
+
+function escapeEmailHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[character]);
 }
 
 function cleanText(value, maxLength, field) {
@@ -1116,7 +1326,9 @@ function integrationStatus(env) {
       supabase_event_sink: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
       outbound_webhooks: Boolean(env.OUTBOUND_WEBHOOK_HOSTS),
       social_store: Boolean(env.SOCIAL_STORE && env.SOCIAL_ENCRYPTION_KEY),
-      social_auth: Boolean(env.SUPABASE_URL && env.SUPABASE_PUBLISHABLE_KEY)
+      social_auth: Boolean(env.SUPABASE_URL && env.SUPABASE_PUBLISHABLE_KEY),
+      email_sending: Boolean(env.EMAIL),
+      shared_mailbox: Boolean(env.EMAIL && env.SOCIAL_STORE)
     }
   };
 }

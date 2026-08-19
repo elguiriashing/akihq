@@ -10,6 +10,9 @@ OUTBOUND_WEBHOOK_HOSTS = ""
 SUPABASE_URL = "https://vhpbvcfkcteswlsdjrfl.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_Mm4CJvGyIaLOWbU3g1sxIQ_Wv2jrKt1"
 SOCIAL_RETURN_URL = "https://crm.akipasa.com/#/crm/social"
+MAIL_FORWARD_DEFAULT = "alexashing1@gmail.com"
+MAIL_FORWARD_OVERRIDES = "andrew@akipasa.com=andrew@cpt-rec.com"
+MAIL_FROM_ADDRESSES = "alex@akipasa.com,andrew@akipasa.com,business@akipasa.com,contact@akipasa.com,info@akipasa.com,legal@akipasa.com,press@akipasa.com,social@akipasa.com,social.en@akipasa.com,social.es@akipasa.com,support@akipasa.com"
 
 [[kv_namespaces]]
 binding = "SOCIAL_STORE"
@@ -18,6 +21,15 @@ id = "d9fe3743bdfb4c9ab3ee31dc2764c61b"
 [[services]]
 binding = "AI_GATEWAY"
 service = "akipasa"
+
+[[send_email]]
+name = "EMAIL"
+allowed_sender_addresses = [
+  "alex@akipasa.com", "andrew@akipasa.com", "business@akipasa.com",
+  "contact@akipasa.com", "info@akipasa.com", "legal@akipasa.com",
+  "press@akipasa.com", "social@akipasa.com", "social.en@akipasa.com",
+  "social.es@akipasa.com", "support@akipasa.com"
+]
 
 [triggers]
 crons = [ "15 4 * * *" ]

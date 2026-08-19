@@ -98,6 +98,7 @@
     list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r=".5" fill="currentColor"/><circle cx="3.5" cy="12" r=".5" fill="currentColor"/><circle cx="3.5" cy="18" r=".5" fill="currentColor"/>',
     board: '<rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="12" rx="1"/>',
     send: '<path d="m22 2-7 20-4-9-9-4 20-7Z"/><path d="M22 2 11 13"/>',
+    attachment: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
     link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     check: '<path d="m5 12 4 4L19 6"/>',
     warning: '<path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
@@ -164,6 +165,7 @@
   ];
 
   const integrationCatalog = [
+    { id: "akipasa-mail", name: "AkiPasa Mail", category: "Email", mark: "A", color: "linear-gradient(135deg,#6478f0,#46d4c0)", description: "The live shared inbox for @akipasa.com aliases, powered by Cloudflare Email Routing and Email Sending.", mode: "serverless" },
     { id: "resend", name: "Resend", category: "Email", mark: "R", color: "linear-gradient(135deg,#101010,#4c4c4c)", description: "Transactional and CRM email, inbound receiving, delivery events and sender identities.", mode: "serverless" },
     { id: "gmail", name: "Gmail", category: "Email", mark: "M", color: "linear-gradient(135deg,#e65b51,#f4b85c)", description: "Sync mailbox threads, contacts and outbound messages through Google OAuth.", mode: "oauth" },
     { id: "outlook", name: "Microsoft Outlook", category: "Email", mark: "O", color: "linear-gradient(135deg,#1787da,#39a7f0)", description: "Connect Microsoft 365 mailboxes, calendars and contacts.", mode: "oauth" },
@@ -248,11 +250,8 @@
       conversations: [],
       feed: [],
       activities: [],
-      notifications: [
-        { id: "n1", title: "New Lead Created", body: "Soho House London added to CRM sales pipeline (€4,500).", route: "crm", icon: "sales", seen: false, at: new Date(Date.now() - 3600000 * 2).toISOString() },
-        { id: "n2", title: "Telegram Chat Backup Complete", body: "Automated 24h backup saved snapshot to CRM Telegram tab.", route: "telegram", icon: "telegram", seen: false, at: new Date(Date.now() - 3600000 * 5).toISOString() },
-        { id: "n3", title: "Supabase User Promotion", body: "User alex@akipasa.com verified as CRM Administrator.", route: "employees", icon: "user", seen: false, at: new Date(Date.now() - 3600000 * 24).toISOString() }
-      ],
+      notifications: [],
+      notificationReadIds: [],
       integrations: {
         "akipasa": { status: "connected", label: "Connected to akipasa.com", config: { siteUrl: "https://akipasa.com" }, connectedAt: isoNow() },
         "generic-webhook": { status: "ready", label: "Not configured", config: {}, connectedAt: null },
@@ -326,6 +325,10 @@
   let analyticsOverview = null;
   let analyticsLoading = false;
   let analyticsError = "";
+  let mailboxOverviewState = { configured: false, aliases: [], forwarding: {}, messages: [], unread: 0 };
+  let mailboxLoading = false;
+  let mailboxError = "";
+  let mailboxLastLoadedAt = 0;
 
   let isSyncingWorkspace = false;
   let lastRemoteWorkspaceUpdate = null;
@@ -420,7 +423,7 @@
     const arrayKeys = [
       "tasks", "projects", "contacts", "companies", "deals", "leads",
       "products", "invoices", "campaigns", "pages", "forms",
-      "automations", "conversations", "feed", "activities", "audit"
+      "automations", "conversations", "feed", "activities", "audit", "notificationReadIds"
     ];
 
     let stateChanged = false;
@@ -1002,6 +1005,7 @@
     ui.searchQuery = "";
     render();
     if (route === "analytics") loadAnalyticsOverview(false);
+    if (route === "inbox" || route === "integrations") loadMailboxOverview(true, true);
   }
 
   function socialGatewayUrl(path = "") {
@@ -1030,6 +1034,138 @@
     try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
     if (!response.ok) throw new Error(payload?.message || payload?.error || `Gateway request failed (${response.status}).`);
     return payload;
+  }
+
+  function mailboxMessages() {
+    return Array.isArray(mailboxOverviewState?.messages) ? mailboxOverviewState.messages : [];
+  }
+
+  function mailboxConversations() {
+    const threads = new Map();
+    mailboxMessages().forEach(message => {
+      const threadId = String(message.thread_id || message.id || "");
+      if (!threadId) return;
+      if (!threads.has(threadId)) threads.set(threadId, []);
+      threads.get(threadId).push(message);
+    });
+    return [...threads.entries()].map(([id, messages]) => {
+      messages.sort((a, b) => Date.parse(a.timestamp || 0) - Date.parse(b.timestamp || 0));
+      const inbound = messages.find(message => message.direction === "inbound");
+      const last = messages[messages.length - 1] || {};
+      const externalEmail = inbound?.from || last.to || last.from || "Unknown sender";
+      const localAddress = inbound?.to || last.from || mailboxOverviewState.aliases?.[0] || "support@akipasa.com";
+      return {
+        id,
+        name: inbound?.from_name || externalEmail,
+        email: externalEmail,
+        localAddress,
+        subject: last.subject || inbound?.subject || "(no subject)",
+        channel: "AkiPasa Mail",
+        messages,
+        lastAt: last.timestamp || "",
+        unread: messages.filter(message => message.direction === "inbound" && message.unread).length
+      };
+    }).sort((a, b) => Date.parse(b.lastAt || 0) - Date.parse(a.lastAt || 0));
+  }
+
+  function mailboxUnreadCount() {
+    return Number(mailboxOverviewState?.unread || 0);
+  }
+
+  function replySubject(subject) {
+    const clean = String(subject || "(no subject)").trim();
+    return /^re\s*:/i.test(clean) ? clean : `Re: ${clean}`;
+  }
+
+  async function loadMailboxOverview(renderAfter = true, force = false) {
+    if (!authUser || mailboxLoading) return;
+    if (!force && Date.now() - mailboxLastLoadedAt < 2500) return;
+    mailboxLoading = true;
+    mailboxError = "";
+    try {
+      const payload = await socialGatewayRequest("/api/mail/overview");
+      mailboxOverviewState = {
+        configured: Boolean(payload?.configured),
+        aliases: Array.isArray(payload?.aliases) ? payload.aliases : [],
+        forwarding: payload?.forwarding || {},
+        messages: Array.isArray(payload?.messages) ? payload.messages : [],
+        unread: Number(payload?.unread || 0)
+      };
+      mailboxLastLoadedAt = Date.now();
+      const conversations = mailboxConversations();
+      if (!conversations.some(item => item.id === ui.selectedConversationId)) ui.selectedConversationId = conversations[0]?.id || null;
+    } catch (error) {
+      mailboxError = error.message || "The mailbox could not be loaded.";
+      console.error("Mailbox overview:", error);
+    } finally {
+      mailboxLoading = false;
+      if (renderAfter && !document.querySelector('[data-form="mail-message"] textarea:focus, [data-form="mail-compose"] input:focus, [data-form="mail-compose"] textarea:focus')) render();
+    }
+  }
+
+  async function markMailboxThreadRead(threadId) {
+    const ids = mailboxMessages().filter(message => message.thread_id === threadId && message.direction === "inbound" && message.unread).map(message => message.id);
+    if (!ids.length) return;
+    mailboxMessages().forEach(message => { if (ids.includes(message.id)) message.unread = false; });
+    mailboxOverviewState.unread = Math.max(0, mailboxUnreadCount() - ids.length);
+    try {
+      await socialGatewayRequest("/api/mail/read", { method: "POST", body: { thread_id: threadId } });
+    } catch (error) {
+      console.error("Mailbox read receipt:", error);
+    }
+  }
+
+  function liveNotifications() {
+    state.notificationReadIds ||= [];
+    const readIds = new Set(state.notificationReadIds);
+    const mail = mailboxMessages().filter(message => message.direction === "inbound").map(message => ({
+      id: `mail:${message.id}`,
+      title: message.from_name ? `Email from ${message.from_name}` : `Email from ${message.from}`,
+      body: `${message.subject || "(no subject)"} · ${String(message.text || "").slice(0, 120)}`,
+      route: "inbox",
+      icon: "inbox",
+      threadId: message.thread_id,
+      messageId: message.id,
+      seen: !message.unread || readIds.has(`mail:${message.id}`),
+      at: message.timestamp
+    }));
+    const activity = (state.activities || []).slice(0, 40).map(item => ({
+      id: `activity:${item.id}`,
+      title: item.verb ? capitalize(item.verb) : "Workspace update",
+      body: item.detail || "AkiHQ workspace activity",
+      route: item.icon || "dashboard",
+      icon: item.icon || "bell",
+      seen: readIds.has(`activity:${item.id}`),
+      at: item.at
+    }));
+    return [...mail, ...activity].sort((a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0)).slice(0, 30);
+  }
+
+  async function markAllLiveNotificationsRead() {
+    const notifications = liveNotifications();
+    state.notificationReadIds = [...new Set([...(state.notificationReadIds || []), ...notifications.map(item => item.id)])].slice(-500);
+    const unreadIds = mailboxMessages().filter(message => message.direction === "inbound" && message.unread).map(message => message.id);
+    mailboxMessages().forEach(message => { if (unreadIds.includes(message.id)) message.unread = false; });
+    mailboxOverviewState.unread = 0;
+    persist(false);
+    if (unreadIds.length) {
+      try { await socialGatewayRequest("/api/mail/read", { method: "POST", body: { ids: unreadIds } }); }
+      catch (error) { console.error("Mailbox mark all read:", error); }
+    }
+    render();
+  }
+
+  async function openLiveNotification(id) {
+    const notification = liveNotifications().find(item => item.id === id);
+    if (!notification) return;
+    state.notificationReadIds = [...new Set([...(state.notificationReadIds || []), id])].slice(-500);
+    persist(false);
+    ui.dropdown = null;
+    if (notification.threadId) {
+      ui.selectedConversationId = notification.threadId;
+      await markMailboxThreadRead(notification.threadId);
+    }
+    setRoute(notification.route || "dashboard");
   }
 
   async function socialGatewayFormRequest(path, formData) {
@@ -1284,7 +1420,7 @@
   }
 
   function renderSidebar() {
-    const unread = state.conversations.reduce((sum, conversation) => sum + Number(conversation.unread || 0), 0);
+    const unread = mailboxUnreadCount();
     const overdueTasks = state.tasks.filter(task => task.status !== "done" && isOverdue(task.dueDate)).length;
     return `
       <aside class="sidebar" aria-label="Primary navigation">
@@ -1331,7 +1467,7 @@
   }
 
   function renderMobileTabbar() {
-    const unread = state.conversations.reduce((sum, conversation) => sum + Number(conversation.unread || 0), 0);
+    const unread = mailboxUnreadCount();
     const isSpanish = (state.settings?.locale || "en") === "es";
     const primary = [
       ["dashboard", "dashboard", isSpanish ? "Inicio" : "Home"],
@@ -1354,7 +1490,7 @@
 
   function renderTopbar() {
     const user = currentUser();
-    const unseen = state.notifications.filter(notification => !notification.seen).length;
+    const unseen = liveNotifications().filter(notification => !notification.seen).length;
     const siteUrl = (window.AKIHQ_CONFIG && window.AKIHQ_CONFIG.SITE_URL) || "https://akipasa.com";
     return `
       <header class="topbar">
@@ -1993,6 +2129,33 @@
   }
 
   function renderInbox() {
+    const conversations = mailboxConversations();
+    const selected = conversations.find(conversation => conversation.id === ui.selectedConversationId) || conversations[0] || null;
+    const aliases = mailboxOverviewState.aliases?.length ? mailboxOverviewState.aliases : ["support@akipasa.com"];
+    const lastInbound = selected?.messages?.slice().reverse().find(message => message.direction === "inbound");
+    return `
+      <div class="mailbox-toolbar panel">
+        <div class="mailbox-toolbar-copy"><span class="integration-logo mailbox-logo">A</span><div><strong>AkiPasa Mail</strong><span>${mailboxOverviewState.configured ? `${mailboxUnreadCount()} unread · ${aliases.length} approved senders` : "Cloudflare Email is not configured"}</span></div></div>
+        <div class="panel-actions"><button class="action-btn" data-action="refresh-mailbox" ${mailboxLoading ? "disabled" : ""}>${icon("refresh")} ${mailboxLoading ? "Refreshing…" : "Refresh"}</button><button class="action-btn primary" data-action="compose-email">${icon("plus")} New email</button></div>
+      </div>
+      ${mailboxError ? `<div class="social-alert mailbox-alert">${icon("warning")}<div><strong>Mailbox unavailable</strong><span>${escapeHtml(mailboxError)}</span></div></div>` : ""}
+      <section class="panel inbox-layout ${ui.mobileChatOpen ? "chat-open" : ""}">
+        <div class="conversation-list">
+          <div class="conversation-search"><input type="search" data-conversation-search placeholder="Search email threads…" /></div>
+          ${conversations.map(conversation => {
+            const last = conversation.messages[conversation.messages.length - 1];
+            return `<div class="conversation-item ${selected?.id === conversation.id ? "active" : ""}" data-action="select-conversation" data-id="${escapeHtml(conversation.id)}" data-search-text="${escapeHtml(`${conversation.name} ${conversation.email} ${conversation.subject} ${last?.text || ""}`.toLowerCase())}"><div class="conv-avatar">${initials(conversation.name)}</div><div><div class="conv-name">${escapeHtml(conversation.name)}</div><div class="conv-subject">${escapeHtml(conversation.subject)}</div><div class="conv-preview">${escapeHtml(last?.text || "No message preview")}</div></div><div class="conv-meta">${escapeHtml(last ? relativeTime(last.timestamp) : "")} ${conversation.unread ? `<div class="unread">${conversation.unread}</div>` : ""}</div></div>`;
+          }).join("") || `<div class="mailbox-list-empty"><div class="empty-state-icon">${icon("inbox")}</div><strong>No email yet</strong><span>Messages sent to an AkiPasa alias appear here while still forwarding to the existing personal inbox.</span></div>`}
+        </div>
+        ${selected ? `<div class="chat-pane">
+          <div class="chat-head"><button class="mini-btn hidden" data-action="mobile-inbox-back">${icon("arrowLeft")}</button><div class="conv-avatar">${initials(selected.name)}</div><div class="chat-head-copy"><strong>${escapeHtml(selected.subject)}</strong><span>${escapeHtml(selected.name)} · ${escapeHtml(selected.email)} · via ${escapeHtml(selected.localAddress)}</span></div></div>
+          <div class="messages" id="messages">${selected.messages.map(message => `<div class="message ${message.direction === "outbound" ? "out" : ""}"><div class="message-envelope"><strong>${escapeHtml(message.direction === "outbound" ? message.from : (message.from_name || message.from))}</strong><span>${escapeHtml(message.subject || "")}</span></div><div class="message-body">${escapeHtml(message.text || "(No plain-text content)")}</div>${message.attachments?.length ? `<div class="mail-attachments">${message.attachments.map(file => `<span>${icon("attachment")} ${escapeHtml(file.filename)} <small>${Math.max(1, Math.round(Number(file.size || 0) / 1024))} KB</small></span>`).join("")}</div>` : ""}<span class="message-time">${escapeHtml(formatDate(message.timestamp, { time: true, year: true }))}</span></div>`).join("")}</div>
+          <form class="composer mail-composer" data-form="mail-message"><input type="hidden" name="to" value="${escapeHtml(selected.email)}"><input type="hidden" name="subject" value="${escapeHtml(replySubject(selected.subject))}"><input type="hidden" name="thread_id" value="${escapeHtml(selected.id)}"><input type="hidden" name="in_reply_to" value="${escapeHtml(lastInbound?.message_id || "")}"><label class="mail-from-select">From<select name="from">${aliases.map(alias => `<option value="${escapeHtml(alias)}" ${alias === selected.localAddress ? "selected" : ""}>${escapeHtml(alias)}</option>`).join("")}</select></label><textarea name="text" required placeholder="Write a reply…"></textarea><button class="icon-btn create-btn" type="submit" title="Send email">${icon("send")}</button></form>
+        </div>` : `<div class="chat-pane mailbox-empty-pane"><div><div class="empty-state-icon">${icon("inbox")}</div><h2>Your shared inbox is ready</h2><p>Incoming mail is archived here and forwarded to its existing destination. Use New email to start a conversation from any approved alias.</p><button class="action-btn primary" data-action="compose-email">Compose email</button></div></div>`}
+      </section>`;
+  }
+
+  function renderLegacyInbox() {
     state.conversations ||= [
       {
         id: "conv_01",
@@ -2829,7 +2992,7 @@
       </div>
       <div class="cards-grid">
         ${filtered.map(integration => {
-          const connection = state.integrations[integration.id];
+          const connection = integration.id === "akipasa-mail" ? { status: mailboxOverviewState.configured ? "connected" : "setup" } : state.integrations[integration.id];
           const connected = connection?.status === "connected";
           const setup = connection?.status === "setup";
           return `<article class="entity-card integration-card">
@@ -3469,6 +3632,7 @@
 
   function renderModal() {
     if (ui.modal.kind === "quick") return renderQuickCreateModal();
+    if (ui.modal.kind === "mail-compose") return renderMailComposeModal();
     if (ui.modal.kind === "prospect-import") return renderProspectImportModal();
     if (ui.modal.kind === "form") return renderEntityFormModal();
     if (ui.modal.kind === "calendar-day") return renderCalendarDayModal();
@@ -3478,6 +3642,11 @@
     if (ui.modal.kind === "stock") return renderStockModal();
     if (ui.modal.kind === "confirm") return renderConfirmModal();
     return "";
+  }
+
+  function renderMailComposeModal() {
+    const aliases = mailboxOverviewState.aliases?.length ? mailboxOverviewState.aliases : ["support@akipasa.com"];
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal mail-compose-modal" role="dialog" aria-modal="true" aria-labelledby="mail-compose-title"><header class="modal-head"><div class="integration-logo" style="--integration-bg:linear-gradient(135deg,#6478f0,#46d4c0)">A</div><div><h2 id="mail-compose-title">New email</h2><p>Send from an approved AkiPasa address</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header><form data-form="mail-compose"><div class="modal-body form-grid"><div class="form-field"><label>From</label><select name="from" required>${aliases.map(alias => `<option value="${escapeHtml(alias)}">${escapeHtml(alias)}</option>`).join("")}</select></div><div class="form-field"><label>To</label><input name="to" type="email" required autocomplete="email" placeholder="name@example.com"></div><div class="form-field full"><label>Subject</label><input name="subject" required maxlength="500" placeholder="Email subject"></div><div class="form-field full"><label>Message</label><textarea name="text" required rows="9" placeholder="Write your message…"></textarea></div></div><footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button type="submit" class="action-btn primary">${icon("send")} Send email</button></footer></form></section>`;
   }
 
   function renderCalendarDayModal() {
@@ -3699,6 +3868,11 @@
   function renderIntegrationModal() {
     const integration = integrationCatalog.find(item => item.id === ui.modal.id);
     if (!integration) return "";
+    if (integration.id === "akipasa-mail") {
+      const aliases = mailboxOverviewState.aliases || [];
+      const destination = mailboxOverviewState.forwarding?.default || "Existing personal inboxes";
+      return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true"><header class="modal-head"><div class="integration-logo" style="--integration-bg:${integration.color}">A</div><div><h2>AkiPasa Mail</h2><p><span class="status-pill ${mailboxOverviewState.configured ? "success" : "warning"}">${mailboxOverviewState.configured ? "Connected & active" : "Needs Worker configuration"}</span></p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header><div class="modal-body page-grid"><div class="detail-block"><div class="detail-label">Inbound routing</div><div class="detail-value">Cloudflare archives each message in AkiHQ, then forwards it to the existing destination.</div></div><div class="detail-block"><div class="detail-label">Default forwarding</div><div class="detail-value">${escapeHtml(destination)}</div></div><div class="detail-block"><div class="detail-label">Approved senders</div><div class="mail-alias-list">${aliases.map(alias => `<span class="status-pill info">${escapeHtml(alias)}</span>`).join("") || "No aliases reported"}</div></div></div><footer class="modal-foot"><button class="action-btn" data-action="refresh-mailbox">${icon("refresh")} Refresh status</button><button class="action-btn primary" data-action="open-mailbox">${icon("inbox")} Open Inbox</button></footer></section>`;
+    }
     const connection = state.integrations[integration.id] || {};
     const isConnected = connection.status === "connected";
 
@@ -3869,7 +4043,7 @@
     if (ui.dropdown === "notifications") {
       return `<div class="dropdown" style="right:64px;top:58px">
         <div class="dropdown-head"><strong>Notifications</strong><button data-action="mark-notifications">Mark all read</button></div>
-        ${state.notifications.slice(0, 12).map(notification => `<div class="dropdown-item ${notification.seen ? "" : "unseen"}" data-action="open-notification" data-id="${notification.id}"><div class="activity-icon">${icon(notification.icon || "bell")}</div><div class="dropdown-copy"><strong>${escapeHtml(notification.title)}</strong><br>${escapeHtml(notification.body)}<time>${escapeHtml(relativeTime(notification.at))}</time></div></div>`).join("") || `<div class="panel-empty"><div><strong>All clear</strong></div></div>`}
+        ${liveNotifications().slice(0, 12).map(notification => `<div class="dropdown-item ${notification.seen ? "" : "unseen"}" data-action="open-notification" data-id="${escapeHtml(notification.id)}"><div class="activity-icon">${icon(notification.icon || "bell")}</div><div class="dropdown-copy"><strong>${escapeHtml(notification.title)}</strong><br>${escapeHtml(notification.body)}<time>${escapeHtml(relativeTime(notification.at))}</time></div></div>`).join("") || `<div class="panel-empty"><div><strong>All clear</strong><span>No new email or workspace activity.</span></div></div>`}
       </div>`;
     }
     if (ui.dropdown === "profile") {
@@ -3956,7 +4130,7 @@
     renderPortal();
   }
 
-  function handleAction(target, event) {
+  async function handleAction(target, event) {
     const action = target.dataset.action;
     switch (action) {
       case "navigate":
@@ -4162,11 +4336,11 @@
         openEntityForm("event", null, { start: target.dataset.date, end: target.dataset.date });
         break;
       case "select-conversation": {
-        ui.selectedConversationId = target.dataset.id;
+        const threadId = target.dataset.id;
+        ui.selectedConversationId = threadId;
         ui.mobileChatOpen = true;
-        const conversation = getEntity("conversation", target.dataset.id);
-        if (conversation) conversation.unread = 0;
-        persist();
+        await markMailboxThreadRead(threadId);
+        render();
         break;
       }
       case "mobile-inbox-back":
@@ -4191,10 +4365,6 @@
       }
       case "open-notifications":
         ui.dropdown = ui.dropdown === "notifications" ? null : "notifications";
-        if (ui.dropdown === "notifications") {
-          state.notifications.forEach(n => { n.seen = true; });
-          persist(false);
-        }
         renderPortal();
         break;
       case "profile-menu":
@@ -4204,20 +4374,25 @@
         ui.dropdown = ui.dropdown === "workspace" ? null : "workspace"; renderPortal();
         break;
       case "mark-notifications":
-        state.notifications.forEach(notification => { notification.seen = true; });
-        persist(false);
-        renderPortal();
+        await markAllLiveNotificationsRead();
         break;
       case "open-notification": {
-        const notification = state.notifications.find(item => item.id === target.dataset.id);
-        if (!notification) break;
-        notification.seen = true;
-        ui.dropdown = null;
-        persist(false);
-        if (notification.route) setRoute(notification.route);
-        else renderPortal();
+        await openLiveNotification(target.dataset.id);
         break;
       }
+      case "refresh-mailbox":
+        await loadMailboxOverview(false, true);
+        render();
+        toast("Mailbox refreshed", `${mailboxMessages().length} messages · ${mailboxUnreadCount()} unread`, "success");
+        break;
+      case "compose-email":
+        ui.modal = { kind: "mail-compose" };
+        renderPortal();
+        break;
+      case "open-mailbox":
+        ui.modal = null;
+        setRoute("inbox");
+        break;
       case "timer-toggle":
         toggleTimer();
         break;
@@ -4331,9 +4506,8 @@
       case "select-conversation": {
         const id = target.dataset.id;
         ui.selectedConversationId = id;
-        const conv = state.conversations?.find(c => c.id === id);
-        if (conv) conv.unread = 0;
-        persist(false);
+        ui.mobileChatOpen = true;
+        await markMailboxThreadRead(id);
         render();
         break;
       }
@@ -4919,6 +5093,36 @@
         if (el) el.scrollTop = el.scrollHeight;
       });
       toast("Message sent", `Posted to #${channelId.replace(/^ch_/, "")}`);
+      return;
+    }
+    if (kind === "mail-message" || kind === "mail-compose") {
+      const values = Object.fromEntries(new FormData(form));
+      const button = event.submitter || form.querySelector('[type="submit"]');
+      if (button) button.disabled = true;
+      try {
+        const payload = await socialGatewayRequest("/api/mail/send", {
+          method: "POST",
+          body: {
+            from: String(values.from || "").trim(),
+            to: String(values.to || "").trim(),
+            subject: String(values.subject || "").trim(),
+            text: String(values.text || "").trim(),
+            thread_id: String(values.thread_id || "").trim(),
+            in_reply_to: String(values.in_reply_to || "").trim()
+          }
+        });
+        addActivity("conversation", payload?.message?.thread_id || values.thread_id || uid("mail"), "sent an email", `${values.from} → ${values.to}`, "inbox");
+        ui.modal = null;
+        form.reset();
+        await loadMailboxOverview(false, true);
+        persist(false);
+        render();
+        toast("Email sent", `${values.from} → ${values.to}`, "success");
+      } catch (error) {
+        toast("Email not sent", error.message || "The mail gateway rejected the request.", "danger");
+      } finally {
+        if (button) button.disabled = false;
+      }
       return;
     }
     if (kind === "message") {
@@ -5696,9 +5900,13 @@
     if (!window._presenceHeartbeatInterval) {
       window._presenceHeartbeatInterval = setInterval(sendPresenceHeartbeat, 15000);
     }
+    if (!window._mailboxSyncInterval) {
+      window._mailboxSyncInterval = setInterval(() => loadMailboxOverview(true), 15000);
+    }
 
     // Load live data asynchronously after the UI is visible
     loadLiveData();
+    loadMailboxOverview(true, true);
     if (ui.route === "crm" && ui.crmTab === "social") loadSocialOverview(false);
     if (ui.route === "crm" && ui.crmTab === "ai-team" && authRole === "administrator") loadAITeamOverview(false);
     if (ui.route === "analytics" && authRole === "administrator") loadAnalyticsOverview(false);
