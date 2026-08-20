@@ -4399,7 +4399,7 @@
         ui.marketingTab = target.dataset.tab === "media" ? "media" : "campaigns";
         location.hash = ui.marketingTab === "media" ? "#/marketing/media" : "#/marketing";
         render();
-        if (ui.marketingTab === "media") loadMediaOverview(false);
+        if (ui.marketingTab === "media") loadMediaOverview(true);
         break;
       case "create-media-folder":
         ui.modal = { kind: "media-folder" };
@@ -5983,7 +5983,7 @@
     if (route !== previousRoute || ui.crmTab !== previousCrmTab) {
       render();
       if (route === "analytics") loadAnalyticsOverview(false);
-      if (route === "marketing" && ui.marketingTab === "media") loadMediaOverview(false);
+      if (route === "marketing" && ui.marketingTab === "media") loadMediaOverview(true);
     }
   });
 
@@ -6304,7 +6304,7 @@
     if (ui.route === "crm" && ui.crmTab === "social") loadSocialOverview(false);
     if (ui.route === "crm" && ui.crmTab === "ai-team" && authRole === "administrator") loadAITeamOverview(false);
     if (ui.route === "analytics" && authRole === "administrator") loadAnalyticsOverview(false);
-    if (ui.route === "marketing" && ui.marketingTab === "media") loadMediaOverview(false);
+    if (ui.route === "marketing" && ui.marketingTab === "media") loadMediaOverview(true);
     if (initialSocialResult === "connected") toast("Social account connected", "Refresh metrics to collect the latest available account and content data.", "success");
     if (initialSocialResult === "connection_failed") toast("Social connection failed", initialSocialError || "Check the provider app settings, redirect URL, scopes and account permissions, then try again.", "danger");
   }
