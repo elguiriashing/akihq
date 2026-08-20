@@ -12,9 +12,13 @@ import PostalMime from "postal-mime";
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_SPREADSHEET_BYTES = 10 * 1024 * 1024;
+const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
 const SOCIAL_PROVIDERS = new Set(["meta", "instagram", "tiktok"]);
 const SOCIAL_ACCOUNT_PREFIX = "social:account:";
 const MAIL_MESSAGE_PREFIX = "mail:message:";
+const MEDIA_FOLDER_PREFIX = "media:folder:";
+const MEDIA_ASSET_PREFIX = "media:asset:";
+const MEDIA_ACCESS_PREFIX = "media:access:";
 const DEFAULT_MAIL_ALIASES = [
   "alex@akipasa.com", "andrew@akipasa.com", "business@akipasa.com",
   "contact@akipasa.com", "info@akipasa.com", "legal@akipasa.com",
@@ -49,6 +53,10 @@ export default {
 
       if (request.method === "GET" && url.pathname.startsWith("/api/social/oauth/callback/")) {
         return await handleSocialOAuthCallback(request, env, url);
+      }
+
+      if (request.method === "GET" && url.pathname.startsWith("/api/media/file/")) {
+        return await serveMediaAsset(env, decodeURIComponent(url.pathname.slice("/api/media/file/".length)), url, cors);
       }
 
       if (url.pathname.startsWith("/api/webhooks/") && request.method === "POST") {
@@ -103,6 +111,26 @@ export default {
         }
         if (request.method === "POST" && url.pathname === "/api/mail/read") {
           return json(await markMailboxRead(request, env), 200, cors);
+        }
+        return json({ ok: false, error: "not_found" }, 404, cors);
+      }
+
+      if (url.pathname.startsWith("/api/media/")) {
+        const staff = await authenticateStaff(request, env);
+        if (request.method === "GET" && url.pathname === "/api/media/overview") {
+          return json(await mediaOverview(env, url), 200, cors);
+        }
+        if (request.method === "POST" && url.pathname === "/api/media/folders") {
+          return json(await createMediaFolder(request, env, staff), 201, cors);
+        }
+        if (request.method === "POST" && url.pathname === "/api/media/assets") {
+          return json(await uploadMediaAsset(request, env, staff), 201, cors);
+        }
+        if (request.method === "POST" && url.pathname === "/api/media/assets/share") {
+          return json(await shareMediaAsset(request, env, url), 200, cors);
+        }
+        if (request.method === "POST" && url.pathname === "/api/media/assets/delete") {
+          return json(await deleteMediaAsset(request, env), 200, cors);
         }
         return json({ ok: false, error: "not_found" }, 404, cors);
       }
@@ -175,7 +203,7 @@ function corsHeaders(request, env) {
   return {
     "access-control-allow-origin": allowedOrigin,
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "authorization,content-type,x-akihq-webhook-secret,x-request-id",
+    "access-control-allow-headers": "authorization,content-type,x-akihq-webhook-secret,x-request-id,x-file-name,x-folder-id,x-workspace-id",
     "access-control-max-age": "86400",
     "vary": "Origin"
   };
@@ -555,6 +583,145 @@ function requireSocialStore(env) {
 function requireMailStore(env) {
   if (!env.SOCIAL_STORE) throw new HttpError(503, "mail_store_not_configured", "The shared mailbox store is not configured.");
   return env.SOCIAL_STORE;
+}
+
+function requireMediaStore(env) {
+  if (!env.SOCIAL_STORE) throw new HttpError(503, "media_store_not_configured", "The media metadata store is not configured.");
+  return env.SOCIAL_STORE;
+}
+
+function requireMediaBucket(env) {
+  if (!env.MEDIA_BUCKET) throw new HttpError(503, "media_bucket_not_configured", "The shared media bucket is not configured.");
+  return env.MEDIA_BUCKET;
+}
+
+function cleanWorkspaceId(value) {
+  const id = String(value || "ws_akipasa").trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 100);
+  return id || "ws_akipasa";
+}
+
+function safeMediaFilename(value) {
+  let decoded = String(value || "upload");
+  try { decoded = decodeURIComponent(decoded); } catch {}
+  const name = decoded.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").replace(/\s+/g, " ").trim().slice(0, 180);
+  return name || "upload";
+}
+
+async function listKvJson(store, prefix) {
+  const result = [];
+  let cursor;
+  do {
+    const listed = await store.list({ prefix, limit: 1000, ...(cursor ? { cursor } : {}) });
+    const values = await Promise.all(listed.keys.map(key => store.get(key.name, "json").catch(() => null)));
+    result.push(...values.filter(Boolean));
+    cursor = listed.list_complete ? undefined : listed.cursor;
+  } while (cursor);
+  return result;
+}
+
+async function createMediaAccessUrl(store, origin, assetId, ttlSeconds, purpose) {
+  const token = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+  await store.put(MEDIA_ACCESS_PREFIX + token, JSON.stringify({ asset_id: assetId, purpose, expires_at: expiresAt }), { expirationTtl: ttlSeconds });
+  return { url: `${origin}/api/media/file/${encodeURIComponent(assetId)}?token=${encodeURIComponent(token)}`, expires_at: expiresAt };
+}
+
+async function mediaOverview(env, url) {
+  const store = requireMediaStore(env);
+  const workspaceId = cleanWorkspaceId(url.searchParams.get("workspaceId"));
+  const [folders, allAssets] = await Promise.all([listKvJson(store, MEDIA_FOLDER_PREFIX), listKvJson(store, MEDIA_ASSET_PREFIX)]);
+  const assets = allAssets.filter(item => item.workspace_id === workspaceId).sort((a, b) => Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0));
+  const withPreviews = await Promise.all(assets.map(async asset => {
+    const preview = await createMediaAccessUrl(store, url.origin, asset.id, 3600, "preview");
+    return { ...asset, preview_url: preview.url, preview_expires_at: preview.expires_at };
+  }));
+  return {
+    ok: true,
+    folders: folders.filter(item => item.workspace_id === workspaceId).sort((a, b) => String(a.name).localeCompare(String(b.name))),
+    assets: withPreviews
+  };
+}
+
+async function createMediaFolder(request, env, staff) {
+  const store = requireMediaStore(env);
+  const body = await readJson(request);
+  const workspaceId = cleanWorkspaceId(body.workspaceId);
+  const name = cleanText(body.name, 120, "name");
+  const parentId = String(body.parentId || "").trim().slice(0, 100);
+  if (parentId) {
+    const parent = await store.get(MEDIA_FOLDER_PREFIX + parentId, "json");
+    if (!parent || parent.workspace_id !== workspaceId) throw new HttpError(400, "invalid_parent", "That parent folder is not available in this workspace.");
+  }
+  const folder = { id: crypto.randomUUID(), workspace_id: workspaceId, parent_id: parentId, name, created_at: new Date().toISOString(), created_by: staff.id };
+  await store.put(MEDIA_FOLDER_PREFIX + folder.id, JSON.stringify(folder));
+  return { ok: true, folder };
+}
+
+async function uploadMediaAsset(request, env, staff) {
+  const store = requireMediaStore(env);
+  const bucket = requireMediaBucket(env);
+  const workspaceId = cleanWorkspaceId(request.headers.get("x-workspace-id"));
+  const folderId = String(request.headers.get("x-folder-id") || "").trim().slice(0, 100);
+  if (folderId) {
+    const folder = await store.get(MEDIA_FOLDER_PREFIX + folderId, "json");
+    if (!folder || folder.workspace_id !== workspaceId) throw new HttpError(400, "invalid_folder", "That media folder is not available in this workspace.");
+  }
+  const name = safeMediaFilename(request.headers.get("x-file-name"));
+  const contentType = String(request.headers.get("content-type") || "application/octet-stream").split(";")[0].trim().toLowerCase();
+  if (!(contentType.startsWith("image/") || contentType.startsWith("video/") || contentType.startsWith("audio/") || contentType === "application/pdf")) throw new HttpError(415, "unsupported_media_type", "Upload an image, video, audio file or PDF.");
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (declaredLength > MAX_MEDIA_BYTES) throw new HttpError(413, "media_too_large", "Media files are limited to 25 MB.");
+  const bytes = await request.arrayBuffer();
+  if (!bytes.byteLength) throw new HttpError(400, "empty_media", "The selected file is empty.");
+  if (bytes.byteLength > MAX_MEDIA_BYTES) throw new HttpError(413, "media_too_large", "Media files are limited to 25 MB.");
+  const id = crypto.randomUUID();
+  const key = `${workspaceId}/${id}/${name}`;
+  await bucket.put(key, bytes, { httpMetadata: { contentType, cacheControl: "private, no-store" }, customMetadata: { workspaceId, assetId: id, uploadedBy: staff.id } });
+  const asset = { id, workspace_id: workspaceId, folder_id: folderId, name, key, content_type: contentType, size: bytes.byteLength, created_at: new Date().toISOString(), created_by: staff.id };
+  await store.put(MEDIA_ASSET_PREFIX + id, JSON.stringify(asset));
+  return { ok: true, asset };
+}
+
+async function shareMediaAsset(request, env, url) {
+  const store = requireMediaStore(env);
+  const body = await readJson(request);
+  const id = cleanText(body.id, 100, "id");
+  const workspaceId = cleanWorkspaceId(body.workspaceId);
+  const asset = await store.get(MEDIA_ASSET_PREFIX + id, "json");
+  if (!asset || asset.workspace_id !== workspaceId) throw new HttpError(404, "media_not_found", "That media file was not found.");
+  const share = await createMediaAccessUrl(store, url.origin, asset.id, 30 * 24 * 60 * 60, "share");
+  return { ok: true, url: share.url, expires_at: share.expires_at };
+}
+
+async function deleteMediaAsset(request, env) {
+  const store = requireMediaStore(env);
+  const bucket = requireMediaBucket(env);
+  const body = await readJson(request);
+  const id = cleanText(body.id, 100, "id");
+  const workspaceId = cleanWorkspaceId(body.workspaceId);
+  const asset = await store.get(MEDIA_ASSET_PREFIX + id, "json");
+  if (!asset || asset.workspace_id !== workspaceId) throw new HttpError(404, "media_not_found", "That media file was not found.");
+  await Promise.all([bucket.delete(asset.key), store.delete(MEDIA_ASSET_PREFIX + id)]);
+  return { ok: true, deleted: id };
+}
+
+async function serveMediaAsset(env, id, url, cors) {
+  const store = requireMediaStore(env);
+  const bucket = requireMediaBucket(env);
+  const token = String(url.searchParams.get("token") || "");
+  const access = token ? await store.get(MEDIA_ACCESS_PREFIX + token, "json") : null;
+  if (!access || access.asset_id !== id || Date.parse(access.expires_at || 0) <= Date.now()) throw new HttpError(403, "media_link_expired", "This private media link is invalid or has expired.");
+  const asset = await store.get(MEDIA_ASSET_PREFIX + String(id || "").slice(0, 100), "json");
+  if (!asset) throw new HttpError(404, "media_not_found", "That media file was not found.");
+  const object = await bucket.get(asset.key);
+  if (!object) throw new HttpError(404, "media_not_found", "That media file is no longer stored.");
+  const headers = new Headers(cors);
+  object.writeHttpMetadata(headers);
+  headers.set("etag", object.httpEtag);
+  headers.set("cache-control", access.purpose === "share" ? "private, max-age=3600" : "private, no-store");
+  headers.set("content-disposition", `inline; filename*=UTF-8''${encodeURIComponent(asset.name)}`);
+  headers.set("x-content-type-options", "nosniff");
+  return new Response(object.body, { headers });
 }
 
 function normalizeEmail(value) {

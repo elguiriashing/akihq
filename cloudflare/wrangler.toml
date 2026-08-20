@@ -18,6 +18,10 @@ MAIL_FROM_ADDRESSES = "alex@akipasa.com,andrew@akipasa.com,business@akipasa.com,
 binding = "SOCIAL_STORE"
 id = "d9fe3743bdfb4c9ab3ee31dc2764c61b"
 
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "akihq-media"
+
 [[services]]
 binding = "AI_GATEWAY"
 service = "akipasa"

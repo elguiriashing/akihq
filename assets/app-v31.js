@@ -9,6 +9,7 @@
   const appRoot = document.getElementById("app");
   const portal = document.getElementById("portal");
   const importInput = document.getElementById("import-file");
+  const mediaInput = document.getElementById("media-file");
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -273,17 +274,48 @@
   }
 
   class StateStore {
-    constructor() { this.value = null; }
+    constructor(cacheKey = "akihq:workspace-cache:v2:anonymous") {
+      this.value = null;
+      this.cacheKey = cacheKey;
+    }
     load() {
-      return this.value || seedState();
+      if (this.value) return this.value;
+      const fresh = seedState();
+      try {
+        const cached = JSON.parse(localStorage.getItem(this.cacheKey) || "null");
+        if (cached && typeof cached === "object") {
+          this.value = {
+            ...fresh,
+            ...cached,
+            workspace: { ...fresh.workspace, ...(cached.workspace || {}) },
+            settings: { ...fresh.settings, ...(cached.settings || {}) },
+            integrations: { ...fresh.integrations, ...(cached.integrations || {}) },
+            teamChat: {
+              ...fresh.teamChat,
+              ...(cached.teamChat || {}),
+              messages: { ...fresh.teamChat.messages, ...(cached.teamChat?.messages || {}) }
+            }
+          };
+          return this.value;
+        }
+      } catch (error) {
+        console.warn("Workspace cache could not be restored:", error);
+      }
+      this.value = fresh;
+      return fresh;
     }
     save(value) {
       this.value = value;
+      try { localStorage.setItem(this.cacheKey, JSON.stringify(value)); } catch (error) {}
     }
     reset() {
       const fresh = seedState();
       this.save(fresh);
       return fresh;
+    }
+    clear() {
+      this.value = null;
+      try { localStorage.removeItem(this.cacheKey); } catch (error) {}
     }
   }
 
@@ -329,6 +361,9 @@
   let mailboxLoading = false;
   let mailboxError = "";
   let mailboxLastLoadedAt = 0;
+  let mediaOverviewState = { folders: [], assets: [] };
+  let mediaLoading = false;
+  let mediaError = "";
 
   let isSyncingWorkspace = false;
   let lastRemoteWorkspaceUpdate = null;
@@ -364,7 +399,7 @@
       else state[collection].unshift(entity);
     }
     store.save(state);
-    render();
+    requestBackgroundRender();
   }
 
   async function syncDurableRecordsPull() {
@@ -444,13 +479,16 @@
     }
 
     if (remote.workspace && typeof remote.workspace === "object" && remote.workspace.name) {
-      state.workspace = { ...state.workspace, ...remote.workspace };
-      stateChanged = true;
+      const nextWorkspace = { ...state.workspace, ...remote.workspace };
+      if (JSON.stringify(state.workspace || {}) !== JSON.stringify(nextWorkspace)) {
+        state.workspace = nextWorkspace;
+        stateChanged = true;
+      }
     }
 
     if (stateChanged) {
       store.save(state);
-      render();
+      requestBackgroundRender();
     }
   }
 
@@ -667,7 +705,7 @@
       await syncTeamMessages();
 
       store.save(state);
-      render();
+      requestBackgroundRender();
     } catch (err) {
       console.warn("AkiHQ live data load error:", err);
     }
@@ -718,7 +756,7 @@
       if (hasNew) {
         store.save(state);
         if (ui.route === "collaboration") {
-          render();
+          requestBackgroundRender();
         }
       }
     } catch (e) {}
@@ -754,7 +792,7 @@
         });
         window._onlineUserIds = onlineUserIds;
         if (ui.route === "collaboration" || ui.route === "employees" || ui.route === "dashboard") {
-          render();
+          requestBackgroundRender();
         }
       });
 
@@ -804,7 +842,7 @@
             }
             store.save(state);
             if (ui.route === "collaboration") {
-              render();
+              requestBackgroundRender();
             }
           }
         })
@@ -844,8 +882,80 @@
     userPickerQuery: "",
     telegramTab: "chats",
     telegramSearch: "",
+    marketingTab: initialRouteParts[0] === "marketing" && initialRouteParts[1] === "media" ? "media" : "campaigns",
+    mediaFolderId: "",
     mobileNavOpen: false
   };
+
+  let backgroundRenderPending = false;
+
+  function hasActiveInteraction() {
+    const active = document.activeElement;
+    return Boolean(
+      document.hidden || ui.modal || ui.drawer || ui.dropdown || ui.commandOpen ||
+      active?.matches?.("input, textarea, select, [contenteditable='true']")
+    );
+  }
+
+  function requestBackgroundRender() {
+    if (hasActiveInteraction()) {
+      backgroundRenderPending = true;
+      return;
+    }
+    backgroundRenderPending = false;
+    render();
+  }
+
+  function flushBackgroundRender() {
+    if (!backgroundRenderPending || hasActiveInteraction()) return;
+    backgroundRenderPending = false;
+    render();
+  }
+
+  function formDraftKey(form) {
+    if (!form?.dataset?.form) return "";
+    const modalContext = ui.modal ? [ui.modal.kind, ui.modal.entity, ui.modal.id, ui.modal.conversationId].filter(Boolean).join(":") : "page";
+    return `akihq:form-draft:v2:${authUser?.id || "anonymous"}:${ui.route}:${modalContext}:${form.dataset.form}:${form.dataset.entity || ""}:${form.dataset.id || "new"}`;
+  }
+
+  function saveFormDraft(form) {
+    const key = formDraftKey(form);
+    if (!key) return;
+    const values = {};
+    form.querySelectorAll("[name]").forEach(field => {
+      if (field.disabled || field.type === "password" || field.type === "file") return;
+      values[field.name] = field.type === "checkbox" || field.type === "radio" ? Boolean(field.checked) : field.value;
+    });
+    try { localStorage.setItem(key, JSON.stringify({ values, savedAt: Date.now() })); } catch (error) {}
+  }
+
+  function clearFormDraft(form) {
+    const key = formDraftKey(form);
+    if (!key) return;
+    try { localStorage.removeItem(key); } catch (error) {}
+  }
+
+  function restoreFormDrafts(root = document) {
+    root.querySelectorAll?.("form[data-form]").forEach(form => {
+      const key = formDraftKey(form);
+      if (!key) return;
+      try {
+        const draft = JSON.parse(localStorage.getItem(key) || "null");
+        if (!draft?.values || Date.now() - Number(draft.savedAt || 0) > 14 * 86400000) return;
+        Object.entries(draft.values).forEach(([name, value]) => {
+          const field = [...form.querySelectorAll("[name]")].find(item => item.name === name);
+          if (!field || field.type === "file") return;
+          if (field.type === "checkbox" || field.type === "radio") field.checked = Boolean(value);
+          else field.value = String(value ?? "");
+        });
+      } catch (error) {}
+    });
+  }
+
+  function saveVisibleDrafts() {
+    document.querySelectorAll("form[data-form]").forEach(saveFormDraft);
+    store.save(state);
+  }
 
   function t(key) {
     const locale = state.settings?.locale || "en";
@@ -998,6 +1108,11 @@
   }
 
   function setRoute(route) {
+    const currentPage = document.getElementById("page-content");
+    if (currentPage) {
+      currentPage.scrollTop = 0;
+      currentPage.scrollLeft = 0;
+    }
     ui.route = route;
     location.hash = `#/${route}`;
     ui.drawer = null;
@@ -1034,6 +1149,52 @@
     try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
     if (!response.ok) throw new Error(payload?.message || payload?.error || `Gateway request failed (${response.status}).`);
     return payload;
+  }
+
+  async function socialGatewayBinaryRequest(path, file, headers = {}) {
+    const client = getSupabaseClient();
+    if (!client) throw new Error("Supabase authentication is unavailable.");
+    const { data, error } = await client.auth.getSession();
+    if (error || !data?.session?.access_token) throw new Error("Your session expired. Sign in again.");
+    const response = await fetch(socialGatewayUrl(path), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${data.session.access_token}`,
+        "Content-Type": file.type || "application/octet-stream",
+        "X-File-Name": encodeURIComponent(file.name || "upload"),
+        "X-Workspace-Id": state.workspace?.id || "ws_akipasa",
+        ...headers
+      },
+      body: file,
+      cache: "no-store"
+    });
+    const text = await response.text();
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+    if (!response.ok) throw new Error(payload?.message || payload?.error || `Upload failed (${response.status}).`);
+    return payload;
+  }
+
+  async function loadMediaOverview(renderAfter = true) {
+    if (!authUser || mediaLoading) return;
+    mediaLoading = true;
+    mediaError = "";
+    if (renderAfter) requestBackgroundRender();
+    try {
+      const workspaceId = encodeURIComponent(state.workspace?.id || "ws_akipasa");
+      const payload = await socialGatewayRequest(`/api/media/overview?workspaceId=${workspaceId}`);
+      mediaOverviewState = {
+        folders: Array.isArray(payload?.folders) ? payload.folders : [],
+        assets: Array.isArray(payload?.assets) ? payload.assets : []
+      };
+      if (ui.mediaFolderId && !mediaOverviewState.folders.some(folder => folder.id === ui.mediaFolderId)) ui.mediaFolderId = "";
+    } catch (error) {
+      mediaError = error.message || "The media library could not be loaded.";
+      console.error("Media overview:", error);
+    } finally {
+      mediaLoading = false;
+      if (renderAfter) requestBackgroundRender();
+    }
   }
 
   function mailboxMessages() {
@@ -1099,7 +1260,7 @@
       console.error("Mailbox overview:", error);
     } finally {
       mailboxLoading = false;
-      if (renderAfter && !document.querySelector('[data-form="mail-message"] textarea:focus, [data-form="mail-compose"] input:focus, [data-form="mail-compose"] textarea:focus')) render();
+      if (renderAfter) requestBackgroundRender();
     }
   }
 
@@ -1383,6 +1544,10 @@
 
   function render() {
     applySettings();
+    const previousPage = document.getElementById("page-content");
+    const pageScroll = previousPage
+      ? { x: previousPage.scrollLeft, y: previousPage.scrollTop }
+      : { x: window.scrollX, y: window.scrollY };
     const chatEl = document.getElementById("team-chat-messages");
     const savedScrollTop = chatEl ? chatEl.scrollTop : null;
     const wasNearBottom = chatEl ? (chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 150) : true;
@@ -1407,6 +1572,15 @@
       ${renderMobileTabbar()}`;
     renderPortal();
     attachAfterRender();
+    requestAnimationFrame(() => {
+      const nextPage = document.getElementById("page-content");
+      if (nextPage) {
+        nextPage.scrollLeft = pageScroll.x;
+        nextPage.scrollTop = pageScroll.y;
+      } else {
+        window.scrollTo(pageScroll.x, pageScroll.y);
+      }
+    });
 
     const newChatEl = document.getElementById("team-chat-messages");
     if (newChatEl) {
@@ -1630,7 +1804,15 @@
       case "sales":
         return `<span class="context-spacer"></span><button class="action-btn" data-action="open-form" data-entity="invoice" data-type="Quote">${icon("plus")} Quote</button><button class="action-btn primary" data-action="open-form" data-entity="invoice" data-type="Invoice">${icon("plus")} Invoice</button>`;
       case "marketing":
-        return `<span class="context-spacer"></span><button class="action-btn primary" data-action="open-form" data-entity="campaign">${icon("plus")} Campaign</button>`;
+        return `
+          <div class="segmented">
+            <button class="${ui.marketingTab === "campaigns" ? "active" : ""}" data-action="set-marketing-tab" data-tab="campaigns">${icon("marketing")} Campaigns</button>
+            <button class="${ui.marketingTab === "media" ? "active" : ""}" data-action="set-marketing-tab" data-tab="media">${icon("sites")} Media</button>
+          </div>
+          <span class="context-spacer"></span>
+          ${ui.marketingTab === "media"
+            ? `<button class="action-btn" data-action="create-media-folder">${icon("plus")} Folder</button><button class="action-btn primary" data-action="upload-media">${icon("upload")} Upload</button>`
+            : `<button class="action-btn primary" data-action="open-form" data-entity="campaign">${icon("plus")} Campaign</button>`}`;
       case "sites":
         return `<span class="context-spacer"></span><button class="action-btn" data-action="open-form" data-entity="form">${icon("plus")} Form</button><button class="action-btn primary" data-action="open-form" data-entity="page">${icon("plus")} Page</button>`;
       case "automation":
@@ -2385,6 +2567,7 @@
   }
 
   function renderMarketing() {
+    if (ui.marketingTab === "media") return renderMediaLibrary();
     const totals = state.campaigns.reduce((acc, campaign) => {
       acc.sent += Number(campaign.sent || 0); acc.opened += Number(campaign.opened || 0); acc.clicked += Number(campaign.clicked || 0); acc.conversions += Number(campaign.conversions || 0); return acc;
     }, { sent: 0, opened: 0, clicked: 0, conversions: 0 });
@@ -2415,6 +2598,63 @@
           ["Pending claim reviews", liveStats ? liveStats.pending_claims : 0, "Venue claim submitted and awaiting decision"]
         ].map(([name, count, rule]) => `<div class="entity-card"><div class="entity-card-top"><div class="entity-logo">${icon("filter")}</div><div class="entity-card-copy"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(rule)}</p></div></div><div class="entity-card-stats"><div class="entity-stat"><span>Members</span><strong>${Number(count||0).toLocaleString()}</strong></div><div class="entity-stat"><span>Refresh</span><strong>Live</strong></div></div></div>`).join("")}
       </div></section>
+    </div>`;
+  }
+
+  function mediaFolderTrail() {
+    const folders = mediaOverviewState.folders || [];
+    const trail = [];
+    let id = ui.mediaFolderId;
+    const visited = new Set();
+    while (id && !visited.has(id)) {
+      visited.add(id);
+      const folder = folders.find(item => item.id === id);
+      if (!folder) break;
+      trail.unshift(folder);
+      id = folder.parent_id || "";
+    }
+    return trail;
+  }
+
+  function humanFileSize(bytes) {
+    const value = Number(bytes || 0);
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+    return `${(value / 1024 / 1024).toFixed(value < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+  }
+
+  function renderMediaLibrary() {
+    const folders = (mediaOverviewState.folders || []).filter(folder => String(folder.parent_id || "") === String(ui.mediaFolderId || ""));
+    const assets = (mediaOverviewState.assets || []).filter(asset => String(asset.folder_id || "") === String(ui.mediaFolderId || ""));
+    const totalBytes = (mediaOverviewState.assets || []).reduce((sum, asset) => sum + Number(asset.size || 0), 0);
+    const trail = mediaFolderTrail();
+    return `<div class="page-grid media-library">
+      <section class="panel media-hero">
+        <div>
+          <span class="media-kicker">SHARED ASSET LIBRARY</span>
+          <h2>Marketing media</h2>
+          <p>Organise approved creative files once, then create secure, expiring links for campaigns, CRM records, emails and the rest of AkiHQ.</p>
+        </div>
+        <div class="media-hero-stats"><strong>${(mediaOverviewState.assets || []).length}</strong><span>files · ${humanFileSize(totalBytes)}</span></div>
+      </section>
+      <nav class="media-breadcrumb" aria-label="Media folders">
+        <button data-action="open-media-folder" data-id="">Media</button>
+        ${trail.map(folder => `<span>${icon("chevron")}</span><button data-action="open-media-folder" data-id="${escapeHtml(folder.id)}">${escapeHtml(folder.name)}</button>`).join("")}
+      </nav>
+      ${mediaError ? `<div class="inline-alert danger">${icon("warning")}<span>${escapeHtml(mediaError)}</span><button class="action-btn" data-action="refresh-media">Retry</button></div>` : ""}
+      ${mediaLoading && !folders.length && !assets.length ? `<section class="panel media-loading"><span class="loading-spinner"></span><strong>Loading shared media…</strong></section>` : `
+        ${folders.length ? `<section class="media-section"><div class="media-section-head"><div><h3>Folders</h3><p>${folders.length} in this location</p></div></div><div class="media-folder-grid">${folders.map(folder => {
+          const itemCount = (mediaOverviewState.assets || []).filter(asset => asset.folder_id === folder.id).length;
+          const childCount = (mediaOverviewState.folders || []).filter(item => item.parent_id === folder.id).length;
+          return `<button class="media-folder-card" data-action="open-media-folder" data-id="${escapeHtml(folder.id)}"><span class="media-folder-icon">${icon("sites")}</span><span><strong>${escapeHtml(folder.name)}</strong><small>${itemCount} files${childCount ? ` · ${childCount} folders` : ""}</small></span>${icon("chevron")}</button>`;
+        }).join("")}</div></section>` : ""}
+        <section class="media-section"><div class="media-section-head"><div><h3>Files</h3><p>${assets.length} in this location</p></div><button class="action-btn" data-action="upload-media">${icon("upload")} Add files</button></div>
+          ${assets.length ? `<div class="media-asset-grid">${assets.map(asset => {
+            const isImage = String(asset.content_type || "").startsWith("image/");
+            const isVideo = String(asset.content_type || "").startsWith("video/");
+            return `<article class="media-asset-card"><button class="media-preview" data-action="open-media-asset" data-id="${escapeHtml(asset.id)}" aria-label="Open ${escapeHtml(asset.name)}">${isImage ? `<img src="${escapeHtml(asset.preview_url || "")}" alt="" loading="lazy">` : `<span>${icon(isVideo ? "video" : "attachment")}</span>`}</button><div class="media-asset-copy"><strong title="${escapeHtml(asset.name)}">${escapeHtml(asset.name)}</strong><span>${humanFileSize(asset.size)} · ${escapeHtml(String(asset.content_type || "file").split("/").pop())}</span></div><button class="mini-btn" data-action="copy-media-url" data-id="${escapeHtml(asset.id)}" title="Create secure share link">${icon("link")}</button></article>`;
+          }).join("")}</div>` : `<div class="media-empty"><span>${icon("upload")}</span><h3>This folder is ready</h3><p>Upload images, video, audio or PDFs. Files are shared with every authorised AkiHQ user.</p><button class="action-btn primary" data-action="upload-media">Choose files</button></div>`}
+        </section>`}
     </div>`;
   }
 
@@ -3338,6 +3578,7 @@
     if (ui.commandOpen) parts.push(renderCommandPalette());
     // Toasts now render into a separate #toast-container to avoid modal flicker
     portal.innerHTML = parts.join("");
+    restoreFormDrafts(portal);
     requestAnimationFrame(() => {
       const messages = $("#messages");
       if (messages) messages.scrollTop = messages.scrollHeight;
@@ -3633,6 +3874,8 @@
   function renderModal() {
     if (ui.modal.kind === "quick") return renderQuickCreateModal();
     if (ui.modal.kind === "mail-compose") return renderMailComposeModal();
+    if (ui.modal.kind === "media-folder") return renderMediaFolderModal();
+    if (ui.modal.kind === "media-asset") return renderMediaAssetModal();
     if (ui.modal.kind === "prospect-import") return renderProspectImportModal();
     if (ui.modal.kind === "form") return renderEntityFormModal();
     if (ui.modal.kind === "calendar-day") return renderCalendarDayModal();
@@ -3647,6 +3890,21 @@
   function renderMailComposeModal() {
     const aliases = mailboxOverviewState.aliases?.length ? mailboxOverviewState.aliases : ["support@akipasa.com"];
     return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal mail-compose-modal" role="dialog" aria-modal="true" aria-labelledby="mail-compose-title"><header class="modal-head"><div class="integration-logo" style="--integration-bg:linear-gradient(135deg,#6478f0,#46d4c0)">A</div><div><h2 id="mail-compose-title">New email</h2><p>Send from an approved AkiPasa address</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header><form data-form="mail-compose"><div class="modal-body form-grid"><div class="form-field"><label>From</label><select name="from" required>${aliases.map(alias => `<option value="${escapeHtml(alias)}">${escapeHtml(alias)}</option>`).join("")}</select></div><div class="form-field"><label>To</label><input name="to" type="email" required autocomplete="email" placeholder="name@example.com"></div><div class="form-field full"><label>Subject</label><input name="subject" required maxlength="500" placeholder="Email subject"></div><div class="form-field full"><label>Message</label><textarea name="text" required rows="9" placeholder="Write your message…"></textarea></div></div><footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button type="submit" class="action-btn primary">${icon("send")} Send email</button></footer></form></section>`;
+  }
+
+  function renderMediaFolderModal() {
+    const parent = (mediaOverviewState.folders || []).find(folder => folder.id === ui.mediaFolderId);
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true" aria-labelledby="media-folder-title"><header class="modal-head"><div class="entity-logo">${icon("sites")}</div><div><h2 id="media-folder-title">New media folder</h2><p>${parent ? `Inside ${escapeHtml(parent.name)}` : "At the top of the shared library"}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header><form data-form="media-folder"><div class="modal-body"><div class="form-field"><label>Folder name</label><input name="name" required maxlength="120" autocomplete="off" placeholder="e.g. Summer campaign"></div></div><footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button type="submit" class="action-btn primary">${icon("plus")} Create folder</button></footer></form></section>`;
+  }
+
+  function renderMediaAssetModal() {
+    const asset = (mediaOverviewState.assets || []).find(item => item.id === ui.modal.id);
+    if (!asset) return "";
+    const isImage = String(asset.content_type || "").startsWith("image/");
+    const isVideo = String(asset.content_type || "").startsWith("video/");
+    const isAudio = String(asset.content_type || "").startsWith("audio/");
+    const previewUrl = asset.preview_url || "";
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal wide media-asset-modal" role="dialog" aria-modal="true" aria-labelledby="media-asset-title"><header class="modal-head"><div class="entity-logo">${icon("attachment")}</div><div><h2 id="media-asset-title">${escapeHtml(asset.name)}</h2><p>${humanFileSize(asset.size)} · uploaded ${escapeHtml(relativeTime(asset.created_at))}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header><div class="modal-body"><div class="media-modal-preview">${isImage ? `<img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(asset.name)}">` : isVideo ? `<video src="${escapeHtml(previewUrl)}" controls preload="metadata"></video>` : isAudio ? `<audio src="${escapeHtml(previewUrl)}" controls></audio>` : `<div class="media-document-preview">${icon("attachment")}<strong>${escapeHtml(asset.content_type || "Document")}</strong></div>`}</div><div class="media-link-field"><span>Share links are private and expire after 30 days.</span><button class="action-btn" data-action="copy-media-url" data-id="${escapeHtml(asset.id)}">${icon("link")} Create & copy link</button></div><p class="muted">Use the generated link in emails, CRM notes and campaigns without making the whole media library public.</p></div><footer class="modal-foot"><button class="action-btn danger" data-action="delete-media-asset" data-id="${escapeHtml(asset.id)}">${icon("trash")} Delete</button><span class="context-spacer"></span><a class="action-btn" href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener">${icon("external")} Preview</a><button class="action-btn primary" data-action="close-modal">Done</button></footer></section>`;
   }
 
   function renderCalendarDayModal() {
@@ -4137,6 +4395,57 @@
         ui.mobileNavOpen = false;
         setRoute(target.dataset.route);
         break;
+      case "set-marketing-tab":
+        ui.marketingTab = target.dataset.tab === "media" ? "media" : "campaigns";
+        location.hash = ui.marketingTab === "media" ? "#/marketing/media" : "#/marketing";
+        render();
+        if (ui.marketingTab === "media") loadMediaOverview(false);
+        break;
+      case "create-media-folder":
+        ui.modal = { kind: "media-folder" };
+        renderPortal();
+        break;
+      case "upload-media":
+        mediaInput?.click();
+        break;
+      case "open-media-folder":
+        ui.mediaFolderId = target.dataset.id || "";
+        render();
+        break;
+      case "refresh-media":
+        loadMediaOverview(true);
+        break;
+      case "open-media-asset":
+        ui.modal = { kind: "media-asset", id: target.dataset.id };
+        renderPortal();
+        break;
+      case "copy-media-url": {
+        const asset = (mediaOverviewState.assets || []).find(item => item.id === target.dataset.id);
+        if (!asset) break;
+        try {
+          const shared = await socialGatewayRequest("/api/media/assets/share", { method: "POST", body: { id: asset.id, workspaceId: state.workspace?.id || "ws_akipasa" } });
+          await navigator.clipboard.writeText(shared.url);
+          toast("Secure media link copied", "Paste it into an email, CRM record or campaign. It expires in 30 days.", "success");
+        } catch (error) {
+          toast("Link not copied", error.message || "The secure share link could not be created.", "danger");
+        }
+        break;
+      }
+      case "delete-media-asset": {
+        const asset = (mediaOverviewState.assets || []).find(item => item.id === target.dataset.id);
+        if (!asset || !confirm(`Delete ${asset.name}? This cannot be undone.`)) break;
+        try {
+          await socialGatewayRequest("/api/media/assets/delete", { method: "POST", body: { id: asset.id, workspaceId: state.workspace?.id || "ws_akipasa" } });
+          ui.modal = null;
+          await loadMediaOverview(false);
+          render();
+          renderPortal();
+          toast("Media deleted", asset.name, "success");
+        } catch (error) {
+          toast("Delete failed", error.message, "danger");
+        }
+        break;
+      }
       case "toggle-mobile-nav":
         ui.mobileNavOpen = !ui.mobileNavOpen;
         render();
@@ -4182,6 +4491,7 @@
         ui.drawer = null; renderPortal();
         break;
       case "close-modal":
+        document.querySelectorAll("#portal form[data-form]").forEach(clearFormDraft);
         ui.modal = null; ui.formDefaults = {}; renderPortal();
         break;
       case "set-crm-tab":
@@ -4916,6 +5226,7 @@
     if (type === "article") ui.selectedArticleId = data.id;
     if (type === "deal") { ui.crmTab = "deals"; ui.pipelineId = data.pipelineId; }
     const durableVersion = isDurableRecordType(type) ? markDurableRecordDirty() : null;
+    clearFormDraft(form);
     ui.modal = null;
     ui.formDefaults = {};
     persist(false, durableVersion === null);
@@ -4932,6 +5243,25 @@
 
   async function handleSubmit(form, event) {
     const kind = form.dataset.form;
+    if (kind === "media-folder") {
+      const values = Object.fromEntries(new FormData(form));
+      const button = event.submitter || form.querySelector('[type="submit"]');
+      if (button) button.disabled = true;
+      try {
+        await socialGatewayRequest("/api/media/folders", { method: "POST", body: { name: String(values.name || "").trim(), parentId: ui.mediaFolderId || "", workspaceId: state.workspace?.id || "ws_akipasa" } });
+        clearFormDraft(form);
+        ui.modal = null;
+        await loadMediaOverview(false);
+        render();
+        renderPortal();
+        toast("Folder created", String(values.name || ""), "success");
+      } catch (error) {
+        toast("Folder not created", error.message, "danger");
+      } finally {
+        if (button) button.disabled = false;
+      }
+      return;
+    }
     if (kind === "ai-chat") {
       const chatValues = new FormData(form);
       const message = String(chatValues.get("message") || "").trim();
@@ -5112,6 +5442,7 @@
           }
         });
         addActivity("conversation", payload?.message?.thread_id || values.thread_id || uid("mail"), "sent an email", `${values.from} → ${values.to}`, "inbox");
+        clearFormDraft(form);
         ui.modal = null;
         form.reset();
         await loadMailboxOverview(false, true);
@@ -5585,6 +5916,7 @@
   function attachAfterRender() {
     const messages = $("#messages");
     if (messages) messages.scrollTop = messages.scrollHeight;
+    restoreFormDrafts(appRoot);
   }
 
   document.addEventListener("click", event => {
@@ -5599,8 +5931,17 @@
     }
   });
 
-  document.addEventListener("change", event => handleChange(event.target));
-  document.addEventListener("input", event => handleInput(event.target));
+  document.addEventListener("change", event => {
+    const form = event.target.closest?.("form[data-form]");
+    if (form) saveFormDraft(form);
+    handleChange(event.target);
+  });
+  document.addEventListener("input", event => {
+    const form = event.target.closest?.("form[data-form]");
+    if (form) saveFormDraft(form);
+    handleInput(event.target);
+  });
+  document.addEventListener("focusout", () => setTimeout(flushBackgroundRender, 0));
   document.addEventListener("submit", event => {
     const form = event.target.closest("form[data-form]");
     if (!form) return;
@@ -5637,12 +5978,46 @@
     const previousRoute = ui.route;
     const previousCrmTab = ui.crmTab;
     if (route === "crm" && ["social", "ai-team"].includes(parts[1])) ui.crmTab = parts[1];
+    if (route === "marketing") ui.marketingTab = parts[1] === "media" ? "media" : "campaigns";
     ui.route = route;
     if (route !== previousRoute || ui.crmTab !== previousCrmTab) {
       render();
       if (route === "analytics") loadAnalyticsOverview(false);
+      if (route === "marketing" && ui.marketingTab === "media") loadMediaOverview(false);
     }
   });
+
+  let resumeSyncInFlight = null;
+  async function refreshAfterResume() {
+    if (!authUser || resumeSyncInFlight) return resumeSyncInFlight;
+    resumeSyncInFlight = (async () => {
+      try {
+        if (workspaceMutationVersion !== workspaceCommittedVersion) await syncCloudWorkspacePushNow();
+        await Promise.allSettled([
+          syncCloudWorkspacePull(),
+          syncDurableRecordsPull(),
+          loadMailboxOverview(false, true),
+          ui.route === "marketing" && ui.marketingTab === "media" ? loadMediaOverview(false) : Promise.resolve()
+        ]);
+        requestBackgroundRender();
+      } finally {
+        resumeSyncInFlight = null;
+      }
+    })();
+    return resumeSyncInFlight;
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      saveVisibleDrafts();
+      if (authUser && workspaceMutationVersion !== workspaceCommittedVersion) syncCloudWorkspacePushNow().catch(() => {});
+    } else {
+      refreshAfterResume();
+    }
+  });
+  window.addEventListener("pageshow", event => { if (event.persisted) refreshAfterResume(); });
+  window.addEventListener("online", refreshAfterResume);
+  window.addEventListener("pagehide", saveVisibleDrafts);
 
   importInput.addEventListener("change", async () => {
     const file = importInput.files?.[0];
@@ -5664,6 +6039,25 @@
       console.error(error);
       toast("Import failed", error.message, "danger");
     }
+  });
+
+  mediaInput?.addEventListener("change", async () => {
+    const files = [...(mediaInput.files || [])];
+    mediaInput.value = "";
+    if (!files.length) return;
+    const failures = [];
+    toast("Uploading media", `${files.length} file${files.length === 1 ? "" : "s"} to the shared library…`, "info");
+    for (const file of files) {
+      try {
+        await socialGatewayBinaryRequest("/api/media/assets", file, { "X-Folder-Id": ui.mediaFolderId || "" });
+      } catch (error) {
+        failures.push(`${file.name}: ${error.message}`);
+      }
+    }
+    await loadMediaOverview(false);
+    render();
+    if (failures.length) toast("Some uploads failed", failures.slice(0, 3).join(" · "), "danger");
+    else toast("Media uploaded", `${files.length} file${files.length === 1 ? " is" : "s are"} ready to reuse.`, "success");
   });
 
   setInterval(() => {
@@ -5830,7 +6224,7 @@
     authRole = role;
 
     // Supabase is authoritative; browser memory is only the current render cache.
-    store = new StateStore();
+    store = new StateStore(`akihq:workspace-cache:v2:${session.user.id}`);
     state = store.load();
     state.currentUserId = authUser.id;
     workspaceMutationVersion = 0;
@@ -5910,6 +6304,7 @@
     if (ui.route === "crm" && ui.crmTab === "social") loadSocialOverview(false);
     if (ui.route === "crm" && ui.crmTab === "ai-team" && authRole === "administrator") loadAITeamOverview(false);
     if (ui.route === "analytics" && authRole === "administrator") loadAnalyticsOverview(false);
+    if (ui.route === "marketing" && ui.marketingTab === "media") loadMediaOverview(false);
     if (initialSocialResult === "connected") toast("Social account connected", "Refresh metrics to collect the latest available account and content data.", "success");
     if (initialSocialResult === "connection_failed") toast("Social connection failed", initialSocialError || "Check the provider app settings, redirect URL, scopes and account permissions, then try again.", "danger");
   }
@@ -5928,16 +6323,22 @@
       renderLoginScreen();
       return;
     }
+    let bootedUserId = null;
     await bootWithSession(session);
+    bootedUserId = session.user.id;
     client.auth.onAuthStateChange(async (event, newSession) => {
       if (event === "SIGNED_OUT" || !newSession) {
         authUser = null;
         authRole = null;
         store = new StateStore();
         state = seedState();
+        bootedUserId = null;
         renderLoginScreen();
-      } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        if (newSession) await bootWithSession(newSession);
+      } else if (event === "TOKEN_REFRESHED") {
+        authUser = newSession.user;
+      } else if (event === "SIGNED_IN" && newSession?.user?.id !== bootedUserId) {
+        await bootWithSession(newSession);
+        bootedUserId = newSession.user.id;
       }
     });
   }
