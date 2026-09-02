@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const app = readFileSync(new URL("./assets/app-v32.js", import.meta.url), "utf8");
+const css = readFileSync(new URL("./assets/styles.css", import.meta.url), "utf8");
 
 test("loads only database-authorized workspaces and routes", () => {
   assert.match(app, /crm_workspace_members/);
@@ -36,6 +37,18 @@ test("point of sale is entitlement-gated and records atomic inventory sales", ()
   assert.match(app, /crm_record_pos_sale/);
   assert.match(app, /Every completed sale reduces this workspace's inventory immediately/);
   assert.match(app, /p_lines: lines\.map/);
+  assert.match(app, /crm_set_pos_sale_tip/);
+  assert.match(app, /crm_adjust_tip_balance/);
+  assert.match(app, /view-pos-sale/);
+});
+
+test("inventory warnings and tenant commerce UI remain consistent", () => {
+  assert.match(app, /suggestedQuantity/);
+  assert.match(app, /state\.products = \[\]/);
+  assert.match(css, /\.pos-tools \.search-box svg \{ width:16px/);
+  assert.match(css, /grid-template-areas:"catalogue cart" "history cart"/);
+  assert.match(css, /\.pos-cart \{ order:2/);
+  assert.match(css, /\.pos-history \{ order:3/);
 });
 
 test("business dashboard activity and platform metrics stay workspace scoped", () => {

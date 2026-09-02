@@ -401,6 +401,7 @@
   let inventoryRecommendations = [];
   let inventoryMovements = [];
   let posSales = [];
+  let tipAdjustments = [];
   let inventoryError = "";
   let mailboxOverviewState = { configured: false, aliases: [], forwarding: {}, messages: [], unread: 0 };
   let mailboxLoading = false;
@@ -670,6 +671,14 @@
     if (!sbClient || !authUser) return;
     try {
       await syncCloudWorkspacePull();
+      if (isPlatformWorkspace()) {
+        state.products = [];
+        inventoryRecommendations = [];
+        inventoryMovements = [];
+        posSales = [];
+        tipAdjustments = [];
+        inventoryError = "";
+      }
       if (!isPlatformWorkspace()) {
         const [{ data: memberships }, { data: venueLinks }] = await Promise.all([
           sbClient.from("crm_workspace_members")
@@ -704,7 +713,8 @@
             { data: inventoryItems, error: inventoryItemsError },
             { data: recommendations, error: recommendationsError },
             { data: movements, error: movementsError },
-            { data: salesRows, error: salesError }
+            { data: salesRows, error: salesError },
+            { data: tipRows, error: tipError }
           ] = await Promise.all([
             sbClient.from("crm_inventory_items")
               .select("id,sku,name,unit,on_hand,reorder_point,safety_stock,lead_time_days,category,cost_cents,sale_price_cents,active,updated_at")
@@ -715,13 +725,17 @@
               .select("id,item_id,quantity_delta,movement_type,source_type,source_id,notes,occurred_at,employee_profile_id")
               .eq("workspace_id", state.workspace.id).order("occurred_at", { ascending: false }).limit(100),
             sbClient.from("crm_pos_sales")
-              .select("id,provider,external_id,status,total_cents,currency,sold_at,employee_profile_id,crm_pos_sale_lines(item_id,quantity,unit_price_cents)")
-              .eq("workspace_id", state.workspace.id).order("sold_at", { ascending: false }).limit(50)
+              .select("id,provider,external_id,status,total_cents,currency,sold_at,employee_profile_id,tip_cents,tipped_profile_id,crm_pos_sale_lines(item_id,quantity,unit_price_cents)")
+              .eq("workspace_id", state.workspace.id).order("sold_at", { ascending: false }).limit(50),
+            sbClient.from("crm_tip_adjustments")
+              .select("id,profile_id,sale_id,amount_cents,adjustment_type,note,created_at,created_by")
+              .eq("workspace_id", state.workspace.id).order("created_at", { ascending: false }).limit(250)
           ]);
           if (inventoryItemsError) throw inventoryItemsError;
           if (recommendationsError) throw recommendationsError;
           if (movementsError) throw movementsError;
           if (salesError && canUseTool("pos")) throw salesError;
+          if (tipError && canUseTool("pos")) throw tipError;
           const cachedBySku = new Map((state.products || []).map(product => [String(product.sku || "").toLowerCase(), product]));
           const recommendationByItem = new Map((recommendations || []).map(item => [item.item_id, item]));
           state.products = (inventoryItems || []).map(item => {
@@ -752,11 +766,13 @@
           inventoryRecommendations = recommendations || [];
           inventoryMovements = movements || [];
           posSales = salesRows || [];
+          tipAdjustments = tipRows || [];
           inventoryError = "";
         } catch (inventoryLoadError) {
           inventoryRecommendations = [];
           inventoryMovements = [];
           posSales = [];
+          tipAdjustments = [];
           inventoryError = inventoryLoadError?.message || "Smart inventory is unavailable.";
         }
         store.save(state);
@@ -1235,6 +1251,18 @@
 
   function employeeName(id) {
     return state.employees.find(person => person.id === id)?.name || "Unassigned";
+  }
+
+  function tipBalance(profileId, monthOnly = false) {
+    const monthStart = new Date();
+    monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+    return tipAdjustments
+      .filter(item => item.profile_id === profileId && (!monthOnly || new Date(item.created_at) >= monthStart))
+      .reduce((sum, item) => sum + Number(item.amount_cents || 0), 0);
+  }
+
+  function canManageCurrentWorkspace() {
+    return isPlatformWorkspace() || ["owner", "admin", "manager"].includes(String(state.workspace?.role || "").toLowerCase());
   }
 
   function companyName(id) {
@@ -2271,6 +2299,7 @@
           ${renderMetric(platform ? "Platform users" : "Customers", platform && liveStats ? String(liveStats.total_users) : String(state.contacts.length), platform && liveStats ? `${liveStats.new_users_30d} joined this month` : "in this workspace", "crm", "#49d7a0")}
           ${renderMetric(platform ? "Pending claims" : "Open tasks", platform && liveStats ? String(liveStats.pending_claims) : String(dueTasks), platform ? "venue claims awaiting review" : "due within three days", "warning", "#ffbd55", platform && liveStats?.pending_claims > 0 ? "Needs review" : platform ? "Clear" : "")}
           ${renderMetric(platform ? "Staff members" : "Team members", platform && liveStats ? String(liveStats.staff_users) : String(state.employees.length), platform ? "moderators and administrators" : "with workspace access", "employees", "#e96fb7")}
+          ${!platform && canUseTool("pos") ? renderMetric("Your tips this month", formatMoney(tipBalance(authUser?.id, true) / 100), `${formatMoney(tipBalance(authUser?.id) / 100)} available balance`, "money", "#49d7a0") : ""}
         </div>
         <div class="page-grid grid-main">
           <section class="panel">
@@ -2924,11 +2953,17 @@
     const lowStock = state.products.filter(product => Number(product.stock) <= Number(product.reorderAt) && product.warehouse !== "Digital");
     const stockValue = state.products.reduce((sum, product) => sum + Number(product.stock || 0) * Number(product.cost || 0), 0);
     const physical = state.products.filter(product => product.warehouse !== "Digital");
-    const reorderSuggestions = state.products.filter(product => Number(product.suggestedOrder || 0) > 0);
+    const suggestedQuantity = product => Math.max(
+      Number(product.suggestedOrder || 0),
+      Number(product.stock) <= Number(product.reorderAt)
+        ? Math.max(1, Math.ceil(Number(product.reorderAt || 0) + Number(product.safetyStock || 0) - Number(product.stock || 0)))
+        : 0
+    );
+    const reorderSuggestions = state.products.filter(product => product.warehouse !== "Digital" && suggestedQuantity(product) > 0);
     const query = ui.inventorySearch.trim().toLowerCase();
     const visibleProducts = state.products.filter(product => {
       const matchesQuery = !query || `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(query);
-      const matchesFilter = ui.inventoryFilter === "all" || (ui.inventoryFilter === "low" && lowStock.includes(product)) || (ui.inventoryFilter === "reorder" && Number(product.suggestedOrder || 0) > 0);
+      const matchesFilter = ui.inventoryFilter === "all" || (ui.inventoryFilter === "low" && lowStock.includes(product)) || (ui.inventoryFilter === "reorder" && suggestedQuantity(product) > 0);
       return matchesQuery && matchesFilter;
     });
     const movementName = movement => state.products.find(product => product.inventoryItemId === movement.item_id)?.name || "Inventory item";
@@ -2940,7 +2975,7 @@
       </div>
       <section class="panel inventory-command-panel">
         <div class="panel-header"><div><h2>Smart replenishment</h2><p>Forecasts combine the stock ledger, 28-day usage, lead time, safety stock and upcoming demand.</p></div><span class="status-pill ${inventoryError ? "danger" : "success"}">${inventoryError ? "Unavailable" : "Live forecast"}</span></div>
-        ${inventoryError ? `<div class="panel-empty compact"><div><strong>Forecast temporarily unavailable</strong><span>${escapeHtml(inventoryError)}</span></div></div>` : reorderSuggestions.length ? `<div class="inventory-recommendation-grid">${reorderSuggestions.slice(0, 8).map(product => `<article class="inventory-recommendation"><span class="status-pill warning">Reorder</span><strong>${escapeHtml(product.name)}</strong><span>Order ${Number(product.suggestedOrder).toLocaleString()} ${escapeHtml(product.unit || "units")}</span><small>${product.daysRemaining == null ? "No usage horizon yet" : `${Number(product.daysRemaining).toLocaleString()} days of stock remaining`} · ${Number(product.expectedDaily || 0).toLocaleString()} / day</small><button class="action-btn" data-action="adjust-stock" data-id="${product.id}">Receive stock</button></article>`).join("")}</div>` : `<div class="panel-empty compact"><div><strong>Stock looks healthy</strong><span>No purchase is suggested from current usage and upcoming demand.</span></div></div>`}
+        ${inventoryError ? `<div class="panel-empty compact"><div><strong>Forecast temporarily unavailable</strong><span>${escapeHtml(inventoryError)}</span></div></div>` : reorderSuggestions.length ? `<div class="inventory-recommendation-grid">${reorderSuggestions.slice(0, 8).map(product => `<article class="inventory-recommendation"><span class="status-pill warning">Reorder</span><strong>${escapeHtml(product.name)}</strong><span>Order ${suggestedQuantity(product).toLocaleString()} ${escapeHtml(product.unit || "units")}</span><small>${product.daysRemaining == null ? `At or below the ${Number(product.reorderAt).toLocaleString()} ${escapeHtml(product.unit || "unit")} reorder point` : `${Number(product.daysRemaining).toLocaleString()} days of stock remaining`} · ${Number(product.expectedDaily || 0).toLocaleString()} / day</small><button class="action-btn" data-action="adjust-stock" data-id="${product.id}">Receive stock</button></article>`).join("")}</div>` : `<div class="panel-empty compact"><div><strong>Stock looks healthy</strong><span>No purchase is suggested from current usage and upcoming demand.</span></div></div>`}
       </section>
       <section class="panel table-panel">
         <div class="panel-header inventory-toolbar"><div><h2>Inventory</h2><p>Every count is backed by an immutable movement.</p></div><div class="toolbar-actions"><label class="search-box compact-search">${icon("search")}<input data-inventory-search value="${escapeHtml(ui.inventorySearch)}" placeholder="Search item or SKU"></label><select data-inventory-filter><option value="all" ${ui.inventoryFilter === "all" ? "selected" : ""}>All stock</option><option value="low" ${ui.inventoryFilter === "low" ? "selected" : ""}>Low stock</option><option value="reorder" ${ui.inventoryFilter === "reorder" ? "selected" : ""}>Reorder suggested</option></select><button class="action-btn primary" data-action="open-form" data-entity="product">${icon("plus")} Add item</button></div></div>
@@ -2976,7 +3011,8 @@
     const subtotal = cartLines.reduce((sum, line) => sum + Number(line.product.price || 0) * line.quantity, 0);
     const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
     const cart = `<aside class="panel pos-cart"><div class="panel-header"><div><h2>Current sale</h2><p>${cartCount} item${cartCount === 1 ? "" : "s"}</p></div>${cartLines.length ? `<button class="mini-btn" data-action="pos-clear" title="Clear sale">${icon("trash")}</button>` : ""}</div><div class="pos-cart-lines">${cartLines.map(({ product, quantity }) => `<div class="pos-cart-line"><div><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(formatMoney(product.price))} each</span></div><div class="pos-quantity"><button data-action="pos-decrement" data-id="${product.id}" aria-label="Remove one">−</button><strong>${quantity}</strong><button data-action="pos-add" data-id="${product.id}" aria-label="Add one">+</button></div><strong>${escapeHtml(formatMoney(product.price * quantity))}</strong></div>`).join("") || `<div class="panel-empty compact"><div><strong>Ready for an order</strong><span>Tap a product to add it.</span></div></div>`}</div><div class="pos-cart-total"><span>Total</span><strong>${escapeHtml(formatMoney(subtotal))}</strong></div><div class="pos-tenders"><button class="${ui.posTender === "card" ? "active" : ""}" data-action="pos-tender" data-value="card">Card</button><button class="${ui.posTender === "cash" ? "active" : ""}" data-action="pos-tender" data-value="cash">Cash</button><button class="${ui.posTender === "other" ? "active" : ""}" data-action="pos-tender" data-value="other">Other</button></div><button class="action-btn primary pos-checkout" data-action="pos-checkout" ${!cartLines.length || ui.posBusy ? "disabled" : ""}>${ui.posBusy ? "Processing…" : `Charge ${escapeHtml(formatMoney(subtotal))}`}</button></aside>`;
-    return `<div class="pos-shell"><section class="pos-catalogue"><div class="pos-head"><div><span class="status-pill success">Till online</span><h2>Point of Sale</h2><p>Every completed sale reduces this workspace's inventory immediately.</p></div><div class="pos-shift"><span>Operator</span><strong>${escapeHtml(employeeName(state.currentUserId))}</strong></div></div><div class="pos-tools"><label class="search-box">${icon("search")}<input data-pos-search value="${escapeHtml(ui.posSearch)}" placeholder="Search products or SKU"></label><div class="pos-categories">${categories.map(category => `<button class="${ui.posCategory === category ? "active" : ""}" data-action="pos-category" data-value="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div><div class="pos-product-grid">${visible.map(product => `<button class="pos-product ${Number(product.stock) <= 0 ? "sold-out" : ""}" data-action="pos-add" data-id="${product.id}" ${Number(product.stock) <= 0 ? "disabled" : ""}><span class="pos-product-mark">${initials(product.name)}</span><span><strong>${escapeHtml(product.name)}</strong><small>${Number(product.stock).toLocaleString()} ${escapeHtml(product.unit || "")} available</small></span><b>${escapeHtml(formatMoney(product.price))}</b></button>`).join("") || `<div class="panel-empty"><div><strong>No sellable products</strong><span>Add prices and stock in Inventory first.</span></div></div>`}</div><section class="panel pos-history"><div class="panel-header"><div><h2>Recent sales</h2><p>Completed transactions in this workspace.</p></div></div>${posSales.slice(0, 8).map(sale => `<div class="pos-sale-row"><span>${escapeHtml(String(sale.external_id || "").slice(-8))}</span><strong>${escapeHtml(formatMoney(Number(sale.total_cents || 0) / 100))}</strong><small>${escapeHtml(capitalize(sale.provider))} · ${escapeHtml(relativeTime(sale.sold_at))}</small></div>`).join("") || `<div class="panel-empty compact"><div><strong>No sales yet</strong><span>Your first completed sale will appear here.</span></div></div>`}</section></section>${cart}<button class="pos-mobile-cart ${cartCount ? "has-items" : ""}" data-action="pos-toggle-cart"><span>${cartCount} items</span><strong>${escapeHtml(formatMoney(subtotal))}</strong><b>${ui.posCartOpen ? "Close" : "View order"}</b></button></div>`;
+    const history = `<section class="panel pos-history"><div class="panel-header"><div><h2>Recent sales</h2><p>Completed transactions in this workspace. Open one for its operator and contents.</p></div></div>${posSales.slice(0, 8).map(sale => `<button class="pos-sale-row" data-action="view-pos-sale" data-id="${sale.id}"><span>${escapeHtml(String(sale.external_id || "").slice(-8))}</span><strong>${escapeHtml(formatMoney(Number(sale.total_cents || 0) / 100))}</strong><small>${escapeHtml(employeeName(sale.employee_profile_id))} · ${escapeHtml(capitalize(sale.provider))} · ${escapeHtml(relativeTime(sale.sold_at))}</small></button>`).join("") || `<div class="panel-empty compact"><div><strong>No sales yet</strong><span>Your first completed sale will appear here.</span></div></div>`}</section>`;
+    return `<div class="pos-shell"><section class="pos-catalogue"><div class="pos-head"><div><span class="status-pill success">Till online</span><h2>Point of Sale</h2><p>Every completed sale reduces this workspace's inventory immediately.</p></div><div class="pos-shift"><span>Operator</span><strong>${escapeHtml(employeeName(state.currentUserId))}</strong></div></div><div class="pos-tools"><label class="search-box">${icon("search")}<input data-pos-search value="${escapeHtml(ui.posSearch)}" placeholder="Search products or SKU"></label><div class="pos-categories">${categories.map(category => `<button class="${ui.posCategory === category ? "active" : ""}" data-action="pos-category" data-value="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div><div class="pos-product-grid">${visible.map(product => `<button class="pos-product ${Number(product.stock) <= 0 ? "sold-out" : ""}" data-action="pos-add" data-id="${product.id}" ${Number(product.stock) <= 0 ? "disabled" : ""}><span class="pos-product-mark">${initials(product.name)}</span><span><strong>${escapeHtml(product.name)}</strong><small>${Number(product.stock).toLocaleString()} ${escapeHtml(product.unit || "")} available</small></span><b>${escapeHtml(formatMoney(product.price))}</b></button>`).join("") || `<div class="panel-empty"><div><strong>No sellable products</strong><span>Add prices and stock in Inventory first.</span></div></div>`}</div></section>${cart}${history}<button class="pos-mobile-cart ${cartCount ? "has-items" : ""}" data-action="pos-toggle-cart"><span>${cartCount} items</span><strong>${escapeHtml(formatMoney(subtotal))}</strong><b>${ui.posCartOpen ? "Close" : "View order"}</b></button></div>`;
   }
 
   function renderSales() {
@@ -4205,7 +4241,7 @@
       page: [["Slug", `/${entity.slug}`], ["Status", entity.status], ["Visitors", Number(entity.visitors || 0).toLocaleString()], ["Conversions", Number(entity.conversions || 0).toLocaleString()], ["Headline", entity.headline || "—", true], ["Body", entity.body || "—", true]],
       form: [["Status", entity.status], ["Destination", entity.destination], ["Submissions", Number(entity.submissions || 0).toLocaleString()], ["Conversion", `${Number(entity.conversionRate || 0)}%`], ["Fields", (entity.fields || []).join(", "), true]],
       automation: [["Status", entity.status], ["Trigger", entity.trigger, true], ["Conditions", (entity.conditions || []).join("; ") || "None", true], ["Actions", (entity.actions || []).join("; "), true], ["Runs", Number(entity.runs || 0)], ["Failures", Number(entity.failures || 0)]],
-      employee: [["Role", entity.role], ["Department", entity.department], ["Status", isUserOnline(entity) ? "Online (Active session)" : "Offline"], ["Location", entity.location || "Remote"], ["Email", entity.email || "—"], ["Phone", entity.phone || "—"], ["Joined", formatDate(entity.joinedAt)]],
+      employee: [["Role", entity.role], ["Department", entity.department], ["Status", isUserOnline(entity) ? "Online (Active session)" : "Offline"], ["Tip balance", formatMoney(tipBalance(entity.id) / 100)], ["Tips this month", formatMoney(tipBalance(entity.id, true) / 100)], ["Location", entity.location || "Remote"], ["Email", entity.email || "—"], ["Phone", entity.phone || "—"], ["Joined", formatDate(entity.joinedAt)]],
       article: [["Category", entity.category], ["Author", employeeName(entity.authorId)], ["Updated", formatDate(entity.updatedAt)], ["Content", stripHtml(markdown(entity.content)).slice(0, 520), true]]
     };
     return map[type] || Object.entries(entity).filter(([key]) => !["id", "createdAt", "updatedAt"].includes(key)).map(([key, value]) => [capitalize(key), Array.isArray(value) ? value.join(", ") : String(value ?? "—")]);
@@ -4246,6 +4282,7 @@
           ${type === "company" ? `<button class="action-btn success" data-action="publish-company-unclaimed" data-id="${entity.id}" ${entity.catalogueVenueId ? "disabled" : ""}>${icon("arrowRight")} ${entity.catalogueVenueId ? "On catalogue map" : "Publish unclaimed venue"}</button>` : ""}
           ${type === "invoice" ? `<button class="action-btn" data-action="print-invoice" data-id="${entity.id}">${icon("download")} Print</button>` : ""}
           ${type === "product" ? `<button class="action-btn" data-action="adjust-stock" data-id="${entity.id}">${icon("plus")} Adjust stock</button>` : ""}
+          ${type === "employee" && !isPlatformWorkspace() && canManageCurrentWorkspace() ? `<button class="action-btn" data-action="adjust-worker-tip" data-id="${entity.id}">${icon("money")} Adjust tip balance</button>` : ""}
           <button class="action-btn" data-action="edit-entity" data-entity="${type}" data-id="${id}">${icon("edit")} ${escapeHtml(t("edit"))}</button>
           <button class="action-btn danger" data-action="delete-entity" data-entity="${type}" data-id="${id}">${icon("trash")} ${escapeHtml(t("delete"))}</button>
         </footer>
@@ -4467,6 +4504,19 @@
     return '<div class="modal-backdrop" data-action="close-modal"></div><section class="modal wide prospect-import-modal" role="dialog" aria-modal="true" aria-labelledby="prospect-import-title"><header class="modal-head"><div class="entity-logo">' + icon("upload") + '</div><div><h2 id="prospect-import-title">Review prospect import</h2><p>' + escapeHtml(preview.filename) + (preview.sheetName ? " - " + escapeHtml(preview.sheetName) : "") + '</p></div><button class="icon-btn close-btn" data-action="close-modal">' + icon("close") + '</button></header><div class="modal-body"><div class="prospect-import-summary"><article><strong>' + preview.newCount + '</strong><span>New prospects</span></article><article><strong>' + preview.duplicateCount + '</strong><span>Duplicates skipped</span></article><article><strong>' + preview.invalidCount + '</strong><span>Invalid rows</span></article></div><div class="import-note">' + icon("info") + '<span>Matching uses email, phone, website, then business plus address or town. Nothing is written until you confirm.</span></div><div class="table-scroll prospect-import-table"><table class="data-table"><thead><tr><th>Business</th><th>Contact</th><th>Decision</th><th>Reason / details</th></tr></thead><tbody>' + rowHtml + '</tbody></table></div>' + (displayRows.length < preview.rows.length + preview.invalidRows.length ? '<p class="import-truncated">Showing the first 150 rows. All reviewed new rows will be imported.</p>' : "") + '</div><footer class="modal-foot"><button class="action-btn" data-action="close-modal">Cancel</button><button class="action-btn primary" data-action="commit-prospect-import"' + (preview.newCount ? "" : " disabled") + '>' + icon("upload") + ' Import ' + preview.newCount + ' prospects</button></footer></section>';
   }
 
+  function renderPOSSaleModal() {
+    const sale = posSales.find(item => item.id === ui.modal.id);
+    if (!sale) return "";
+    const lines = sale.crm_pos_sale_lines || [];
+    const recipient = sale.tipped_profile_id || sale.employee_profile_id;
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true">
+      <header class="modal-head"><div class="entity-logo" style="width:36px;height:36px">${icon("sales")}</div><div><h2>Sale ${escapeHtml(String(sale.external_id || sale.id).slice(-8))}</h2><p>${escapeHtml(formatDate(sale.sold_at, { time:true }))} · ${escapeHtml(capitalize(sale.provider))}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
+      <div class="modal-body"><div class="detail-grid"><div class="detail-block"><div class="detail-label">Operator</div><div class="detail-value">${escapeHtml(employeeName(sale.employee_profile_id))}</div></div><div class="detail-block"><div class="detail-label">Total</div><div class="detail-value">${escapeHtml(formatMoney(Number(sale.total_cents || 0) / 100))}</div></div><div class="detail-block"><div class="detail-label">Tip</div><div class="detail-value">${escapeHtml(formatMoney(Number(sale.tip_cents || 0) / 100))}${sale.tip_cents ? ` · ${escapeHtml(employeeName(recipient))}` : ""}</div></div><div class="detail-block"><div class="detail-label">Unique ID</div><div class="detail-value">${escapeHtml(sale.id)}</div></div></div>
+      <div class="detail-section"><h3>Sale contents</h3>${lines.map(line => { const product = state.products.find(item => item.inventoryItemId === line.item_id); return `<div class="pos-sale-line-detail"><span><strong>${escapeHtml(product?.name || "Inventory item")}</strong><small>${Number(line.quantity).toLocaleString()} × ${escapeHtml(formatMoney(Number(line.unit_price_cents || 0) / 100))}</small></span><strong>${escapeHtml(formatMoney(Number(line.quantity || 0) * Number(line.unit_price_cents || 0) / 100))}</strong></div>`; }).join("") || `<div class="panel-empty compact"><div><strong>No line detail</strong><span>This legacy transaction has no item lines.</span></div></div>`}</div></div>
+      <footer class="modal-foot"><button class="action-btn" data-action="close-modal">Close</button><button class="action-btn primary" data-action="set-sale-tip" data-id="${sale.id}">${icon("money")} ${sale.tip_cents ? "Edit tip" : "Add tip"}</button></footer>
+    </section>`;
+  }
+
   function renderModal() {
     if (ui.modal.kind === "quick") return renderQuickCreateModal();
     if (ui.modal.kind === "mail-compose") return renderMailComposeModal();
@@ -4479,6 +4529,7 @@
     if (ui.modal.kind === "social-credentials") return renderSocialCredentialsModal();
     if (ui.modal.kind === "social-business-picker") return renderSocialBusinessPickerModal();
     if (ui.modal.kind === "stock") return renderStockModal();
+    if (ui.modal.kind === "pos-sale") return renderPOSSaleModal();
     if (ui.modal.kind === "confirm") return renderConfirmModal();
     return "";
   }
@@ -5081,6 +5132,42 @@
         ui.drawer = { type: entityType, id };
         ui.dropdown = null;
         renderPortal();
+        break;
+      }
+      case "view-pos-sale":
+        ui.modal = { kind: "pos-sale", id: target.dataset.id };
+        renderPortal();
+        break;
+      case "set-sale-tip": {
+        const sale = posSales.find(item => item.id === target.dataset.id);
+        if (!sale) break;
+        const raw = prompt(`Tip for ${employeeName(sale.employee_profile_id)} (€)`, (Number(sale.tip_cents || 0) / 100).toFixed(2));
+        if (raw === null) break;
+        const euros = Number(String(raw).replace(",", "."));
+        if (!Number.isFinite(euros) || euros < 0) { toast("Invalid tip", "Enter zero or a positive amount.", "danger"); break; }
+        const client = getSupabaseClient();
+        const { error } = await client.rpc("crm_set_pos_sale_tip", { p_workspace:state.workspace.id, p_sale:sale.id, p_profile:sale.employee_profile_id, p_tip_cents:Math.round(euros * 100) });
+        if (error) { toast("Tip not saved", error.message, "danger"); break; }
+        await loadLiveData();
+        ui.modal = { kind:"pos-sale", id:sale.id };
+        renderPortal();
+        toast("Tip updated", `${formatMoney(euros)} assigned to ${employeeName(sale.employee_profile_id)}.`, "success");
+        break;
+      }
+      case "adjust-worker-tip": {
+        const profileId = target.dataset.id;
+        if (!canManageCurrentWorkspace()) break;
+        const raw = prompt(`Tip adjustment for ${employeeName(profileId)} (€). Use a negative amount when paying out cash.`, "0.00");
+        if (raw === null) break;
+        const euros = Number(String(raw).replace(",", "."));
+        if (!Number.isFinite(euros) || euros === 0) { toast("Invalid adjustment", "Enter a non-zero amount.", "danger"); break; }
+        const note = prompt(euros < 0 ? "Payout note" : "Adjustment note", euros < 0 ? "Cash tip paid out" : "Manual tip adjustment") || "";
+        const client = getSupabaseClient();
+        const { error } = await client.rpc("crm_adjust_tip_balance", { p_workspace:state.workspace.id, p_profile:profileId, p_amount_cents:Math.round(euros * 100), p_note:note });
+        if (error) { toast("Tip balance not updated", error.message, "danger"); break; }
+        await loadLiveData();
+        renderPortal();
+        toast("Tip balance updated", `${employeeName(profileId)} now has ${formatMoney(tipBalance(profileId) / 100)}.`, "success");
         break;
       }
       case "close-drawer":
@@ -5820,7 +5907,7 @@
       });
       if (error) throw error;
       lines.forEach(line => { line.product.stock = Math.max(0, Number(line.product.stock || 0) - line.quantity); });
-      posSales.unshift({ id: saleId, provider: ui.posTender, external_id: reference, status: "completed", total_cents: totalCents, currency: state.workspace.currency || "EUR", sold_at: isoNow(), employee_profile_id: authUser.id });
+      posSales.unshift({ id: saleId, provider: ui.posTender, external_id: reference, status: "completed", total_cents: totalCents, currency: state.workspace.currency || "EUR", sold_at: isoNow(), employee_profile_id: authUser.id, tip_cents:0, tipped_profile_id:null, crm_pos_sale_lines:lines.map(({ item_id, quantity, unit_price_cents }) => ({ item_id, quantity, unit_price_cents })) });
       addActivity("pos_sale", saleId, "completed a POS sale", `${formatMoney(totalCents / 100)} · ${lines.reduce((sum, line) => sum + line.quantity, 0)} items`, "sales");
       addAudit("pos.sale_completed", { workspaceId: state.workspace.id, saleId, totalCents, tender: ui.posTender });
       ui.posCart = {};
