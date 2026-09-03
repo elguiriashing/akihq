@@ -13,6 +13,10 @@ test("loads only database-authorized workspaces and routes", () => {
   assert.match(app, /workspaceRows\.unshift\(platformWorkspace\)/);
   assert.match(app, /sidebar-workspace-switcher/);
   assert.match(app, /availableWorkspaces\.map\(workspace/);
+  assert.match(app, /function canUseEntityType/);
+  assert.match(app, /\.filter\(command => !command\.entity \|\| canUseEntityType\(command\.entity\)\)/);
+  assert.match(app, /\.filter\(\(\[type\]\) => canUseEntityType\(type\)\)/);
+  assert.match(app, /if \(!canUseEntityType\(type\)\) throw new Error/);
 });
 
 test("business teams use tenant roles and the four-seat RPC", () => {
@@ -22,6 +26,9 @@ test("business teams use tenant roles and the four-seat RPC", () => {
   assert.match(app, /toolKeys: authoritativeToolKeys/);
   assert.match(app, /\["Admin", "Manager", "Staff", "Viewer"\]/);
   assert.match(app, /owner plus three team seats/);
+  assert.match(app, /profiles\(id,display_name,app_role,created_at,updated_at\)/);
+  assert.match(app, /lastActiveAt: profile\?\.updated_at/);
+  assert.doesNotMatch(app, /setupPresence\(\);/);
 });
 
 test("smart inventory is ledger-backed for business workspaces", () => {
@@ -56,8 +63,21 @@ test("inventory warnings and tenant commerce UI remain consistent", () => {
 test("business dashboard activity and platform metrics stay workspace scoped", () => {
   assert.match(app, /workspaceId: state\.workspace\?\.id/);
   assert.match(app, /activity\.workspaceId === state\.workspace\.id/);
+  assert.match(app, /canUseRoute\(routeForActivity\(activity\)\)/);
+  assert.match(app, /canUseTool\("crm"\) \? renderMetric/);
+  assert.match(app, /canUseTool\("tasks"\) \? `<section class="panel">/);
+  assert.match(app, /canUseTool\("calendar"\) \? `<aside class="panel">/);
   assert.match(app, /platform && liveStats/);
   assert.match(app, /No workspace activity yet/);
+});
+
+test("platform-wide inbox and analytics never load inside a business workspace", () => {
+  assert.match(app, /if \(!authUser \|\| !isPlatformWorkspace\(\) \|\| mailboxLoading\) return/);
+  assert.match(app, /function renderInbox\(\) \{\s*if \(!isPlatformWorkspace\(\)\) return renderLegacyInbox\(\)/);
+  assert.match(app, /if \(!isPlatformWorkspace\(\) \|\| authRole !== "administrator" \|\| analyticsLoading\) return/);
+  assert.match(app, /function renderAnalytics\(\) \{\s*if \(!isPlatformWorkspace\(\)\)/);
+  assert.match(app, /Only activity and records from this workspace are included/);
+  assert.match(app, /canUseTool\("inbox"\) \? mailboxMessages\(\)/);
 });
 
 test("AkiPasa staff can manage complimentary workspace modules", () => {

@@ -691,7 +691,7 @@
       if (!isPlatformWorkspace()) {
         const [{ data: memberships }, { data: venueLinks }] = await Promise.all([
           sbClient.from("crm_workspace_members")
-            .select("profile_id,role,profiles(id,display_name,app_role,created_at)")
+            .select("profile_id,role,profiles(id,display_name,app_role,created_at,updated_at)")
             .eq("workspace_id", state.workspace.id)
             .eq("status", "active"),
           sbClient.from("crm_workspace_venues")
@@ -714,7 +714,8 @@
             name: profile?.display_name || (member.profile_id === authUser.id ? authUser.email?.split("@")[0] : "Team member"),
             email: member.profile_id === authUser.id ? authUser.email || "" : "",
             role: capitalize(member.role || "staff"), department: "Business", status: member.profile_id === authUser.id ? "Online" : "Offline",
-            location: "Spain", phone: "", joinedAt: profile?.created_at || isoNow(), leaveBalance: 0
+            location: "Spain", phone: "", joinedAt: profile?.created_at || isoNow(),
+            lastActiveAt: profile?.updated_at || null, leaveBalance: 0
           };
         });
         try {
@@ -1591,7 +1592,7 @@
     }
   }
   async function loadMailboxOverview(renderAfter = true, force = false) {
-    if (!authUser || mailboxLoading) return;
+    if (!authUser || !isPlatformWorkspace() || mailboxLoading) return;
     if (!force && Date.now() - mailboxLastLoadedAt < 2500) return;
     mailboxLoading = true;
     mailboxError = "";
@@ -1634,7 +1635,7 @@
   function liveNotifications() {
     state.notificationReadIds ||= [];
     const readIds = new Set(state.notificationReadIds);
-    const mail = mailboxMessages().filter(message => message.direction === "inbound").map(message => ({
+    const mail = canUseTool("inbox") ? mailboxMessages().filter(message => message.direction === "inbound").map(message => ({
       id: `mail:${message.id}`,
       title: message.from_name ? `Email from ${message.from_name}` : `Email from ${message.from}`,
       body: `${message.subject || "(no subject)"} · ${String(message.text || "").slice(0, 120)}`,
@@ -1644,12 +1645,12 @@
       messageId: message.id,
       seen: !message.unread || readIds.has(`mail:${message.id}`),
       at: message.timestamp
-    }));
-    const activity = (state.activities || []).slice(0, 40).map(item => ({
+    })) : [];
+    const activity = (state.activities || []).filter(item => canUseRoute(routeForActivity(item))).slice(0, 40).map(item => ({
       id: `activity:${item.id}`,
       title: item.verb ? capitalize(item.verb) : "Workspace update",
       body: item.detail || "AkiHQ workspace activity",
-      route: item.icon || "dashboard",
+      route: routeForActivity(item),
       icon: item.icon || "bell",
       seen: readIds.has(`activity:${item.id}`),
       at: item.at
@@ -1712,7 +1713,7 @@
   }
 
   async function loadAnalyticsOverview(showToast = false) {
-    if (authRole !== "administrator" || analyticsLoading) return;
+    if (!isPlatformWorkspace() || authRole !== "administrator" || analyticsLoading) return;
     analyticsLoading = true;
     analyticsError = "";
     if (ui.route === "analytics") render();
@@ -1741,7 +1742,7 @@
 
   async function searchAnalyticsUsers() {
     const query = String(ui.analyticsUserSearch || "").trim();
-    if (authRole !== "administrator" || query.length < 2) {
+    if (!isPlatformWorkspace() || authRole !== "administrator" || query.length < 2) {
       analyticsUserResults = [];
       analyticsUserSearchError = "";
       if (ui.route === "analytics") render();
@@ -2287,7 +2288,10 @@
 
   function renderDashboard() {
     const platform = isPlatformWorkspace();
-    const workspaceActivities = state.activities.filter(activity => activity.workspaceId === state.workspace.id || (platform && !activity.workspaceId));
+    const workspaceActivities = state.activities.filter(activity =>
+      (activity.workspaceId === state.workspace.id || (platform && !activity.workspaceId))
+      && canUseRoute(routeForActivity(activity))
+    );
     const openDeals = state.deals.filter(deal => !["won", "lost", "paying"].includes(deal.stageId));
     const pipelineValue = openDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
     const paidRevenue = state.invoices.filter(invoice => invoice.status === "Paid").reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
@@ -2305,13 +2309,13 @@
       <div class="page-grid">
         <div class="page-grid grid-4">
           ${renderMetric(platform ? "Total venues" : "Locations", platform && liveStats ? String(liveStats.total_venues) : String(state.companies.length), platform && liveStats ? `${liveStats.verified_venues} verified` : "in this workspace", "building", "#7c8cff")}
-          ${renderMetric(platform ? "Platform users" : "Customers", platform && liveStats ? String(liveStats.total_users) : String(state.contacts.length), platform && liveStats ? `${liveStats.new_users_30d} joined this month` : "in this workspace", "crm", "#49d7a0")}
-          ${renderMetric(platform ? "Pending claims" : "Open tasks", platform && liveStats ? String(liveStats.pending_claims) : String(dueTasks), platform ? "venue claims awaiting review" : "due within three days", "warning", "#ffbd55", platform && liveStats?.pending_claims > 0 ? "Needs review" : platform ? "Clear" : "")}
-          ${renderMetric(platform ? "Staff members" : "Team members", platform && liveStats ? String(liveStats.staff_users) : String(state.employees.length), platform ? "moderators and administrators" : "with workspace access", "employees", "#e96fb7")}
+          ${canUseTool("crm") ? renderMetric(platform ? "Platform users" : "Customers", platform && liveStats ? String(liveStats.total_users) : String(state.contacts.length), platform && liveStats ? `${liveStats.new_users_30d} joined this month` : "in this workspace", "crm", "#49d7a0") : ""}
+          ${canUseTool("tasks") ? renderMetric(platform ? "Pending claims" : "Open tasks", platform && liveStats ? String(liveStats.pending_claims) : String(dueTasks), platform ? "venue claims awaiting review" : "due within three days", "warning", "#ffbd55", platform && liveStats?.pending_claims > 0 ? "Needs review" : platform ? "Clear" : "") : ""}
+          ${canUseTool("employees") ? renderMetric(platform ? "Staff members" : "Team members", platform && liveStats ? String(liveStats.staff_users) : String(state.employees.length), platform ? "moderators and administrators" : "with workspace access", "employees", "#e96fb7") : ""}
           ${!platform && canUseTool("pos") ? renderMetric("Your tips this month", formatMoney(tipBalance(authUser?.id, true) / 100), `${formatMoney(tipBalance(authUser?.id) / 100)} available balance`, "money", "#49d7a0") : ""}
         </div>
         <div class="page-grid grid-main">
-          <section class="panel">
+          ${canUseTool("crm") ? `<section class="panel">
             <div class="panel-header">
               <div><h2>${escapeHtml(pipeline.name)} value</h2><p>Value currently sitting in each stage</p></div>
               <div class="panel-actions"><button class="mini-btn" data-action="navigate" data-route="crm" title="Open CRM">${icon("external")}</button></div>
@@ -2326,8 +2330,8 @@
                   </div>`).join("")}
               </div>
             </div>
-          </section>
-          <section class="panel">
+          </section>` : ""}
+          ${canUseTool("tasks") ? `<section class="panel">
             <div class="panel-header"><div><h2>Task completion</h2><p>${completedTasks} of ${state.tasks.length} tasks completed</p></div></div>
             <div class="panel-body">
               <div class="progress-ring">
@@ -2340,11 +2344,11 @@
               </div>
               <button class="action-btn" style="width:100%" data-action="navigate" data-route="tasks">Open task board</button>
             </div>
-          </section>
+          </section>` : ""}
         </div>
         <div class="page-grid grid-main">
           <section class="panel">
-            <div class="panel-header"><div><h2>Recent activity</h2><p>Changes across CRM, operations and content</p></div><div class="panel-actions"><button class="mini-btn" data-action="navigate" data-route="collaboration">${icon("external")}</button></div></div>
+            <div class="panel-header"><div><h2>Recent activity</h2><p>Changes in enabled tools for this workspace</p></div>${canUseTool("collaboration") ? `<div class="panel-actions"><button class="mini-btn" data-action="navigate" data-route="collaboration">${icon("external")}</button></div>` : ""}</div>
             <div class="panel-body activity-list">
               ${workspaceActivities.slice(0, 7).map(activity => `
                 <div class="activity-item">
@@ -2354,7 +2358,7 @@
                 </div>`).join("") || `<div class="panel-empty compact"><div><strong>No workspace activity yet</strong><span>Changes made here will appear here.</span></div></div>`}
             </div>
           </section>
-          <aside class="panel">
+          ${canUseTool("calendar") ? `<aside class="panel">
             <div class="panel-header"><div><h2>Upcoming</h2><p>Meetings and milestones</p></div><div class="panel-actions"><button class="mini-btn" data-action="navigate" data-route="calendar">${icon("external")}</button></div></div>
             <div class="panel-body upcoming-list">
               ${upcoming.map(event => `
@@ -2364,7 +2368,7 @@
                   <div class="upcoming-sub">${escapeHtml(event.location || event.type)}</div>
                 </div>`).join("") || `<div class="panel-empty"><div><strong>No upcoming events</strong><span>Create one from Calendar.</span></div></div>`}
             </div>
-          </aside>
+          </aside>` : ""}
         </div>
       </div>`;
   }
@@ -2719,6 +2723,7 @@
   }
 
   function renderInbox() {
+    if (!isPlatformWorkspace()) return renderLegacyInbox();
     const conversations = mailboxConversations();
     const selected = conversations.find(conversation => conversation.id === ui.selectedConversationId) || conversations[0] || null;
     const aliases = mailboxOverviewState.aliases?.length ? mailboxOverviewState.aliases : ["support@akipasa.com"];
@@ -3412,14 +3417,12 @@
       return true;
     }
 
-    // 2. Supabase Realtime WebSocket presence set
-    if (window._onlineUserIds) {
-      if (employee.id && window._onlineUserIds.has(employee.id)) return true;
-      if (empEmail && window._onlineUserIds.has(empEmail)) return true;
-      if (empName && window._onlineUserIds.has(empName)) return true;
+    // Database activity is read through the workspace-scoped profile policy.
+    // Do not broadcast identities on a global Realtime presence channel.
+    if (employee.lastActiveAt) {
+      const diffSec = (Date.now() - new Date(employee.lastActiveAt).getTime()) / 1000;
+      if (diffSec < 120) return true;
     }
-
-    // 3. Database activity heartbeat timestamp from profiles table
     const contact = state.contacts.find(c => c.id === employee.id || (c.name && c.name.toLowerCase() === empName));
     if (contact && contact.updatedAt) {
       const diffSec = (Date.now() - new Date(contact.updatedAt).getTime()) / 1000;
@@ -3512,6 +3515,27 @@
   }
 
   function renderAnalytics() {
+    if (!isPlatformWorkspace()) {
+      const completedSales = posSales.filter(sale => sale.status === "completed");
+      const revenueCents = completedSales.reduce((sum, sale) => sum + Number(sale.total_cents || 0), 0);
+      const activeTasks = state.tasks.filter(task => !["done", "completed"].includes(String(task.status || "").toLowerCase())).length;
+      const lowStock = state.products.filter(product => Number(product.stock || 0) <= Number(product.reorderAt || 0)).length;
+      const activity = state.activities.filter(item =>
+        item.workspaceId === state.workspace.id && canUseRoute(routeForActivity(item))
+      ).slice(0, 12);
+      return `<div class="analytics-dashboard">
+        <section class="analytics-hero panel"><div><span class="analytics-eyebrow">WORKSPACE ANALYTICS</span><h2>${escapeHtml(state.workspace.name)}</h2><p>Only activity and records from this workspace are included.</p></div></section>
+        <div class="analytics-metric-grid">
+          ${canUseTool("pos") ? renderMetric("Completed sales", String(completedSales.length), formatMoney(revenueCents / 100) + " revenue", "sales", "#49d7a0") : ""}
+          ${canUseTool("tasks") ? renderMetric("Open tasks", String(activeTasks), "in this workspace", "tasks", "#7c8cff") : ""}
+          ${canUseTool("inventory") ? renderMetric("Stock alerts", String(lowStock), "at or below reorder point", "warning", "#ffbd55") : ""}
+          ${canUseTool("employees") ? renderMetric("Team members", String(state.employees.length), "with workspace access", "employees", "#e96fb7") : ""}
+        </div>
+        <section class="panel"><div class="panel-header"><div><h2>Recent workspace activity</h2><p>Events from enabled tools only</p></div></div><div class="panel-body activity-list">
+          ${activity.map(item => `<div class="activity-item"><div class="activity-icon">${icon(item.icon || "activity")}</div><div class="activity-copy"><strong>${escapeHtml(employeeName(item.actorId))}</strong> ${escapeHtml(item.verb)}${item.detail ? `<br><span>${escapeHtml(item.detail)}</span>` : ""}</div><div class="activity-time">${escapeHtml(relativeTime(item.at))}</div></div>`).join("") || `<div class="panel-empty"><div><strong>No workspace activity yet</strong><span>Changes made in enabled tools appear here.</span></div></div>`}
+        </div></section>
+      </div>`;
+    }
     if (authRole !== "administrator") {
       return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("lock")}</div><h2>Administrator analytics</h2><p>Aggregate personalisation and catalogue analytics are restricted to administrators.</p></div></section>`;
     }
@@ -3994,6 +4018,18 @@
     if (type === "article") return "knowledge";
     if (type === "conversation") return "inbox";
     return "dashboard";
+  }
+
+  function canUseEntityType(type) {
+    return canUseRoute(routeForEntity(type));
+  }
+
+  function routeForActivity(activity) {
+    const type = activity?.entityType || "";
+    if (type === "pos_sale") return "pos";
+    if (type === "integration") return "integrations";
+    if (type === "timer") return "dashboard";
+    return routeForEntity(type);
   }
 
   function titleForEntity(type, entity) {
@@ -4614,7 +4650,7 @@
       ["deal", "Deal", "Track an opportunity", "crm"], ["lead", "Lead", "Capture a prospect", "user"], ["contact", "Contact", "Add a person", "user"],
       ["company", "Company", "Add an organisation", "building"], ["task", "Task", "Assign work", "tasks"], ["event", "Event", "Schedule a meeting", "calendar"],
       ["invoice", "Invoice", "Create a document", "sales"], ["product", "Product", "Add catalogue stock", "inventory"], ["campaign", "Campaign", "Plan outreach", "marketing"]
-    ];
+    ].filter(([type]) => canUseEntityType(type));
     return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true">
       <header class="modal-head"><div><h2>Quick create</h2><p>Add a record without leaving your current view</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
       <div class="modal-body"><div class="quick-create-grid">${items.map(([type, label, description, iconName]) => `<button class="quick-create-card" data-action="quick-create-entity" data-entity="${type}">${icon(iconName)}<strong>${escapeHtml(label)}</strong><span>${escapeHtml(description)}</span></button>`).join("")}</div></div>
@@ -4989,16 +5025,16 @@
     const push = (type, item, title, subtitle) => {
       if (`${title} ${subtitle}`.toLowerCase().includes(q)) results.push({ type, id: item.id, title, subtitle, route: routeForEntity(type) });
     };
-    state.deals.forEach(item => push("deal", item, item.title, `${companyName(item.companyId)} ${item.notes || ""}`));
-    state.leads.forEach(item => push("lead", item, item.name, `${item.company} ${item.email}`));
-    state.contacts.forEach(item => push("contact", item, item.name, `${item.email} ${companyName(item.companyId)}`));
-    state.companies.forEach(item => push("company", item, item.name, `${item.type} ${item.city}`));
-    state.tasks.forEach(item => push("task", item, item.title, `${projectName(item.projectId)} ${item.description || ""}`));
-    state.events.forEach(item => push("event", item, item.title, `${item.location} ${item.notes || ""}`));
-    state.products.forEach(item => push("product", item, item.name, `${item.sku} ${item.category}`));
-    state.invoices.forEach(item => push("invoice", item, item.number, `${companyName(item.companyId)} ${item.notes || ""}`));
-    state.knowledge.forEach(item => push("article", item, item.title, `${item.category} ${stripHtml(item.content)}`));
-    state.employees.forEach(item => push("employee", item, item.name, `${item.role} ${item.department}`));
+    if (canUseEntityType("deal")) state.deals.forEach(item => push("deal", item, item.title, `${companyName(item.companyId)} ${item.notes || ""}`));
+    if (canUseEntityType("lead")) state.leads.forEach(item => push("lead", item, item.name, `${item.company} ${item.email}`));
+    if (canUseEntityType("contact")) state.contacts.forEach(item => push("contact", item, item.name, `${item.email} ${companyName(item.companyId)}`));
+    if (canUseEntityType("company")) state.companies.forEach(item => push("company", item, item.name, `${item.type} ${item.city}`));
+    if (canUseEntityType("task")) state.tasks.forEach(item => push("task", item, item.title, `${projectName(item.projectId)} ${item.description || ""}`));
+    if (canUseEntityType("event")) state.events.forEach(item => push("event", item, item.title, `${item.location} ${item.notes || ""}`));
+    if (canUseEntityType("product")) state.products.forEach(item => push("product", item, item.name, `${item.sku} ${item.category}`));
+    if (canUseEntityType("invoice")) state.invoices.forEach(item => push("invoice", item, item.number, `${companyName(item.companyId)} ${item.notes || ""}`));
+    if (canUseEntityType("article")) state.knowledge.forEach(item => push("article", item, item.title, `${item.category} ${stripHtml(item.content)}`));
+    if (canUseEntityType("employee")) state.employees.forEach(item => push("employee", item, item.name, `${item.role} ${item.department}`));
     return results.slice(0, 24);
   }
 
@@ -5020,7 +5056,7 @@
       { group: "Create", label: "New event", icon: "calendar", action: "create", entity: "event" },
       { group: "Workspace", label: "Export backup", icon: "download", action: "export" },
       { group: "Workspace", label: `Switch to ${state.settings.theme === "dark" ? "light" : "dark"} theme`, icon: "sparkles", action: "theme" }
-    ];
+    ].filter(command => !command.entity || canUseEntityType(command.entity));
   }
 
   function renderCommandPalette() {
@@ -5039,6 +5075,10 @@
   }
 
   function openEntityForm(type, id = null, defaults = {}) {
+    if (!canUseEntityType(type)) {
+      toast("Tool not enabled", "This record belongs to a tool that is not included in the current workspace.", "info");
+      return;
+    }
     ui.formDefaults = defaults;
     ui.modal = { kind: "form", entity: type, id };
     renderPortal();
@@ -5743,7 +5783,12 @@
         ui.toasts = ui.toasts.filter(item => item.id !== target.dataset.id); renderPortal();
         break;
       case "search-open":
-        ui.searchQuery = ""; ui.route = target.dataset.route; location.hash = `#/${ui.route}`; render(); ui.drawer = { type: target.dataset.entity, id: target.dataset.id }; renderPortal();
+        if (!canUseEntityType(target.dataset.entity)) {
+          ui.searchQuery = "";
+          toast("Tool not enabled", "This result is not available in the current workspace.", "info");
+          break;
+        }
+        ui.searchQuery = ""; setRoute(target.dataset.route); ui.drawer = { type: target.dataset.entity, id: target.dataset.id }; renderPortal();
         break;
       case "close-command":
         ui.commandOpen = false; ui.commandQuery = ""; renderPortal();
@@ -6064,6 +6109,7 @@
 
   async function saveEntityFromForm(form) {
     const type = form.dataset.entity;
+    if (!canUseEntityType(type)) throw new Error("This tool is not enabled for the current workspace.");
     const id = form.dataset.id || null;
     const collection = collectionFor[type];
     if (!collection || !state[collection]) return;
@@ -7556,8 +7602,8 @@
     applySettings();
     render();
 
-    // Start background chat polling, Realtime Presence & WebSockets for instant multi-device messaging
-    setupPresence();
+    // Start workspace-authorized sync. Presence uses the profile heartbeat rather
+    // than a global Realtime room that could reveal users across tenants.
     setupRealtimeChat();
     setupRealtimeWorkspaceSync();
     sendPresenceHeartbeat();
