@@ -531,7 +531,16 @@
     }
 
     if (remote.workspace && typeof remote.workspace === "object" && remote.workspace.name) {
-      const nextWorkspace = { ...state.workspace, ...remote.workspace };
+      // Snapshot data may contain an older copy of the workspace object. Feature
+      // entitlements come from Supabase and must never be rolled back by that cache.
+      const authoritativeToolKeys = Array.isArray(state.workspace?.toolKeys)
+        ? [...state.workspace.toolKeys]
+        : [];
+      const nextWorkspace = {
+        ...state.workspace,
+        ...remote.workspace,
+        toolKeys: authoritativeToolKeys
+      };
       if (JSON.stringify(state.workspace || {}) !== JSON.stringify(nextWorkspace)) {
         state.workspace = nextWorkspace;
         stateChanged = true;

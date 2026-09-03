@@ -18,6 +18,8 @@ test("loads only database-authorized workspaces and routes", () => {
 test("business teams use tenant roles and the four-seat RPC", () => {
   assert.match(app, /crm_add_workspace_member/);
   assert.match(app, /crm_remove_workspace_member/);
+  assert.match(app, /authoritativeToolKeys/);
+  assert.match(app, /toolKeys: authoritativeToolKeys/);
   assert.match(app, /\["Admin", "Manager", "Staff", "Viewer"\]/);
   assert.match(app, /owner plus three team seats/);
 });
