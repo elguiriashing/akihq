@@ -912,24 +912,23 @@
 
   async function syncTeamMessages() {
     const sbClient = getSupabaseClient();
-    if (!sbClient || !authUser || !isPlatformWorkspace()) return;
+    const workspaceId = state.workspace?.id;
+    if (!sbClient || !authUser || !workspaceId || !canUseTool("collaboration")) return;
     try {
-      const { data: remoteMsgs, error } = await sbClient.from("crm_team_messages")
-        .select("*")
-        .order("created_at", { ascending: true })
-        .limit(1000);
-
-      if (error || !Array.isArray(remoteMsgs)) return;
+      const [{ data: remoteChannels, error: channelError }, { data: remoteMsgs, error: messageError }] = await Promise.all([
+        sbClient.from("crm_team_channels").select("id,name,description,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: true }),
+        sbClient.from("crm_team_messages").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: true }).limit(1000)
+      ]);
+      if (channelError || messageError || !Array.isArray(remoteChannels) || !Array.isArray(remoteMsgs)) return;
 
       state.teamChat ||= { channels: [], messages: {} };
-      state.teamChat.messages ||= {};
-
-      let hasNew = false;
+      state.teamChat.workspaceId = workspaceId;
+      state.teamChat.channels = remoteChannels.map(channel => ({ ...channel, icon: "#", unread: 0 }));
+      state.teamChat.messages = {};
       remoteMsgs.forEach(msg => {
         const chanId = msg.channel_id;
         state.teamChat.messages[chanId] ||= [];
-        const existingIndex = state.teamChat.messages[chanId].findIndex(m => m.id === msg.id);
-        const formatted = {
+        state.teamChat.messages[chanId].push({
           id: msg.id,
           authorId: msg.author_id,
           authorName: msg.author_name,
@@ -937,27 +936,11 @@
           text: msg.text,
           at: msg.created_at,
           reactions: msg.reactions || {}
-        };
-
-        if (existingIndex >= 0) {
-          const oldStr = JSON.stringify(state.teamChat.messages[chanId][existingIndex].reactions || {});
-          const newStr = JSON.stringify(formatted.reactions || {});
-          if (oldStr !== newStr) {
-            state.teamChat.messages[chanId][existingIndex].reactions = formatted.reactions;
-            hasNew = true;
-          }
-        } else {
-          state.teamChat.messages[chanId].push(formatted);
-          hasNew = true;
-        }
+        });
       });
-
-      if (hasNew) {
-        store.save(state);
-        if (ui.route === "collaboration") {
-          requestBackgroundRender();
-        }
-      }
+      if (!state.teamChat.channels.some(channel => channel.id === ui.activeTeamChannel)) ui.activeTeamChannel = state.teamChat.channels[0]?.id || null;
+      store.save(state);
+      if (ui.route === "collaboration") requestBackgroundRender();
     } catch (e) {}
   }
 
@@ -1010,41 +993,17 @@
     }
   }
 
-  function setupRealtimeChat() {
+  async function setupRealtimeChat() {
     const sbClient = getSupabaseClient();
-    if (!sbClient || window._chatRealtimeSub) return;
+    const workspaceId = state.workspace?.id;
+    if (!sbClient || !workspaceId || !canUseTool("collaboration")) return;
+    if (window._chatRealtimeSub && window._chatRealtimeWorkspaceId === workspaceId) return;
     try {
-      window._chatRealtimeSub = sbClient.channel("crm-chat-room")
-        .on("postgres_changes", { event: "*", schema: "public", table: "crm_team_messages" }, payload => {
-          if (payload.new) {
-            const msg = payload.new;
-            const chanId = msg.channel_id;
-            state.teamChat ||= { channels: [], messages: {} };
-            state.teamChat.messages ||= {};
-            state.teamChat.messages[chanId] ||= [];
-
-            const formatted = {
-              id: msg.id,
-              authorId: msg.author_id,
-              authorName: msg.author_name,
-              role: msg.role || "Staff",
-              text: msg.text,
-              at: msg.created_at,
-              reactions: msg.reactions || {}
-            };
-
-            const existingIndex = state.teamChat.messages[chanId].findIndex(m => m.id === msg.id);
-            if (existingIndex >= 0) {
-              state.teamChat.messages[chanId][existingIndex] = formatted;
-            } else {
-              state.teamChat.messages[chanId].push(formatted);
-            }
-            store.save(state);
-            if (ui.route === "collaboration") {
-              requestBackgroundRender();
-            }
-          }
-        })
+      if (window._chatRealtimeSub) await sbClient.removeChannel(window._chatRealtimeSub);
+      window._chatRealtimeWorkspaceId = workspaceId;
+      window._chatRealtimeSub = sbClient.channel(`crm-chat-room:${workspaceId}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "crm_team_messages", filter: `workspace_id=eq.${workspaceId}` }, () => syncTeamMessages())
+        .on("postgres_changes", { event: "*", schema: "public", table: "crm_team_channels", filter: `workspace_id=eq.${workspaceId}` }, () => syncTeamMessages())
         .subscribe();
     } catch (e) {
       console.warn("Realtime chat error:", e);
@@ -3189,7 +3148,16 @@
     return `dm_${sorted[0]}_${sorted[1]}`;
   }
 
+  function canManageTeamChat() {
+    const role = String(selectedWorkspace?.role || "").toLowerCase();
+    return ["owner", "admin", "manager"].includes(role);
+  }
+
   function renderCollaboration() {
+    if (state.teamChat?.workspaceId !== state.workspace?.id) {
+      state.teamChat = { workspaceId: state.workspace?.id, activeChannelId: null, channels: [], messages: {} };
+      ui.activeTeamChannel = null;
+    }
     state.teamChat ||= {
       activeChannelId: "ch_general",
       channels: [
@@ -3251,7 +3219,7 @@
       }
     }
 
-    const activeKey = ui.activeTeamChannel || state.teamChat.activeChannelId || "ch_general";
+    const activeKey = ui.activeTeamChannel || state.teamChat.activeChannelId || state.teamChat.channels[0]?.id || "";
     ui.activeTeamChannel = activeKey;
 
     let currentChan = state.teamChat.channels.find(c => c.id === activeKey);
@@ -3284,14 +3252,17 @@
           <div style="flex:1;overflow-y:auto;padding:12px 8px">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px 8px;font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em">
               <span>OPERATION CHANNELS</span>
-              <button class="mini-btn ghost" data-action="create-team-channel" title="Create channel" style="height:20px;width:20px;padding:0;min-width:auto">${icon("plus")}</button>
+              ${canManageTeamChat() ? `<button class="mini-btn ghost" data-action="create-team-channel" title="Create channel" style="height:20px;width:20px;padding:0;min-width:auto">${icon("plus")}</button>` : ""}
             </div>
             ${state.teamChat.channels.map(chan => `
-              <button class="nav-item ${chan.id === activeKey ? "active" : ""}" data-action="select-team-channel" data-id="${chan.id}" style="height:34px;margin:2px 0;font-size:12px;justify-content:flex-start">
+              <div style="display:flex;align-items:center;gap:3px">
+              <button class="nav-item ${chan.id === activeKey ? "active" : ""}" data-action="select-team-channel" data-id="${chan.id}" style="height:34px;margin:2px 0;font-size:12px;justify-content:flex-start;flex:1">
                 <span style="color:var(--accent-2);font-weight:800;margin-right:6px">#</span>
                 <span class="nav-text">${escapeHtml(chan.name)}</span>
                 ${chan.unread ? `<span class="nav-badge">${chan.unread}</span>` : ""}
               </button>
+              ${canManageTeamChat() ? `<button class="mini-btn ghost" data-action="delete-team-channel" data-id="${chan.id}" title="Delete #${escapeHtml(chan.name)}" style="height:28px;width:28px;padding:0">${icon("trash")}</button>` : ""}
+              </div>
             `).join("")}
 
             <div style="margin-top:20px;padding:4px 8px 8px;font-size:10px;font-weight:800;color:var(--subtle);letter-spacing:.08em">
@@ -3354,6 +3325,7 @@
                     }).join("")}
                     <button class="chip ghost" data-action="toggle-reaction-picker" data-msg-id="${msg.id}" style="height:22px;padding:0 7px;font-size:10px" title="Add reaction">+ 😊</button>
                     <button class="mini-btn ghost" data-action="reply-team-msg" data-msg-id="${msg.id}" style="height:22px;font-size:10px;margin-left:4px;padding:0 6px">${icon("send")} Reply</button>
+                    ${(msg.authorId === authUser?.id || canManageTeamChat()) ? `<button class="mini-btn ghost" data-action="delete-team-message" data-msg-id="${msg.id}" style="height:22px;font-size:10px;padding:0 6px" title="Delete message">${icon("trash")} Delete</button>` : ""}
 
                     ${ui.activeReactionPicker === msg.id ? `
                       <div style="position:absolute;bottom:28px;left:0;z-index:30;background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:4px 8px;display:flex;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.4)">
@@ -5709,12 +5681,53 @@
         const name = prompt("Enter new channel name (e.g. sales-wins):");
         if (name) {
           const id = `ch_${name.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
-          state.teamChat ||= { channels: [], messages: {} };
-          state.teamChat.channels.push({ id, name, description: "Custom team channel", icon: "#", unread: 0 });
-          state.teamChat.messages[id] = [];
-          ui.activeTeamChannel = id;
-          persist();
-          toast("Channel created", `#${name} added to CRM Team Chat.`);
+          const client = getSupabaseClient();
+          if (!client || !authUser || !state.workspace?.id) break;
+          const { error } = await client.from("crm_team_channels").insert({
+            workspace_id: state.workspace.id, id, name: name.trim(),
+            description: "Custom team channel", created_by: authUser.id
+          });
+          if (error) toast("Channel not created", error.message, "danger");
+          else {
+            await syncTeamMessages();
+            ui.activeTeamChannel = id;
+            render();
+            toast("Channel created", `#${name.trim()} added to this workspace.`);
+          }
+        }
+        break;
+      }
+      case "delete-team-channel": {
+        const channelId = target.dataset.id;
+        const channel = state.teamChat?.channels?.find(item => item.id === channelId);
+        if (!channel || !canManageTeamChat() || !confirm(`Delete #${channel.name} and all of its messages?`)) break;
+        const client = getSupabaseClient();
+        if (!client || !state.workspace?.id) break;
+        const { error: messageError } = await client.from("crm_team_messages").delete().eq("workspace_id", state.workspace.id).eq("channel_id", channelId);
+        const { error: channelError } = messageError ? { error: messageError } : await client.from("crm_team_channels").delete().eq("workspace_id", state.workspace.id).eq("id", channelId);
+        if (channelError) toast("Channel not deleted", channelError.message, "danger");
+        else {
+          delete state.teamChat.messages[channelId];
+          state.teamChat.channels = state.teamChat.channels.filter(item => item.id !== channelId);
+          ui.activeTeamChannel = state.teamChat.channels[0]?.id || null;
+          persist(false); render();
+          toast("Channel deleted", `#${channel.name} and its messages were removed.`);
+        }
+        break;
+      }
+      case "delete-team-message": {
+        const messageId = target.dataset.msgId;
+        const channelId = ui.activeTeamChannel || "";
+        const message = state.teamChat?.messages?.[channelId]?.find(item => item.id === messageId);
+        if (!message || (message.authorId !== authUser?.id && !canManageTeamChat()) || !confirm("Delete this message?")) break;
+        const client = getSupabaseClient();
+        if (!client || !state.workspace?.id) break;
+        const { error } = await client.from("crm_team_messages").delete().eq("workspace_id", state.workspace.id).eq("id", messageId);
+        if (error) toast("Message not deleted", error.message, "danger");
+        else {
+          state.teamChat.messages[channelId] = state.teamChat.messages[channelId].filter(item => item.id !== messageId);
+          persist(false); render();
+          toast("Message deleted", "The message was removed from this workspace.");
         }
         break;
       }
@@ -5757,7 +5770,7 @@
           // Sync reaction update to Supabase DB
           const sbClient = getSupabaseClient();
           if (sbClient && authUser) {
-            sbClient.from("crm_team_messages").update({ reactions: msg.reactions }).eq("id", msg.id).then(({ error }) => {
+            sbClient.from("crm_team_messages").update({ reactions: msg.reactions }).eq("workspace_id", state.workspace.id).eq("id", msg.id).then(({ error }) => {
               if (error) console.warn("Reaction sync error:", error);
             });
           }
@@ -6437,6 +6450,7 @@
       if (client && authUser) {
         client.from("crm_team_messages").insert([{
           id: newMsg.id,
+          workspace_id: state.workspace.id,
           channel_id: channelId,
           author_id: authUser.id,
           author_name: newMsg.authorName,
@@ -7496,6 +7510,11 @@
       try { await client.removeChannel(window._workspaceSyncSub); } catch (error) {}
       window._workspaceSyncSub = null;
     }
+    if (window._chatRealtimeSub && client) {
+      try { await client.removeChannel(window._chatRealtimeSub); } catch (error) {}
+      window._chatRealtimeSub = null;
+      window._chatRealtimeWorkspaceId = null;
+    }
     workspaceSwitchingId = workspace.id;
     activateWorkspace(workspace);
     ui.dropdown = null;
@@ -7505,7 +7524,8 @@
       await syncCloudWorkspacePull();
       await syncDurableRecordsPull();
       setupRealtimeWorkspaceSync();
-      loadLiveData();
+      setupRealtimeChat();
+      await loadLiveData();
       toast("Workspace switched", workspace.name, "success");
     } catch (error) {
       console.error("Workspace switch refresh failed:", error);

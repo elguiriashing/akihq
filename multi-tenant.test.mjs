@@ -31,6 +31,17 @@ test("business teams use tenant roles and the four-seat RPC", () => {
   assert.doesNotMatch(app, /setupPresence\(\);/);
 });
 
+test("team chat channels and messages are workspace scoped and deletable", () => {
+  assert.match(app, /from\("crm_team_channels"\).*eq\("workspace_id", workspaceId\)/s);
+  assert.match(app, /from\("crm_team_messages"\).*eq\("workspace_id", workspaceId\)/s);
+  assert.match(app, /crm-chat-room:\$\{workspaceId\}/);
+  assert.match(app, /filter: `workspace_id=eq\.\$\{workspaceId\}`/);
+  assert.match(app, /workspace_id: state\.workspace\.id/);
+  assert.match(app, /case "delete-team-channel"/);
+  assert.match(app, /case "delete-team-message"/);
+  assert.match(app, /function canManageTeamChat/);
+});
+
 test("smart inventory is ledger-backed for business workspaces", () => {
   assert.match(app, /crm_inventory_items/);
   assert.match(app, /crm_inventory_movements/);
