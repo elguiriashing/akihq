@@ -5,3 +5,5 @@ cloudflare/.dev.vars
 .wrangler/
 node_modules/
 *.log
+supabase/.temp/
+test-results/

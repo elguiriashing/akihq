@@ -66,6 +66,7 @@
   };
 
   const ICONS = {
+    support: '<path d="M4 13v-1a8 8 0 0 1 16 0v1M20 17v1a3 3 0 0 1-3 3h-3"/><rect x="2" y="11" width="4" height="7" rx="2"/><rect x="18" y="11" width="4" height="7" rx="2"/>',
     dashboard: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     crm: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
     inbox: '<path d="M4 4h16v16H4z"/><path d="m4 13 4 4h8l4-4"/><path d="M8 4v5h8V4"/>',
@@ -126,6 +127,7 @@
 
   const translations = {
     en: {
+      support: "Customer support",
       dashboard: "Dashboard", crm: "CRM", inbox: "Inbox", tasks: "Tasks & Projects", calendar: "Calendar", "business-workspaces": "Business CRM",
       inventory: "Inventory", pos: "Point of Sale", sales: "Sales & Billing", marketing: "Marketing", sites: "Sites & Forms",
       automation: "Automation", collaboration: "Team Chat", employees: "People", knowledge: "Knowledge",
@@ -135,6 +137,7 @@
       edit: "Edit", delete: "Delete", close: "Close", connected: "Connected", configure: "Configure", disconnect: "Disconnect"
     },
     es: {
+      support: "Atención al cliente",
       dashboard: "Resumen", crm: "CRM", inbox: "Bandeja", tasks: "Tareas y proyectos", calendar: "Calendario", "business-workspaces": "CRM de negocios",
       inventory: "Inventario", pos: "Punto de venta", sales: "Ventas y facturación", marketing: "Marketing", sites: "Webs y formularios",
       automation: "Automatización", collaboration: "Chat de Equipo", employees: "Equipo", knowledge: "Conocimiento",
@@ -149,7 +152,7 @@
     {
       label: "Workspace",
       items: [
-        ["dashboard", "dashboard"], ["crm", "crm"], ["business-workspaces", "building"], ["inbox", "inbox"], ["tasks", "tasks"], ["calendar", "calendar"]
+        ["dashboard", "dashboard"], ["crm", "crm"], ["business-workspaces", "building"], ["support", "support"], ["inbox", "inbox"], ["tasks", "tasks"], ["calendar", "calendar"]
       ]
     },
     {
@@ -167,6 +170,7 @@
   ];
 
   const routeToolMap = {
+    support: "support",
     dashboard: "dashboard", crm: "crm", inbox: "inbox", tasks: "tasks", calendar: "calendar",
     inventory: "inventory", pos: "pos", sales: "sales", marketing: "marketing", sites: "sites",
     automation: "automation", collaboration: "collaboration", telegram: "telegram",
@@ -678,6 +682,7 @@
   async function loadLiveData() {
     const sbClient = getSupabaseClient();
     if (!sbClient || !authUser) return;
+    if (canUseTool("support")) void supportDesk.refresh();
     try {
       await syncCloudWorkspacePull();
       if (isPlatformWorkspace()) {
@@ -1061,6 +1066,12 @@
   };
 
   let backgroundRenderPending = false;
+  const supportDesk = window.createSupportDesk({
+    workspace: () => state.workspace?.id || "", workspaceName: () => state.workspace?.name || "",
+    user: () => authUser?.id, locale: () => state.settings?.locale || "en", route: () => ui.route,
+    allowed: () => Boolean(authUser && canUseTool("support")),
+    request: socialGatewayRequest, render: () => requestBackgroundRender(), toast, icon
+  });
 
   function hasActiveInteraction() {
     const active = document.activeElement;
@@ -1375,6 +1386,7 @@
     if (route === "analytics") loadAnalyticsOverview(false);
     if (route === "business-workspaces") loadBusinessWorkspaceOverview(false);
     if (route === "inbox" || route === "integrations") loadMailboxOverview(true, true);
+    if (route === "support") supportDesk.refresh();
     if (route === "telegram") loadTelegramOverview(true, true);
   }
 
@@ -1400,6 +1412,7 @@
       cache: "no-store",
       signal: options.signal
     });
+    if (response.ok && options.responseType === "blob") return response.blob();
     const text = await response.text();
     let payload = null;
     try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
@@ -1614,7 +1627,8 @@
       seen: readIds.has(`activity:${item.id}`),
       at: item.at
     }));
-    return [...mail, ...activity].sort((a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0)).slice(0, 30);
+    const support = supportDesk.notifications().map(item => ({ ...item, seen: readIds.has(item.id) }));
+    return [...support, ...mail, ...activity].sort((a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0)).slice(0, 30);
   }
 
   async function markAllLiveNotificationsRead() {
@@ -1872,6 +1886,7 @@
       dashboard: [t("dashboard"), "Your workspace at a glance"],
       crm: [t("crm"), "Leads, relationships and revenue"],
       inbox: [t("inbox"), "Shared customer conversations"],
+      support: [t("support"), state.settings?.locale === "es" ? "Tickets, respuestas y seguimiento" : "Tickets, replies and follow-through"],
       tasks: [t("tasks"), "Plan work and ship projects"],
       calendar: [t("calendar"), "Meetings, bookings and deadlines"],
       "business-workspaces": [t("business-workspaces"), "Business Pro workspaces and feature access"],
@@ -1970,7 +1985,7 @@
             <div class="nav-section">
               <div class="nav-label">${escapeHtml(section.label)}</div>
               ${section.items.map(([route, iconName]) => {
-                const badge = route === "inbox" && unread ? unread : route === "tasks" && overdueTasks ? overdueTasks : "";
+                const badge = route === "support" ? supportDesk.attention().count : route === "inbox" && unread ? unread : route === "tasks" && overdueTasks ? overdueTasks : "";
                 return `
                   <button class="nav-item ${ui.route === route ? "active" : ""}" data-action="navigate" data-route="${route}" title="${escapeHtml(t(route))}">
                     <span class="nav-icon">${icon(iconName)}</span>
@@ -2213,6 +2228,7 @@
       dashboard: renderDashboard,
       crm: renderCRM,
       inbox: renderInbox,
+      support: () => supportDesk.render(),
       tasks: renderTasks,
       calendar: renderCalendar,
       "business-workspaces": renderBusinessWorkspaces,
@@ -3822,6 +3838,7 @@
     if (businessWorkspaceLoading && !businessWorkspaceOverview.length) return `<section class="panel"><div class="panel-empty"><div><strong>Loading business workspaces…</strong><span>Checking Business and Business Pro access.</span></div></div></section>`;
     if (businessWorkspaceError && !businessWorkspaceOverview.length) return `<section class="panel"><div class="panel-empty"><div><strong>Business CRM unavailable</strong><span>${escapeHtml(businessWorkspaceError)}</span><button class="action-btn primary" data-action="refresh-business-workspaces">Try again</button></div></div></section>`;
     const toolLabels = {
+      support: "Customer support",
       dashboard: "Dashboard", crm: "CRM", inbox: "Inbox", tasks: "Tasks", calendar: "Calendar",
       inventory: "Smart inventory", pos: "Point of sale", sales: "Sales & billing", marketing: "Marketing",
       sites: "Sites & forms", automation: "Automation", collaboration: "Team chat", employees: "People",
@@ -7426,7 +7443,7 @@
     const platformWorkspace = {
       id: "ws_akipasa", name: "AkiPasa HQ", slug: "akipasa", role: role === "administrator" ? "owner" : "staff",
       ownerId: userId, sourceVenueId: null, seatLimit: 100, timezone: "Europe/Madrid", currency: "EUR",
-      toolKeys: [...new Set(Object.values(routeToolMap).concat(["telegram", "ai-team"]))]
+      toolKeys: [...new Set(Object.values(routeToolMap).concat(["telegram", "ai-team"]))].filter(key => key !== "support")
     };
     const { data: membershipRows, error } = await client
       .from("crm_workspace_members")
@@ -7466,10 +7483,18 @@
           && (!entitlement.ends_at || new Date(entitlement.ends_at).getTime() > now))
         .map(entitlement => entitlement.tool_key);
     });
+    // Unlike legacy platform navigation, Support always fails closed and uses
+    // the server's role-template decision, never just an entitlement or URL.
+    await Promise.all(workspaceRows.map(async workspace => {
+      const { data: access, error: accessError } = await client.rpc("crm_support_access", { p_workspace: workspace.id });
+      workspace.toolKeys = workspace.toolKeys.filter(key => key !== "support");
+      if (!accessError && access?.read) workspace.toolKeys.push("support");
+    }));
     return workspaceRows;
   }
 
   function activateWorkspace(workspace) {
+    supportDesk.reset();
     store = new StateStore(`akihq:workspace-cache:v3:${authUser.id}:${workspace.id}`);
     state = store.load();
     state.workspace = { ...state.workspace, ...workspace };

@@ -39,6 +39,7 @@ Then visit `http://127.0.0.1:8080`.
 - Multiple pipelines, Kanban drag-and-drop, list view and record drawers
 - Lead conversion into contact, company and deal records
 - Shared inbox with database-backed conversations and replies
+- Tenant-gated Customer Support tickets, approved-answer AI, private notes and human handover (requires [activation](docs/SUPPORT.md))
 - Tasks, projects, board/list views, deadlines and work timer
 - Calendar events and month navigation
 - Product catalogue, warehouses and stock adjustments

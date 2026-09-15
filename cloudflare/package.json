@@ -3,13 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test prospect-import.test.js"
+    "test": "node --test prospect-import.test.js support.test.js support-db.test.js support-ui.test.js support-routing.test.js",
+    "check": "node --check worker.js && node --check support.js && node --check ../assets/support-desk.js && node --check ../assets/app-v32.js && npm test && node --test ../multi-tenant.test.mjs"
   },
   "dependencies": {
     "postal-mime": "^2.4.3",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "3.25.28"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
+    "jsdom": "26.1.0",
     "wrangler": "^4.124.0"
   }
 }

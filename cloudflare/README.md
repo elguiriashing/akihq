@@ -2,6 +2,10 @@
 
 This Worker is optional. The main AkiHQ app runs without it.
 
+The Customer Support module requires this gateway plus its additive database
+migration. See [Support setup and security](../docs/SUPPORT.md) before enabling
+email intake or AI replies. A static Pages deployment alone does not activate it.
+
 Use it when a provider requires a secret that must not be shipped to the browser. The Worker exposes:
 
 ```text
