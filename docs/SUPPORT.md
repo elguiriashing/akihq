@@ -4,6 +4,21 @@ Tenant-specific support lives at `#/support`. It is separate from the legacy
 platform-wide company Inbox. The implementation is gated: incoming-mail
 processing is **off** in the checked-in Worker configuration and AI defaults to
 **off** per workspace. A GitHub/Pages deployment alone does not activate intake.
+The module checks the gateway's `/api/health` support capability before loading
+tickets. An older gateway shows “Support is being connected”; it does not show
+an empty inbox or imply emails are being collected. Refresh retries the check.
+
+## Production setup — 15 September 2026
+
+The additive Support migration has been applied to the existing AkiPasa database
+as version `20260915144802`. Support is enabled for AkiPasa HQ only. The existing
+four active HQ owners pass the access check; nonmembers do not. The mailbox is
+still inactive/unverified and AI is off. Do not reapply the migration manually.
+
+The integration gateway still needs a separate Cloudflare deployment and the
+mailbox routing/verification steps below. Pages deploys only the static CRM.
+The public health endpoint currently lacks the Support capability; its new
+deployment must return `capabilities.support: 1` before the desk can load tickets.
 
 ## Features
 
@@ -46,7 +61,7 @@ workspace snapshots, browser localStorage, or public-site search.
 
 ## Safe rollout — required before use
 
-1. Review and apply `supabase/migrations/20260915074426_support_desk.sql` to the
+1. Review and apply `supabase/migrations/20260915144802_support_desk.sql` to the
    **existing AkiPasa database**, after its CRM migrations through 0080. Do not
    apply the legacy `supabase/schema.sql` as a production replacement. The new
    migration is additive and seeds only an inactive, unverified

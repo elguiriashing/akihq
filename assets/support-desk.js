@@ -10,7 +10,10 @@
     const tr = key => labels[ctx.locale() === "es" ? "es" : "en"][key] || key;
     Object.assign(labels.en, { original: "Download original email", attachmentsHelp: "Attachments are included in the original email. Treat files as untrusted.", low: "Low", normal: "Normal", high: "High", urgent: "Urgent" });
     Object.assign(labels.es, { original: "Descargar correo original", attachmentsHelp: "El correo original incluye los adjuntos. Revisa los archivos con precaución.", low: "Baja", normal: "Normal", high: "Alta", urgent: "Urgente" });
+    Object.assign(labels.en, { connecting: "Support is being connected", connectingHelp: "Your workspace has access to Customer support. The email connection still needs to be completed before tickets and replies are available.", loading: "Loading support…" });
+    Object.assign(labels.es, { connecting: "Estamos conectando el soporte", connectingHelp: "Tu espacio tiene acceso a Atención al cliente. Falta completar la conexión del correo para recibir tickets y responder.", loading: "Cargando soporte…" });
     let workspace = "", generation = 0, overview = null, detail = null, selected = null;
+    let gatewayReady = null;
     let loading = false, busy = false, error = "", filter = "open", search = "", page = 0, settingsOpen = false;
     let drafts = new Map(), settingsDraft = null, requestIds = new Map(), refreshAt = 0;
     const ticketName = t => `SUP-${String(t.number).padStart(6, "0")}`;
@@ -19,6 +22,7 @@
       generation++; workspace = ctx.workspace(); overview = null; detail = null; selected = null;
       loading = false; busy = false; error = ""; drafts = new Map(); requestIds = new Map();
       settingsDraft = null; settingsOpen = false; filter = "open"; page = 0; search = ""; refreshAt = 0;
+      gatewayReady = null;
     }
     function valid(w, g) { return ctx.allowed() && workspace === w && ctx.workspace() === w && generation === g; }
     function request(path, options = {}) { return ctx.request(path, { ...options, headers: { "x-workspace-id": workspace } }); }
@@ -28,6 +32,12 @@
       if (loading || busy) return;
       const w = workspace, g = generation; loading = true; error = "";
       try {
+        if (gatewayReady !== true) {
+          const health = await request("/api/health");
+          if (!valid(w, g)) return;
+          gatewayReady = health?.capabilities?.support === 1;
+          if (!gatewayReady) { overview = null; detail = null; return; }
+        }
         const data = await request(`/api/support/overview?${new URLSearchParams({ filter, search, page })}`);
         if (!valid(w, g)) return;
         overview = data; refreshAt = Date.now();
@@ -37,7 +47,7 @@
           detail = next;
         }
       } catch (e) { if (valid(w, g)) { error = e.message; overview = null; detail = null; } }
-      finally { if (valid(w, g)) { loading = false; ctx.render(); } }
+      finally { if (valid(w, g)) { loading = false; refreshAt = Date.now(); ctx.render(); } }
     }
     async function open(id) {
       if (busy || !ctx.allowed()) return;
@@ -98,12 +108,14 @@
     function render() {
       if (!ctx.allowed()) { reset(); return ""; }
       if (workspace !== ctx.workspace()) reset();
-      if (!overview && !loading && !error) queueMicrotask(refresh);
+      if (!overview && !loading && !error && gatewayReady !== false) queueMicrotask(refresh);
       const counts = overview?.counts || {};
       const tickets = (overview?.tickets || []).slice(0, 30);
-      return `<div data-support-root class="support-desk">
+      const header = `<div data-support-root class="support-desk">
         <div class="support-toolbar"><div class="support-identity">${ctx.icon("support")}<div><strong>${esc(tr("title"))}</strong><small>${esc(ctx.workspaceName())} · ${esc((overview?.mailboxes || []).filter(m => m.active && m.verified).map(m => m.address).join(", ") || tr("pending"))}</small></div></div><div class="panel-actions">${button("refresh", tr("refresh"), "refresh")}${overview?.access?.manage ? button("settings", tr("settings"), "settings") : ""}</div></div>
-        ${error ? `<div class="support-handover" role="alert">${ctx.icon("warning")}<span>${esc(error)}</span>${button("refresh", tr("retry"), "refresh")}</div>` : ""}
+        ${error ? `<div class="support-handover" role="alert">${ctx.icon("warning")}<span>${esc(error)}</span>${button("refresh", tr("retry"), "refresh")}</div>` : ""}`;
+      if (!overview) return `${header}<div class="support-setup" role="status"><strong>${esc(tr(error ? "loadError" : gatewayReady === false ? "connecting" : "loading"))}</strong>${!error && gatewayReady === false ? `<p>${esc(tr("connectingHelp"))}</p>` : ""}</div></div>`;
+      return `${header}
         ${overview && !overview.mailboxes.some(m => m.active && m.verified) ? `<div class="support-setup"><strong>${esc(tr("setup"))}</strong><p>${esc(tr("setupHelp"))}</p></div>` : ""}
         ${overview && !overview.sending_configured ? `<div class="support-handover">${esc(tr("noSending"))}</div>` : ""}
         ${settingsOpen && overview ? renderSettings() : `<div class="support-filters" aria-label="Ticket filters">${["open", "needs_human", "mine", "waiting_customer", "resolved", "all"].map(f => `<button data-support-action="filter" data-filter="${f}" aria-pressed="${filter === f}" class="${filter === f ? "active" : ""}">${esc(tr(f))}${counts[f] ? `<span>${counts[f]}</span>` : ""}</button>`).join("")}</div>

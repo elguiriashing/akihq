@@ -1,4 +1,5 @@
 -- Requires AkiPasa CRM tenant/role-template migrations (through 0080).
+-- Version matches the additive production migration applied on 2026-09-15.
 -- Additive migration. No existing email or customer data is moved or deleted.
 begin;
 

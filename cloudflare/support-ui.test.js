@@ -9,17 +9,17 @@ const ticket = { id: "a-ticket", number: 12, subject: "Booking help <img src=x o
 const overview = { tickets: [ticket], attention: { count: 1, at: ticket.updated_at }, counts: { needs_human: 1 }, members: [], mailboxes: [{ address: "support@example.com", active: true, verified: true }], settings: { enabled: true, ai_mode: "off", knowledge: [], max_ai_replies: 2, daily_ai_limit: 25 }, access: { read: true, write: true, manage: true }, sending_configured: true, ai_configured: false };
 const detail = { ticket, contact: { id: "customer-id", name: "Customer", email: "customer@example.com" }, mailbox: { address: "support@example.com" }, messages: [{ id: "email-id", direction: "inbound", author_kind: "customer", text: "Hello <script>steal()</script>", delivery_status: "received", created_at: ticket.updated_at }], events: [] };
 
-function setup(t, handler, initial = overview) {
+function setup(t, handler, initial = overview, initialHealth = { capabilities: { support: 1 } }) {
   const dom = new JSDOM('<main id="support"></main>', { url: "https://qa.example", runScripts: "outside-only" });
   const { window } = dom; window.structuredClone = structuredClone;
   window.eval(source);
-  const calls = []; let workspace = "tenant-a", allowed = true;
+  const calls = []; let workspace = "tenant-a", allowed = true, health = initialHealth;
   const desk = window.createSupportDesk({ workspace: () => workspace, workspaceName: () => workspace, user: () => "user-a", locale: () => "en", route: () => "support", allowed: () => allowed,
     icon: () => '<svg aria-hidden="true"></svg>', toast: () => {}, render: () => { window.document.querySelector("main").innerHTML = desk.render(); },
-    request: async (path, options) => { calls.push({ path, options }); return handler ? handler(path, options) : structuredClone(path.includes("/ticket") ? detail : initial); }
+    request: async (path, options) => { calls.push({ path, options }); if (path === "/api/health") return structuredClone(health); return handler ? handler(path, options) : structuredClone(path.includes("/ticket") ? detail : initial); }
   });
   t.after(() => window.close());
-  return { window, desk, calls, setWorkspace: value => { workspace = value; desk.reset(); }, revoke: () => { allowed = false; }, render: () => { window.document.querySelector("main").innerHTML = desk.render(); } };
+  return { window, desk, calls, setHealth: value => { health = value; }, setWorkspace: value => { workspace = value; desk.reset(); }, revoke: () => { allowed = false; }, render: () => { window.document.querySelector("main").innerHTML = desk.render(); } };
 }
 function click(ui, selector) { const target = ui.window.document.querySelector(selector); assert.ok(target, selector); target.click(); }
 
@@ -45,10 +45,35 @@ test("switching workspace discards in-flight responses, drafts and notifications
   let release;
   const ui = setup(t, () => new Promise(resolve => { release = resolve; }));
   const pending = ui.desk.refresh();
+  await tick();
   ui.setWorkspace("tenant-b"); release(structuredClone(overview)); await pending;
   assert.equal(ui.desk.attention().count, 0); assert.equal(ui.desk.notifications().length, 0);
   ui.revoke(); ui.render(); assert.equal(ui.window.document.querySelector("main").textContent, "");
   assert.equal(ui.calls[0].options.headers["x-workspace-id"], "tenant-a");
+});
+test("an older gateway shows connection pending without claiming an empty inbox, then recovers on refresh", async t => {
+  const ui = setup(t, undefined, overview, { ok: true });
+  await ui.desk.refresh(); await tick();
+  assert.match(ui.window.document.body.textContent, /Support is being connected/);
+  assert.doesNotMatch(ui.window.document.body.textContent, /All clear here/);
+  assert.equal(ui.window.document.querySelector('[data-support-form="search"]'), null);
+  assert.equal(ui.calls.length, 1);
+  ui.setHealth({ capabilities: { support: 1 } });
+  click(ui, '[data-support-action="refresh"]'); await tick();
+  assert.match(ui.window.document.body.textContent, /SUP-000012/);
+  assert.doesNotMatch(ui.window.document.body.textContent, /Support is being connected/);
+});
+test("a failed overview is reported as unavailable and never as an empty inbox", async t => {
+  const ui = setup(t, () => { throw Error("Connection failed"); });
+  await ui.desk.refresh();
+  assert.match(ui.window.document.body.textContent, /Support unavailable/);
+  assert.doesNotMatch(ui.window.document.body.textContent, /All clear here/);
+});
+test("revoked membership makes no gateway calls and hides connection status", async t => {
+  const ui = setup(t, undefined, overview, { ok: true });
+  ui.revoke(); await ui.desk.refresh(); ui.render();
+  assert.equal(ui.calls.length, 0);
+  assert.equal(ui.window.document.querySelector("main").textContent, "");
 });
 test("support notification summary contains no email body and disappears on revocation", async t => {
   const ui = setup(t); await ui.desk.refresh();

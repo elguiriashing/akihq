@@ -69,7 +69,7 @@ export default {
 
     try {
       if (request.method === "GET" && url.pathname === "/api/health") {
-        return json({ ok: true, service: "akihq-integration-gateway", time: new Date().toISOString() }, 200, cors);
+        return json({ ok: true, service: "akihq-integration-gateway", capabilities: { support: 1 }, time: new Date().toISOString() }, 200, { ...cors, "cache-control": "no-store" });
       }
 
       if (url.pathname.startsWith("/api/support/")) {

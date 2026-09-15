@@ -35,7 +35,7 @@ before(async () => {
     insert into public.crm_role_template_tools values('${role}','support');
     update public.crm_workspace_members set role_template_id='${role}' where profile_id='${viewer}';
   `);
-  await db.exec(readFileSync(new URL("../supabase/migrations/20260915074426_support_desk.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../supabase/migrations/20260915144802_support_desk.sql", import.meta.url), "utf8"));
   await db.exec(`
     grant select on all tables in schema public to service_role;
     insert into public.crm_workspace_entitlements(workspace_id,tool_key,active) values('ws_other','support',true);

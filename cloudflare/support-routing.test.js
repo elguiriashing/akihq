@@ -10,6 +10,15 @@ function mail(to = "support@tenant.example") {
 }
 const config = { SUPPORT_INGEST_ENABLED: "true", SUPABASE_URL: "https://db.example", SUPABASE_SERVICE_ROLE_KEY: "service-test", MAIL_FORWARD_DEFAULT: "hq@example.com", SOCIAL_STORE: { put: async () => { throw Error("Support must not enter the global inbox"); } } };
 
+test("gateway health advertises support deployment without leaking workspace or email configuration", async () => {
+  const response = await worker.fetch(new Request("https://gateway.example/api/health"), config);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  const health = await response.json();
+  assert.equal(health.capabilities.support, 1);
+  assert.doesNotMatch(JSON.stringify(health), /service-test|hq@example.com|tenant|mailbox/);
+});
+
 test("registered tenant support never enters the HQ company inbox or Gmail forwarding", async t => {
   t.mock.method(globalThis, "fetch", async url => {
     if (url.includes("crm_support_mailboxes?")) return Response.json([{ workspace_id: "tenant-a" }]);
