@@ -1,5 +1,6 @@
 import { parseProspectWorkbook } from "./prospect-import.js";
 import PostalMime from "postal-mime";
+import { handleSupport, ingestSupportEmail, processSupportQueue } from "./support.js";
 
 /**
  * AkiHQ optional integration gateway for Cloudflare Workers.
@@ -28,6 +29,26 @@ const DEFAULT_MAIL_ALIASES = [
 
 export default {
   async email(message, env, ctx) {
+    if (String(env.SUPPORT_INGEST_ENABLED) === "true") {
+      try {
+        const archived = await archiveIncomingEmail(message, env);
+        // Tenant mail is never forwarded to AkiPasa's default Gmail account.
+        if (archived?.handled && archived.workspace_id !== "ws_akipasa") return;
+      } catch {
+        console.error("AkiHQ inbound processing failed; no shared-inbox fallback.");
+        // No silent acceptance/data loss and no cross-tenant fallback.
+        // The sender receives a failure and can resend; keep intake monitored.
+        message.setReject("Support is temporarily unavailable. Please try again later.");
+        return;
+      }
+      const destination = mailForwardDestination(message.to, env);
+      if (destination) await message.forward(destination);
+      return;
+    }
+    if (!mailAliases(env).includes(normalizeEmail(message.to))) {
+      message.setReject("This address is not configured for the company inbox.");
+      return;
+    }
     ctx.waitUntil(archiveIncomingEmail(message, env).catch(error => {
       console.error("AkiHQ inbound email archive failed", error);
     }));
@@ -48,7 +69,11 @@ export default {
 
     try {
       if (request.method === "GET" && url.pathname === "/api/health") {
-        return json({ ok: true, service: "akihq-integration-gateway", time: new Date().toISOString() }, 200, cors);
+        return json({ ok: true, service: "akihq-integration-gateway", capabilities: { support: 1 }, time: new Date().toISOString() }, 200, { ...cors, "cache-control": "no-store" });
+      }
+
+      if (url.pathname.startsWith("/api/support/")) {
+        return withCors(await handleSupport(request, env), { ...cors, "cache-control": "private, no-store" });
       }
 
       if (request.method === "GET" && url.pathname.startsWith("/api/social/oauth/callback/")) {
@@ -184,6 +209,10 @@ export default {
     }
   },
   async scheduled(_controller, env, ctx) {
+    if (String(env.SUPPORT_INGEST_ENABLED) === "true") {
+      ctx.waitUntil(processSupportQueue(env).catch(() => console.error("Support queue processing failed; retained for review.")));
+    }
+    if (_controller.cron !== "15 4 * * *") return;
     const request = new Request("https://internal.akihq/api/social/sync", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -786,6 +815,14 @@ async function archiveIncomingEmail(message, env) {
   const store = requireMailStore(env);
   const raw = await new Response(message.raw).arrayBuffer();
   const parsed = await PostalMime.parse(raw);
+  if (String(env.SUPPORT_INGEST_ENABLED) === "true") {
+    const digest = await crypto.subtle.digest("SHA-256", raw);
+    const rawDigest = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+    const support = await ingestSupportEmail(env, message, { ...parsed, plainTextFallback: plainEmailText(parsed.html) }, rawDigest, raw);
+    if (support?.handled) return support;
+    // Unregistered tenant addresses must not enter the all-company mailbox.
+    if (!mailAliases(env).includes(normalizeEmail(message.to))) throw new Error("Unregistered email route");
+  }
   const id = crypto.randomUUID();
   const timestamp = parsed.date && Number.isFinite(Date.parse(parsed.date)) ? new Date(parsed.date).toISOString() : new Date().toISOString();
   const from = normalizeEmail(parsed.from?.address || message.from);

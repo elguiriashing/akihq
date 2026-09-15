@@ -13,6 +13,11 @@ SOCIAL_RETURN_URL = "https://crm.akipasa.com/#/crm/social"
 MAIL_FORWARD_DEFAULT = "alexashing1@gmail.com"
 MAIL_FORWARD_OVERRIDES = "andrew@akipasa.com=andrew@cpt-rec.com"
 MAIL_FROM_ADDRESSES = "alex@akipasa.com,andrew@akipasa.com,business@akipasa.com,contact@akipasa.com,info@akipasa.com,legal@akipasa.com,press@akipasa.com,social@akipasa.com,social.en@akipasa.com,social.es@akipasa.com,support@akipasa.com"
+# Enable after applying the support migration and verifying mailbox routing.
+SUPPORT_INGEST_ENABLED = "false"
+# AI is off by default. Set SUPPORT_AI_MODEL and the OPENAI_API_KEY secret,
+# then approve answers and enable Draft/Automatic mode per workspace in Support.
+SUPPORT_AI_MODEL = ""
 
 [[kv_namespaces]]
 binding = "SOCIAL_STORE"
@@ -36,7 +41,7 @@ allowed_sender_addresses = [
 ]
 
 [triggers]
-crons = [ "15 4 * * *" ]
+crons = [ "15 4 * * *", "*/2 * * * *" ]
 
 # Add secrets with commands such as:
 #   npx wrangler secret put AKIHQ_API_TOKEN
