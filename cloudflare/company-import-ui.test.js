@@ -60,7 +60,7 @@ test('legacy Import Excel button is intercepted before the 10 MB gateway handler
  assert.match(h.w.document.body.textContent,/up to 50 MB/);h.dom.window.close();
 });
 
-function publishHarness(total=250){
+function publishHarness(total=250,concurrency=100){
  const dom=new JSDOM('<!doctype html><main></main>',{url:'https://crm.example/',runScripts:'outside-only'}),w=dom.window;
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  let clock=0;const timers=[];w.Date.now=()=>clock;w.setTimeout=fn=>{timers.push(fn);return timers.length;};
@@ -78,9 +78,29 @@ function publishHarness(total=250){
    requests.push({id:options.body.company.id,done(error){inFlight--;error?reject(new Error(error)):resolve({data:{}});}});
  })});
  const click=a=>w.document.querySelector(`[data-company-action="${a}"]`).click();
- manager.publish();click('run-publish');
+ manager.publish();if(concurrency!==null)w.document.querySelector('[data-company-concurrency]').value=String(concurrency);click('run-publish');
  return {dom,w,manager,requests,finished,click,advance,get peak(){return peak;},get claims(){return next;}};
 }
+test('publisher defaults to 50 and applies a smaller user limit after pausing',async()=>{
+ const h=publishHarness(250,null);await waitFor(()=>h.requests.length===50);
+ assert.equal(h.w.document.querySelector('[data-company-concurrency]').value,'50');
+ assert.equal(h.w.document.querySelector('[data-company-concurrency]').disabled,true);
+ h.click('pause');for(const r of h.requests)r.done();
+ await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ const input=h.w.document.querySelector('[data-company-concurrency]');assert.equal(input.disabled,false);
+ input.value='7';input.dispatchEvent(new h.w.Event('change',{bubbles:true}));h.click('run-publish');
+ await waitFor(()=>h.requests.length===57);await tick();assert.equal(h.requests.length,57);
+ assert.match(h.w.document.body.textContent,/Current limit: 7/);
+ h.click('pause');for(const r of h.requests.slice(50))r.done();
+ await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));h.dom.window.close();
+});
+test('invalid concurrency cannot claim or publish companies',async()=>{
+ for(const value of ['',0,-1,101,2.5]){
+  const h=publishHarness(10,value);await tick();
+  assert.equal(h.claims,0);assert.equal(h.requests.length,0);
+  assert.match(h.w.document.body.textContent,/Enter a whole number from 1 to 100/);h.dom.window.close();
+ }
+});
 test('publisher uses one hundred leased workers, continues after address failure and finishes each company once',async()=>{
  const h=publishHarness();await waitFor(()=>h.requests.length===100);
  h.requests[0].done("The agent's normalized address could not be confirmed by the authoritative Spanish address provider.");

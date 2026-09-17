@@ -57,7 +57,7 @@
       } else if(m.kind==="history") {
         body=`<h2>Backups & import history</h2><p>Backups contain CRM companies. Restore brings back missing or archived companies and preserves current edits and map listings. Undo removes only untouched, unpublished additions from one import.</p>${btn("backup","Create company backup",active?"disabled":"")}<h3>Imports</h3>${(m.history?.imports||[]).map(j=>`<div class="company-history-item"><strong>${esc(j.file_name)} · ${esc(j.sheet_name)}</strong><small>${esc(new Date(j.created_at).toLocaleString())} · ${esc(j.status)}<br>${number(j.processed)}/${number(j.total_rows)} checked · ${number(j.inserted)} added · ${number(j.duplicates)} duplicates · ${number(j.invalid)} invalid${j.undone?` · ${number(j.undone)} undone · ${number(j.protected)} protected`:""}</small>${j.status==="running"?btn("import","Choose file to resume"):""}${btn("issues","Skipped-row CSV",`data-id="${j.id}"`)}${j.status!=="undone"?btn("undo","Undo this import",`data-id="${j.id}" ${active?"disabled":""}`):""}</div>`).join("")||"<p>No imports yet.</p>"}<h3>Saved company backups</h3>${(m.history?.backups||[]).map(b=>`<div class="company-history-item"><strong>${esc(b.label)}</strong><small>${esc(new Date(b.created_at).toLocaleString())} · ${number(b.row_count)} companies</small>${btn("restore","Restore missing companies",`data-id="${b.id}" ${active?"disabled":""}`)}${btn("download-backup","Download backup",`data-id="${b.id}" ${active?"disabled":""}`)}</div>`).join("")||"<p>No backups yet.</p>"}`;
       } else if(m.kind==="publish") {
-        body=`<h2>Publish companies to map</h2><p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><p>Up to 100 parallel checks, with automatic cooldown and reduced concurrency when the address service is busy. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
+        body=`<h2>Publish companies to map</h2><p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><label>Simultaneous checks (1–100)<input type="number" inputmode="numeric" min="1" max="100" step="1" data-company-concurrency value="${esc(m.concurrency)}" ${active?"disabled":""}></label><p>Set how many businesses can be checked at once. Pause to change this number.</p>${active?`<p>Current limit: ${number(m.currentLimit)} simultaneous checks.</p>`:""}<p>Up to ${number(m.concurrency)} parallel checks, with automatic cooldown and reduced concurrency when the address service is busy. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
       } else if(m.kind==="details") {
         const r=m.record;
         body=`<h2>Company details</h2><form data-company-edit><div class="company-mapping">${fields.filter(f=>!["source","externalId"].includes(f)).map(f=>`<label>${label[f]}<input name="${f}" value="${esc(r.data[f]||"")}" ${!ctx.admin()?"readonly":""}></label>`).join("")}</div><p>Source: ${esc(r.data.source||"—")}<br>Reference: ${esc(r.data.externalId||r.id)}</p>${r.publish_error?`<p class="company-error">${esc(r.publish_error)}</p>`:""}<p>${r.data.catalogueVenueId?"This company is on the map. Editing these details changes the CRM record; the public venue is managed separately.":"Not yet published. Saving a corrected address makes it eligible for publishing again."}</p>${ctx.admin()?`<button class="action-btn primary" type="submit" ${active?"disabled":""}>Save CRM details</button> ${btn("archive","Archive from CRM",active?"disabled":"")}`:""}</form>`;
@@ -101,18 +101,21 @@
         if((data||[]).length<500)break;start+=500;
       }download(name,"\ufeff"+chunks.join(""));
     }
-    async function publish(){if(active)return;modal={kind:"publish",checked:0,published:0,skipped:0};dialog();}
+    async function publish(){if(active)return;modal={kind:"publish",concurrency:50,checked:0,published:0,skipped:0};dialog();}
     async function runPublish(){
       if(active)return;
+      const selected=Number(document.querySelector("[data-company-concurrency]")?.value);
+      if(!Number.isInteger(selected)||selected<1||selected>100){modal.error="Enter a whole number from 1 to 100.";dialog();return;}
+      modal.concurrency=selected;modal.currentLimit=selected;
       const run=modal,epoch=generation,current=()=>generation===epoch&&modal===run;
       active=true;paused=false;run.started=true;run.error="";run.message="";dialog();
-      let cooldown=0,backoff=15000,limit=100,inFlight=0;
+      let cooldown=0,backoff=15000,limit=selected,inFlight=0;
       const wait=()=>new Promise(resolve=>setTimeout(resolve,250));
       const temporary=error=>/Spanish address provider is unavailable|Gateway request failed \((429|502|503|504)\)|too many requests|rate limit/i.test(error);
       const recover=()=>{
         if(Date.now()>=cooldown){
           cooldown=Date.now()+backoff;backoff=Math.min(backoff*2,120000);
-          limit=Math.max(1,Math.floor(limit/2));
+          limit=Math.max(1,Math.floor(limit/2));run.currentLimit=limit;
           run.message=`Address service busy. Automatically retrying after a cooldown; reduced to ${limit} parallel checks for this run.`;dialog();
         }
       };
@@ -158,7 +161,7 @@
       };
       try{
         // Workers handle their own failures; all in-flight checks drain before resume is enabled.
-        await Promise.allSettled(Array.from({length:100},()=>worker()));
+        await Promise.allSettled(Array.from({length:selected},()=>worker()));
         if(current()&&!paused)run.message="No more pending companies. Check the ‘Publishing needs review’ filter for skipped addresses. Interrupted checks become available again after 10 minutes.";
       }finally{if(current()){active=false;dialog();void refresh();}}
     }
@@ -206,6 +209,7 @@
       if(t.matches("[data-company-file]"))void readFile(t.files?.[0]).catch(failed);
       if(t.matches("[data-company-sheet]"))void chooseSheet(t.value).catch(failed);
       if(t.matches("[data-company-map]")){modal.mapping[t.dataset.companyMap]=Number(t.value);modal.preview=null;dialog();}
+      if(t.matches("[data-company-concurrency]")&&!active&&modal?.kind==="publish"){modal.concurrency=t.value;modal.error="";}
       if(t.matches("[data-company-filter]")){view=t.value;offset=0;void refresh();}
     });
     document.addEventListener("submit",e=>{
