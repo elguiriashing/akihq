@@ -1066,6 +1066,16 @@
   };
 
   let backgroundRenderPending = false;
+  const companyManager = window.createCompanyManager({
+    client: getSupabaseClient,
+    allowed: () => Boolean(authUser && isPlatformWorkspace() && canUseTool("crm")),
+    admin: () => authRole === "administrator",
+    request: socialGatewayRequest, toast,
+    saved: company => {
+      const index = state.companies.findIndex(item => item.id === company.id);
+      if (index >= 0) { state.companies[index] = company; persist(false); }
+    }
+  });
   const supportDesk = window.createSupportDesk({
     workspace: () => state.workspace?.id || "", workspaceName: () => state.workspace?.name || "",
     user: () => authUser?.id, locale: () => state.settings?.locale || "en", route: () => ui.route,
@@ -2592,6 +2602,7 @@
   }
 
   function renderCompanies() {
+    if (isPlatformWorkspace()) return companyManager.render();
     return `
       <section class="panel table-panel">
         <div class="panel-header"><div><h2>Venues</h2><p>${state.companies.length} venue${state.companies.length !== 1 ? "s" : ""} · synced live from AkiPasa database</p></div><button class="action-btn" data-action="publish-all-companies">${icon("map")} Publish valid companies to map</button></div>
@@ -4387,6 +4398,7 @@
   }
 
   async function beginProspectImport() {
+    if (isPlatformWorkspace() && authRole === "administrator") return companyManager.openImport();
     if (authRole !== "administrator") {
       toast("Administrator access required", "Only administrators can import CRM prospects.", "danger");
       return;
@@ -5517,7 +5529,9 @@
         importInput.click();
         break;
       case "export-csv":
-        exportEntityCsv(target.dataset.entity);
+        if (isPlatformWorkspace() && target.dataset.entity === "companies") {
+          companyManager.exportCSV().catch(error => toast("Export failed", error.message, "danger"));
+        } else exportEntityCsv(target.dataset.entity);
         break;
       case "export-crm-bundle":
         ["deals", "contacts", "companies"].forEach((entity, index) => setTimeout(() => exportEntityCsv(entity), index * 200));
@@ -5543,7 +5557,8 @@
         publishCompanyUnclaimed(target.dataset.id);
         break;
       case "publish-all-companies":
-        publishAllValidCompanies();
+        if (isPlatformWorkspace()) companyManager.publish();
+        else publishAllValidCompanies();
         break;
       case "adjust-stock":
         event.preventDefault(); event.stopPropagation();
@@ -7494,6 +7509,7 @@
   }
 
   function activateWorkspace(workspace) {
+    companyManager.reset();
     supportDesk.reset();
     store = new StateStore(`akihq:workspace-cache:v3:${authUser.id}:${workspace.id}`);
     state = store.load();

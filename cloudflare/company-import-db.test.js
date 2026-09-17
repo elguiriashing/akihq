@@ -1,0 +1,97 @@
+import { PGlite } from "@electric-sql/pglite";
+import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
+import { before, after, test } from "node:test";
+const db=new PGlite();
+const admin='10000000-0000-4000-8000-000000000001',viewer='10000000-0000-4000-8000-000000000002',outsider='10000000-0000-4000-8000-000000000003';
+const rpc=async(name,args=[]) => (await db.query(`select public.${name}(${args.map((_,i)=>`$${i+1}`).join(',')}) value`,args)).rows[0].value;
+const count=async(sql='deleted_at is null') => Number((await db.query('select count(*) n from crm_company_records where '+sql)).rows[0].n);
+const row=(name='Cafe Test',address='Calle Mayor 12')=>({name,address,city:'Madrid',type:'Venue',website:'https://chain.example',email:'branches@chain.example'});
+const start=(n,hash='a')=>rpc('crm_company_import_start',[hash.repeat(64),'companies.xlsx','Companies',{name:0,address:1},n]);
+before(async()=>{
+ await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
+ create schema auth;create table auth.users(id uuid primary key);grant usage on schema auth to public;
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+ create table profiles(id uuid primary key,app_role text);create table crm_workspaces(id text primary key);
+ create table workspace_snapshots(workspace_id text primary key,data jsonb);
+ create table cities(id uuid primary key,name_es text);
+ create table venues(id uuid primary key,name text,address text,city_id uuid,website_url text,contact_phone text,created_at timestamptz);
+ create table crm_catalogue_venues(workspace_id text,lead_id text,venue_id uuid);
+ create function crm_can_access_workspace(p text) returns boolean language sql stable as $$select auth.uid() in ('${admin}','${viewer}') and p='ws_akipasa'$$;
+ create function crm_has_tool(p text,t text) returns boolean language sql stable as $$select true$$;
+ insert into auth.users values('${admin}'),('${viewer}'),('${outsider}');
+ insert into profiles values('${admin}','administrator'),('${viewer}','user'),('${outsider}','user');
+ insert into crm_workspaces values('ws_akipasa'),('other');
+ insert into workspace_snapshots values('ws_akipasa','{"companies":[{"id":"existing","name":"Existing Cafe","address":"Calle Uno 1","catalogueVenueId":"20000000-0000-4000-8000-000000000001"}]}');
+ `);
+ await db.exec(readFileSync(new URL('../supabase/migrations/20260917145343_bulk_company_import.sql',import.meta.url),'utf8'));
+ await db.exec(`set role authenticated;set request.jwt.claim.sub='${admin}';`);
+});
+after(()=>db.close());
+test('permissions reject anonymous, non-admin writes and other tenants; no direct writes',async()=>{
+ await assert.rejects(db.exec("delete from crm_company_records"),/permission denied/);
+ await db.exec(`set request.jwt.claim.sub='${viewer}';`);
+ assert.equal((await rpc('crm_company_list')).total,1);
+ await assert.rejects(start(1),/Administrator required/);
+ assert.equal((await db.query('select * from crm_company_records')).rows.length,0);
+ await db.exec(`set request.jwt.claim.sub='${outsider}';`);
+ await assert.rejects(rpc('crm_company_list'),/Company access denied/);
+ await db.exec('set role anon');await assert.rejects(rpc('crm_company_list'),/permission denied/);
+ await db.exec(`set role authenticated;set request.jwt.claim.sub='${admin}';`);
+});
+let main;
+test('atomic, resumable additive imports skip true duplicates and retain separate chain branches',async()=>{
+ main=await start(5);
+ const rows=[row('Existing Cafe','Calle Uno 1'),{...row(),id:'existing',catalogueVenueId:'spoofed',ownerId:outsider,status:'Customer'},row('Cafe Test','Calle Mayor 13'),row('', 'bad'),row('Café Test','Calle Mayor 12')];
+ const first=await rpc('crm_company_import_batch',[main.id,0,rows.slice(0,2)]);
+ assert.equal(first.inserted,1);assert.equal(first.duplicates,1);assert.equal(first.processed,2);
+ assert.deepEqual(await rpc('crm_company_import_batch',[main.id,0,rows.slice(0,2)]),first);
+ await assert.rejects(rpc('crm_company_import_batch',[main.id,0,[row('Changed')]]),/differs/);
+ await assert.rejects(rpc('crm_company_import_batch',[main.id,4,[row()]]),/Resume at saved row 2/);
+ assert.equal((await start(5)).processed,2);
+ main=await rpc('crm_company_import_batch',[main.id,2,rows.slice(2)]);
+ assert.equal(main.status,'complete');assert.equal(main.inserted,2);assert.equal(main.duplicates,2);assert.equal(main.invalid,1);
+ const r=(await db.query("select data from crm_company_records where import_id=$1 order by seq",[main.id])).rows[0].data;
+ assert.notEqual(r.id,'existing');assert.equal(r.status,'Prospect');assert.equal(r.ownerId,admin);assert.equal(r.catalogueVenueId,undefined);
+ await assert.rejects(rpc('crm_company_import_batch',[main.id,5,[row()]]),/Resume/);
+ assert.equal(await count(),3);
+});
+test('undo protects edits, map links and in-flight publication and never deletes a public venue',async()=>{
+ const j=await start(4,'b');await rpc('crm_company_import_batch',[j.id,0,[row('Edit'),row('Published'),row('Working'),row('Undo me')]]);
+ const records=(await db.query('select * from crm_company_records where import_id=$1 order by seq',[j.id])).rows;
+ await rpc('crm_company_save',[records[0].id,1,row('Edited')]);
+ await db.exec('reset role');
+ await db.query("insert into crm_catalogue_venues values('ws_akipasa',$1,'20000000-0000-4000-8000-000000000002')",[records[1].id]);
+ await db.query("update crm_company_records set publish_state='working',publish_token=gen_random_uuid(),publish_lease=now()+interval '10 minutes' where id=$1",[records[2].id]);
+ await db.exec('set role authenticated');
+ const undo=await rpc('crm_company_import_undo',[j.id]);assert.equal(undo.undone,1);assert.equal(undo.protected,3);assert.equal(undo.status,'undone');
+ assert.equal((await rpc('crm_company_import_undo',[j.id])).undone,1);
+ await assert.rejects(rpc('crm_company_import_batch',[j.id,0,[row()]]),/undone/);
+});
+test('backup restores missing records idempotently while retaining later edits and additions',async()=>{
+ const backup=await rpc('crm_company_backup_create',['Test backup']);
+ let r=(await db.query("select * from crm_company_records where data->>'name'='Cafe Test' order by seq limit 1")).rows[0];
+ await rpc('crm_company_save',[r.id,r.revision,{},true]);
+ const result=await rpc('crm_company_backup_restore',[backup.id,0]);assert.equal(result.restored,1);assert.equal(result.done,true);
+ assert.equal((await rpc('crm_company_backup_restore',[backup.id,0])).restored,0);
+ assert.equal((await db.query("select data->>'name' as name from crm_company_records where data->>'name'='Edited'")).rows.length,1);
+});
+test('publishing claims are leased, completion requires an authoritative map link, and stale edits are rejected',async()=>{
+ const first=await rpc('crm_company_publish_claim');assert.ok(first.token);
+ const second=await rpc('crm_company_publish_claim');assert.notEqual(first.id,second.id);
+ const noLink=await rpc('crm_company_publish_finish',[first.id,first.token,null]);assert.equal(noLink.published,false);
+ await assert.rejects(rpc('crm_company_publish_finish',[first.id,first.token,null]),/lease/);
+ await db.exec('reset role');await db.query("insert into crm_catalogue_venues values('ws_akipasa',$1,'20000000-0000-4000-8000-000000000003')",[second.id]);await db.exec('set role authenticated');
+ assert.equal((await rpc('crm_company_publish_finish',[second.id,second.token,null])).published,true);
+ const r=(await db.query('select * from crm_company_records where id=$1',[first.id])).rows[0];
+ await assert.rejects(rpc('crm_company_save',[r.id,null,row('Spoofed edit')]),/Company changed/);
+ await assert.rejects(rpc('crm_company_save',[r.id,999,row('Stale edit')]),/Company changed/);
+});
+test('100,000 rows persist in bounded batches and list pages remain at 50 records',async()=>{
+ const j=await start(100000,'c');const began=performance.now();let result;
+ for(let offset=0;offset<100000;offset+=500){const rows=Array.from({length:500},(_,i)=>row(`Scale company ${offset+i}`,`Calle Scale ${offset+i}`));result=await rpc('crm_company_import_batch',[j.id,offset,rows]);}
+ assert.equal(result.processed,100000);assert.equal(result.inserted,100000);assert.equal(result.status,'complete');
+ const page=await rpc('crm_company_list',['Scale company','imported',99950]);assert.equal(page.total,100000);assert.equal(page.rows.length,50);
+ const backup=await rpc('crm_company_backup_create',['100k test']);assert.ok(backup.rows>=100000);
+ console.log(`100k durable import and backup: ${Math.round(performance.now()-began)}ms`);
+});

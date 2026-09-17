@@ -1,0 +1,17 @@
+.company-toolbar,.company-pagination,.company-dialog-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.company-toolbar{padding:16px 20px;border-bottom:1px solid var(--border)}
+.company-toolbar form{display:flex;gap:8px;flex:1;min-width:220px}
+.company-toolbar input,.company-toolbar select,.company-dialog input,.company-dialog select{background:var(--surface-2,#202642);color:var(--text,#f1f3ff);border:1px solid var(--border,#454b65);border-radius:8px;padding:10px;font:inherit;min-width:0}
+.company-toolbar input{width:100%}.company-pagination{justify-content:space-between;padding:16px 20px}
+.company-dialog{color:var(--text,#f1f3ff);background:var(--surface,#171d35);border:1px solid var(--border,#454b65);border-radius:18px;padding:24px;width:min(950px,94vw);max-height:90vh;overflow:auto;box-shadow:0 24px 100px #0008}
+.company-dialog::backdrop{background:#06091acc;backdrop-filter:blur(5px)}
+.company-dialog h2{margin:0 0 14px}.company-dialog p{line-height:1.6}.company-dialog label{display:grid;gap:6px;font-size:13px}
+.company-mapping{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.company-dialog-actions{justify-content:flex-end;margin-top:20px}.company-dialog .table-scroll{max-height:340px;overflow:auto}
+.company-error{padding:12px;border:1px solid #e88888;border-radius:8px;color:#ffd4d4;margin:12px 0;overflow-wrap:anywhere}
+.company-notice{padding:12px;border:1px solid var(--border,#454b65);border-radius:8px;margin:12px 0}
+.company-progress{width:100%;height:16px;accent-color:#9680ff;margin:12px 0}
+.company-history-item{padding:14px 0;border-bottom:1px solid var(--border,#454b65)}
+.company-history-item small{display:block;margin:6px 0;line-height:1.5}.company-history-item button{margin:6px 8px 0 0}
+.company-dialog .data-table td{max-width:350px;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:600px){.company-dialog{padding:16px}.company-mapping{grid-template-columns:1fr 1fr}.company-toolbar{padding:12px}.company-toolbar form{min-width:100%}.company-dialog-actions>*{flex:1}.company-pagination{padding:12px}.company-dialog h2{font-size:20px}}
