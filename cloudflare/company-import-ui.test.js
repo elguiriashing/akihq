@@ -54,3 +54,62 @@ test('UI requires explicit sheet and preview, escapes cells and resumes an uncer
  assert.equal(h.calls.filter(c=>c.name==='crm_company_import_start').length,1);
  h.click('close');h.dom.window.close();
 });
+test('legacy Import Excel button is intercepted before the 10 MB gateway handler',async()=>{
+ const h=harness();const legacy=h.w.document.createElement('button');legacy.dataset.action='open-prospect-import';legacy.textContent='Import Excel';h.w.document.body.append(legacy);
+ legacy.click();await waitFor(()=>h.w.document.querySelector('[data-company-file]'));
+ assert.match(h.w.document.body.textContent,/up to 50 MB/);h.dom.window.close();
+});
+
+function publishHarness(total=8){
+ const dom=new JSDOM('<!doctype html><main></main>',{url:'https://crm.example/',runScripts:'outside-only'}),w=dom.window;
+ w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
+ const requests=[],finished=[];let next=0,inFlight=0,peak=0;
+ const client={rpc:async(name,args)=>{
+   if(name==='crm_company_list')return {data:{total:0,rows:[]}};
+   if(name==='crm_company_publish_claim')return {data:next<total?{id:String(++next),token:'lease-'+next,data:{id:String(next)}}:null};
+   if(name==='crm_company_publish_finish'){finished.push(args);return {data:{published:!args.p_error}};}
+   throw new Error(name);
+ }};
+ w.eval(source);
+ const manager=w.createCompanyManager({allowed:()=>true,admin:()=>true,client:()=>client,toast(){},request:(_path,options)=>new Promise((resolve,reject)=>{
+   inFlight++;peak=Math.max(peak,inFlight);
+   requests.push({id:options.body.company.id,done(error){inFlight--;error?reject(new Error(error)):resolve({data:{}});}});
+ })});
+ const click=a=>w.document.querySelector(`[data-company-action="${a}"]`).click();
+ manager.publish();click('run-publish');
+ return {dom,w,manager,requests,finished,click,get peak(){return peak;},get claims(){return next;}};
+}
+test('publisher uses three leased workers, continues after address failure and finishes each company once',async()=>{
+ const h=publishHarness();await waitFor(()=>h.requests.length===3);
+ h.requests[0].done("The agent's normalized address could not be confirmed by the authoritative Spanish address provider.");
+ await waitFor(()=>h.requests.length===4);
+ for(let i=1;i<8;i++){await waitFor(()=>h.requests[i]);h.requests[i].done();}
+ await waitFor(()=>h.w.document.body.textContent.includes('No more pending'));
+ assert.equal(h.peak,3);assert.equal(h.finished.length,8);
+ assert.equal(new Set(h.finished.map(r=>r.p_id)).size,8);
+ assert.match(h.w.document.body.textContent,/7 published or linked · 1 need review/);
+ h.dom.window.close();
+});
+test('pause drains current checks before resume and prevents new claims',async()=>{
+ const h=publishHarness();await waitFor(()=>h.requests.length===3);h.click('pause');
+ h.requests[0].done();await tick();assert.equal(h.requests.length,3);
+ assert.equal(h.w.document.querySelector('[data-company-action="run-publish"]'),null);
+ h.requests[1].done();h.requests[2].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ assert.equal(h.claims,3);h.click('run-publish');await waitFor(()=>h.requests.length===6);
+ h.click('pause');for(let i=3;i<6;i++)h.requests[i].done();
+ await waitFor(()=>h.finished.length===6);assert.equal(h.peak,3);h.dom.window.close();
+});
+test('service failure stops new claims, drains workers and leaves failed lease retryable',async()=>{
+ const h=publishHarness();await waitFor(()=>h.requests.length===3);
+ h.requests[0].done('Gateway request failed (429).');await tick();
+ assert.equal(h.w.document.querySelector('[data-company-action="run-publish"]'),null);
+ h.requests[1].done();h.requests[2].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ assert.equal(h.claims,3);assert.equal(h.finished.length,2);assert.ok(h.finished.every(r=>r.p_id!=='1'));
+ assert.match(h.w.document.body.textContent,/429/);h.dom.window.close();
+});
+test('workspace reset prevents stale workers from finishing or updating the new dialog',async()=>{
+ const h=publishHarness();await waitFor(()=>h.requests.length===3);
+ h.manager.reset();h.manager.publish();for(const r of h.requests)r.done();await tick();await tick();
+ assert.equal(h.claims,3);assert.equal(h.finished.length,0);
+ assert.match(h.w.document.body.textContent,/0 checked in this session/);h.dom.window.close();
+});
