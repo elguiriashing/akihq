@@ -60,9 +60,11 @@ test('legacy Import Excel button is intercepted before the 10 MB gateway handler
  assert.match(h.w.document.body.textContent,/up to 50 MB/);h.dom.window.close();
 });
 
-function publishHarness(total=25){
+function publishHarness(total=250){
  const dom=new JSDOM('<!doctype html><main></main>',{url:'https://crm.example/',runScripts:'outside-only'}),w=dom.window;
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
+ let clock=0;const timers=[];w.Date.now=()=>clock;w.setTimeout=fn=>{timers.push(fn);return timers.length;};
+ const advance=ms=>{clock+=ms;timers.splice(0).forEach(fn=>fn());};
  const requests=[],finished=[];let next=0,inFlight=0,peak=0;
  const client={rpc:async(name,args)=>{
    if(name==='crm_company_list')return {data:{total:0,rows:[]}};
@@ -77,39 +79,67 @@ function publishHarness(total=25){
  })});
  const click=a=>w.document.querySelector(`[data-company-action="${a}"]`).click();
  manager.publish();click('run-publish');
- return {dom,w,manager,requests,finished,click,get peak(){return peak;},get claims(){return next;}};
+ return {dom,w,manager,requests,finished,click,advance,get peak(){return peak;},get claims(){return next;}};
 }
-test('publisher uses ten leased workers, continues after address failure and finishes each company once',async()=>{
- const h=publishHarness();await waitFor(()=>h.requests.length===10);
+test('publisher uses one hundred leased workers, continues after address failure and finishes each company once',async()=>{
+ const h=publishHarness();await waitFor(()=>h.requests.length===100);
  h.requests[0].done("The agent's normalized address could not be confirmed by the authoritative Spanish address provider.");
- await waitFor(()=>h.requests.length===11);
- for(let i=1;i<25;i++){await waitFor(()=>h.requests[i]);h.requests[i].done();}
+ await waitFor(()=>h.requests.length===101);
+ for(let i=1;i<250;i++){await waitFor(()=>h.requests[i]);h.requests[i].done();}
  await waitFor(()=>h.w.document.body.textContent.includes('No more pending'));
- assert.equal(h.peak,10);assert.equal(h.finished.length,25);
- assert.equal(new Set(h.finished.map(r=>r.p_id)).size,25);
- assert.match(h.w.document.body.textContent,/24 published or linked · 1 need review/);
+ assert.equal(h.peak,100);assert.equal(h.finished.length,250);
+ assert.equal(new Set(h.finished.map(r=>r.p_id)).size,250);
+ assert.match(h.w.document.body.textContent,/249 published or linked · 1 need review/);
  h.dom.window.close();
 });
 test('pause drains current checks before resume and prevents new claims',async()=>{
- const h=publishHarness();await waitFor(()=>h.requests.length===10);h.click('pause');
- h.requests[0].done();await tick();assert.equal(h.requests.length,10);
+ const h=publishHarness();await waitFor(()=>h.requests.length===100);h.click('pause');
+ h.requests[0].done();await tick();assert.equal(h.requests.length,100);
  assert.equal(h.w.document.querySelector('[data-company-action="run-publish"]'),null);
- for(let i=1;i<10;i++)h.requests[i].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
- assert.equal(h.claims,10);h.click('run-publish');await waitFor(()=>h.requests.length===20);
- h.click('pause');for(let i=10;i<20;i++)h.requests[i].done();
- await waitFor(()=>h.finished.length===20);assert.equal(h.peak,10);h.dom.window.close();
+ for(let i=1;i<100;i++)h.requests[i].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ assert.equal(h.claims,100);h.click('run-publish');await waitFor(()=>h.requests.length===200);
+ h.click('pause');for(let i=100;i<200;i++)h.requests[i].done();
+ await waitFor(()=>h.finished.length===200);assert.equal(h.peak,100);h.dom.window.close();
 });
 test('service failure stops new claims, drains workers and leaves failed lease retryable',async()=>{
- const h=publishHarness();await waitFor(()=>h.requests.length===10);
- h.requests[0].done('Gateway request failed (429).');await tick();
+ const h=publishHarness();await waitFor(()=>h.requests.length===100);
+ h.requests[0].done('Gateway request failed (401).');await tick();
  assert.equal(h.w.document.querySelector('[data-company-action="run-publish"]'),null);
- for(let i=1;i<10;i++)h.requests[i].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
- assert.equal(h.claims,10);assert.equal(h.finished.length,9);assert.ok(h.finished.every(r=>r.p_id!=='1'));
- assert.match(h.w.document.body.textContent,/429/);h.dom.window.close();
+ for(let i=1;i<100;i++)h.requests[i].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ assert.equal(h.claims,100);assert.equal(h.finished.length,99);assert.ok(h.finished.every(r=>r.p_id!=='1'));
+ assert.match(h.w.document.body.textContent,/401/);h.dom.window.close();
+});
+test('provider outage cools down globally and retries the same lease automatically',async()=>{
+ const h=publishHarness(2);await waitFor(()=>h.requests.length===2);
+ h.requests[0].done('The Spanish address provider is unavailable.');
+ h.requests[1].done('Gateway request failed (429).');await tick();
+ assert.equal(h.finished.length,0);assert.equal(h.requests.length,2);
+ assert.match(h.w.document.body.textContent,/reduced to 50/);
+ h.advance(15000);await waitFor(()=>h.requests.length===4);
+ assert.deepEqual(h.requests.slice(2).map(r=>r.id).sort(),['1','2']);
+ h.requests[2].done();h.requests[3].done();
+ await waitFor(()=>h.w.document.body.textContent.includes('No more pending'));
+ assert.equal(h.finished.length,2);h.dom.window.close();
+});
+test('manual pause interrupts cooldown without sending a retry',async()=>{
+ const h=publishHarness(1);await waitFor(()=>h.requests.length===1);
+ h.requests[0].done('The Spanish address provider is unavailable.');await tick();
+ h.click('pause');h.advance(250);
+ await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ assert.equal(h.requests.length,1);assert.equal(h.finished.length,0);h.dom.window.close();
+});
+test('persistent provider outage has bounded retries and preserves the failed lease',async()=>{
+ const h=publishHarness(1);
+ for(let i=0;i<5;i++){
+  await waitFor(()=>h.requests.length===i+1);h.requests[i].done('The Spanish address provider is unavailable.');await tick();
+  if(i<4)h.advance([15000,30000,60000,120000][i]);
+ }
+ await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ assert.equal(h.requests.length,5);assert.equal(h.finished.length,0);h.dom.window.close();
 });
 test('workspace reset prevents stale workers from finishing or updating the new dialog',async()=>{
- const h=publishHarness();await waitFor(()=>h.requests.length===10);
+ const h=publishHarness();await waitFor(()=>h.requests.length===100);
  h.manager.reset();h.manager.publish();for(const r of h.requests)r.done();await tick();await tick();
- assert.equal(h.claims,10);assert.equal(h.finished.length,0);
+ assert.equal(h.claims,100);assert.equal(h.finished.length,0);
  assert.match(h.w.document.body.textContent,/0 checked in this session/);h.dom.window.close();
 });

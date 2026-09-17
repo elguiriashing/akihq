@@ -57,7 +57,7 @@
       } else if(m.kind==="history") {
         body=`<h2>Backups & import history</h2><p>Backups contain CRM companies. Restore brings back missing or archived companies and preserves current edits and map listings. Undo removes only untouched, unpublished additions from one import.</p>${btn("backup","Create company backup",active?"disabled":"")}<h3>Imports</h3>${(m.history?.imports||[]).map(j=>`<div class="company-history-item"><strong>${esc(j.file_name)} · ${esc(j.sheet_name)}</strong><small>${esc(new Date(j.created_at).toLocaleString())} · ${esc(j.status)}<br>${number(j.processed)}/${number(j.total_rows)} checked · ${number(j.inserted)} added · ${number(j.duplicates)} duplicates · ${number(j.invalid)} invalid${j.undone?` · ${number(j.undone)} undone · ${number(j.protected)} protected`:""}</small>${j.status==="running"?btn("import","Choose file to resume"):""}${btn("issues","Skipped-row CSV",`data-id="${j.id}"`)}${j.status!=="undone"?btn("undo","Undo this import",`data-id="${j.id}" ${active?"disabled":""}`):""}</div>`).join("")||"<p>No imports yet.</p>"}<h3>Saved company backups</h3>${(m.history?.backups||[]).map(b=>`<div class="company-history-item"><strong>${esc(b.label)}</strong><small>${esc(new Date(b.created_at).toLocaleString())} · ${number(b.row_count)} companies</small>${btn("restore","Restore missing companies",`data-id="${b.id}" ${active?"disabled":""}`)}${btn("download-backup","Download backup",`data-id="${b.id}" ${active?"disabled":""}`)}</div>`).join("")||"<p>No backups yet.</p>"}`;
       } else if(m.kind==="publish") {
-        body=`<h2>Publish companies to map</h2><p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><p>Up to 10 parallel checks. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
+        body=`<h2>Publish companies to map</h2><p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><p>Up to 100 parallel checks, with automatic cooldown and reduced concurrency when the address service is busy. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
       } else if(m.kind==="details") {
         const r=m.record;
         body=`<h2>Company details</h2><form data-company-edit><div class="company-mapping">${fields.filter(f=>!["source","externalId"].includes(f)).map(f=>`<label>${label[f]}<input name="${f}" value="${esc(r.data[f]||"")}" ${!ctx.admin()?"readonly":""}></label>`).join("")}</div><p>Source: ${esc(r.data.source||"—")}<br>Reference: ${esc(r.data.externalId||r.id)}</p>${r.publish_error?`<p class="company-error">${esc(r.publish_error)}</p>`:""}<p>${r.data.catalogueVenueId?"This company is on the map. Editing these details changes the CRM record; the public venue is managed separately.":"Not yet published. Saving a corrected address makes it eligible for publishing again."}</p>${ctx.admin()?`<button class="action-btn primary" type="submit" ${active?"disabled":""}>Save CRM details</button> ${btn("archive","Archive from CRM",active?"disabled":"")}`:""}</form>`;
@@ -106,25 +106,48 @@
       if(active)return;
       const run=modal,epoch=generation,current=()=>generation===epoch&&modal===run;
       active=true;paused=false;run.started=true;run.error="";run.message="";dialog();
+      let cooldown=0,backoff=15000,limit=100,inFlight=0;
+      const wait=()=>new Promise(resolve=>setTimeout(resolve,250));
+      const temporary=error=>/Spanish address provider is unavailable|Gateway request failed \((429|502|503|504)\)|too many requests|rate limit/i.test(error);
+      const recover=()=>{
+        if(Date.now()>=cooldown){
+          cooldown=Date.now()+backoff;backoff=Math.min(backoff*2,120000);
+          limit=Math.max(1,Math.floor(limit/2));
+          run.message=`Address service busy. Automatically retrying after a cooldown; reduced to ${limit} parallel checks for this run.`;dialog();
+        }
+      };
       const stop=e=>{if(current()){paused=true;run.message="Publishing paused after a service error: "+e.message+". Interrupted checks become available again after 10 minutes.";dialog();}};
       const worker=async()=>{
         while(current()&&!paused){
           try{
+            while(current()&&!paused&&(Date.now()<cooldown||inFlight>=limit))await wait();
+            if(!current()||paused)return;
             // Atomic database leases prevent parallel workers claiming the same company.
             const claim=await rpc("crm_company_publish_claim");
             if(!current()||!claim)return;
+            const deadline=Date.now()+480000;
             let error="";
-            try{
-              const result=await ctx.request("/api/crm/leads/publish-unclaimed?mode=batch",{method:"POST",body:{workspaceId:"ws_akipasa",company:claim.data},signal:AbortSignal.timeout(120000)});
+            for(let attempt=0;;attempt++){
+              while(current()&&!paused&&(Date.now()<cooldown||inFlight>=limit)&&Date.now()<deadline)await wait();
+              if(!current()||paused)return;
+              if(Date.now()>=deadline){stop(new Error("Retry window exhausted; the address service has not recovered"));return;}
+              inFlight++;
+              let retry=false;
+              try{
+              const result=await ctx.request("/api/crm/leads/publish-unclaimed?mode=batch",{method:"POST",body:{workspaceId:"ws_akipasa",company:claim.data},signal:AbortSignal.timeout(Math.min(120000,Math.max(1,deadline-Date.now())))});
               error=result?.data?.reason||"";
             }catch(e){
               error=e.message||String(e);
+              if(!current())return;
+              if(temporary(error)&&attempt<4){recover();retry=true;}
               // Only this known record-level validation failure is safe to continue past.
-              if(!/normalized address could not be confirmed by the authoritative Spanish address provider/i.test(error)){
+              else if(!/normalized address could not be confirmed by the authoritative Spanish address provider/i.test(error)){
                 stop(e);
                 // Leave the lease recoverable, rather than classifying an outage as a bad address.
                 return;
               }
+            }finally{inFlight--;}
+            if(!retry)break;
             }
             if(!current())return;
             const result=await rpc("crm_company_publish_finish",{p_id:claim.id,p_token:claim.token,p_error:error||null});
@@ -135,7 +158,7 @@
       };
       try{
         // Workers handle their own failures; all in-flight checks drain before resume is enabled.
-        await Promise.allSettled(Array.from({length:10},()=>worker()));
+        await Promise.allSettled(Array.from({length:100},()=>worker()));
         if(current()&&!paused)run.message="No more pending companies. Check the ‘Publishing needs review’ filter for skipped addresses. Interrupted checks become available again after 10 minutes.";
       }finally{if(current()){active=false;dialog();void refresh();}}
     }
