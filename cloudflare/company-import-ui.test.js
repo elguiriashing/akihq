@@ -60,7 +60,7 @@ test('legacy Import Excel button is intercepted before the 10 MB gateway handler
  assert.match(h.w.document.body.textContent,/up to 50 MB/);h.dom.window.close();
 });
 
-function publishHarness(total=8){
+function publishHarness(total=25){
  const dom=new JSDOM('<!doctype html><main></main>',{url:'https://crm.example/',runScripts:'outside-only'}),w=dom.window;
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const requests=[],finished=[];let next=0,inFlight=0,peak=0;
@@ -79,37 +79,37 @@ function publishHarness(total=8){
  manager.publish();click('run-publish');
  return {dom,w,manager,requests,finished,click,get peak(){return peak;},get claims(){return next;}};
 }
-test('publisher uses three leased workers, continues after address failure and finishes each company once',async()=>{
- const h=publishHarness();await waitFor(()=>h.requests.length===3);
+test('publisher uses ten leased workers, continues after address failure and finishes each company once',async()=>{
+ const h=publishHarness();await waitFor(()=>h.requests.length===10);
  h.requests[0].done("The agent's normalized address could not be confirmed by the authoritative Spanish address provider.");
- await waitFor(()=>h.requests.length===4);
- for(let i=1;i<8;i++){await waitFor(()=>h.requests[i]);h.requests[i].done();}
+ await waitFor(()=>h.requests.length===11);
+ for(let i=1;i<25;i++){await waitFor(()=>h.requests[i]);h.requests[i].done();}
  await waitFor(()=>h.w.document.body.textContent.includes('No more pending'));
- assert.equal(h.peak,3);assert.equal(h.finished.length,8);
- assert.equal(new Set(h.finished.map(r=>r.p_id)).size,8);
- assert.match(h.w.document.body.textContent,/7 published or linked · 1 need review/);
+ assert.equal(h.peak,10);assert.equal(h.finished.length,25);
+ assert.equal(new Set(h.finished.map(r=>r.p_id)).size,25);
+ assert.match(h.w.document.body.textContent,/24 published or linked · 1 need review/);
  h.dom.window.close();
 });
 test('pause drains current checks before resume and prevents new claims',async()=>{
- const h=publishHarness();await waitFor(()=>h.requests.length===3);h.click('pause');
- h.requests[0].done();await tick();assert.equal(h.requests.length,3);
+ const h=publishHarness();await waitFor(()=>h.requests.length===10);h.click('pause');
+ h.requests[0].done();await tick();assert.equal(h.requests.length,10);
  assert.equal(h.w.document.querySelector('[data-company-action="run-publish"]'),null);
- h.requests[1].done();h.requests[2].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
- assert.equal(h.claims,3);h.click('run-publish');await waitFor(()=>h.requests.length===6);
- h.click('pause');for(let i=3;i<6;i++)h.requests[i].done();
- await waitFor(()=>h.finished.length===6);assert.equal(h.peak,3);h.dom.window.close();
+ for(let i=1;i<10;i++)h.requests[i].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ assert.equal(h.claims,10);h.click('run-publish');await waitFor(()=>h.requests.length===20);
+ h.click('pause');for(let i=10;i<20;i++)h.requests[i].done();
+ await waitFor(()=>h.finished.length===20);assert.equal(h.peak,10);h.dom.window.close();
 });
 test('service failure stops new claims, drains workers and leaves failed lease retryable',async()=>{
- const h=publishHarness();await waitFor(()=>h.requests.length===3);
+ const h=publishHarness();await waitFor(()=>h.requests.length===10);
  h.requests[0].done('Gateway request failed (429).');await tick();
  assert.equal(h.w.document.querySelector('[data-company-action="run-publish"]'),null);
- h.requests[1].done();h.requests[2].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
- assert.equal(h.claims,3);assert.equal(h.finished.length,2);assert.ok(h.finished.every(r=>r.p_id!=='1'));
+ for(let i=1;i<10;i++)h.requests[i].done();await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ assert.equal(h.claims,10);assert.equal(h.finished.length,9);assert.ok(h.finished.every(r=>r.p_id!=='1'));
  assert.match(h.w.document.body.textContent,/429/);h.dom.window.close();
 });
 test('workspace reset prevents stale workers from finishing or updating the new dialog',async()=>{
- const h=publishHarness();await waitFor(()=>h.requests.length===3);
+ const h=publishHarness();await waitFor(()=>h.requests.length===10);
  h.manager.reset();h.manager.publish();for(const r of h.requests)r.done();await tick();await tick();
- assert.equal(h.claims,3);assert.equal(h.finished.length,0);
+ assert.equal(h.claims,10);assert.equal(h.finished.length,0);
  assert.match(h.w.document.body.textContent,/0 checked in this session/);h.dom.window.close();
 });
