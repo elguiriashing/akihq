@@ -1,10 +1,10 @@
-const CACHE = "akihq-v85";
+const CACHE = "akihq-v86";
 const ASSETS = [
   "./",
   "./index.html",
   "./assets/styles.css?v=57",
   "./assets/app-v32.js?v=23",
-  "./assets/company-manager.js?v=7",
+  "./assets/company-manager.js?v=8",
   "./assets/company-manager.css?v=1",
   "./assets/company-import-worker.js?v=1",
   "./assets/company-import-core.js?v=1",

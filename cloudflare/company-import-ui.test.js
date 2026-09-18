@@ -76,7 +76,7 @@ function publishHarness(total=250,concurrency=100,faults={}){
  w.eval(source);
  const manager=w.createCompanyManager({allowed:()=>true,admin:()=>true,client:()=>client,toast(){},request:(_path,options)=>new Promise((resolve,reject)=>{
    inFlight++;peak=Math.max(peak,inFlight);
-   requests.push({id:options.body.company.id,done(error){inFlight--;error?reject(new Error(error)):resolve({data:{}});}});
+   requests.push({id:options.body.company.id,done(error){inFlight--;error?reject(typeof error==="object"?error:new Error(error)):resolve({data:{}});}});
  })});
  const click=a=>w.document.querySelector(`[data-company-action="${a}"]`).click();
  manager.publish();if(concurrency!==null)w.document.querySelector('[data-company-concurrency]').value=String(concurrency);click('run-publish');
@@ -135,7 +135,7 @@ test('provider outage cools down globally and retries the same lease automatical
  h.requests[0].done('The Spanish address provider is unavailable.');
  h.requests[1].done('Gateway request failed (429).');await tick();
  assert.equal(h.finished.length,0);assert.equal(h.requests.length,2);
- assert.match(h.w.document.body.textContent,/reduced to 50/);
+ assert.match(h.w.document.body.textContent,/reduced to 80/);
  h.advance(15000);await waitFor(()=>h.requests.length===4);
  assert.deepEqual(h.requests.slice(2).map(r=>r.id).sort(),['1','2']);
  h.requests[2].done();h.requests[3].done();
@@ -178,8 +178,8 @@ test('diagnostics identify publishing failures, escape original errors, and pres
 
 test('healthy checks gradually recover concurrency without exceeding the selected maximum',async()=>{
  const h=publishHarness(400,10);await waitFor(()=>h.requests.length===10);
- let cursor=1;h.requests[0].done('Gateway request failed (503).');await tick();
- assert.match(h.w.document.body.textContent,/Current limit: 5/);
+ let cursor=1;h.requests[0].done('Gateway request failed (429).');await tick();
+ assert.match(h.w.document.body.textContent,/Current limit: 8/);
  for(;cursor<10;cursor++)h.requests[cursor].done();await tick();
  h.advance(15000);await tick();h.advance(30000);await tick();
  for(let i=0;i<80;i++){
@@ -202,4 +202,50 @@ test('database save timeout is identified and never treated as an invalid addres
  assert.match(h.w.document.body.textContent,/57014/);
  assert.equal(h.finished.length,0);
  assert.match(h.w.document.body.textContent,/0 checked in this session/);h.dom.window.close();
+});
+
+test('two isolated provider errors keep 100 checks and retry only the same companies',async()=>{
+ const h=publishHarness(100,100);await waitFor(()=>h.requests.length===100);
+ h.requests[0].done('The Spanish address provider is unavailable.');
+ for(let i=1;i<99;i++)h.requests[i].done();await tick();
+ assert.match(h.w.document.body.textContent,/Current limit: 100/);
+ h.advance(2000);await waitFor(()=>h.requests.length===101);h.requests[100].done();await tick();
+ h.advance(36000);h.requests[99].done('The Spanish address provider is unavailable.');await tick();
+ assert.match(h.w.document.body.textContent,/Current limit: 100/);
+ assert.match(h.w.document.body.textContent,/0 slowdowns/);
+ h.advance(2000);await waitFor(()=>h.requests.length===102);h.requests[101].done();
+ await waitFor(()=>h.w.document.body.textContent.includes('No more pending'));
+ assert.equal(h.finished.length,100);assert.equal(new Set(h.finished.map(r=>r.p_id)).size,100);
+ assert.equal(h.requests[100].id,'1');assert.equal(h.requests[101].id,'100');h.dom.window.close();
+});
+
+test('a cluster of provider failures reduces concurrency once by 20 percent',async()=>{
+ const h=publishHarness(10,100);await waitFor(()=>h.requests.length===10);
+ for(let i=0;i<5;i++)h.requests[i].done('The Spanish address provider is unavailable.');await tick();
+ assert.match(h.w.document.body.textContent,/Current limit: 80/);
+ assert.match(h.w.document.body.textContent,/1 slowdowns/);
+ h.click('pause');for(let i=5;i<10;i++)h.requests[i].done();h.advance(250);
+ await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));h.dom.window.close();
+});
+
+test('five failures in one hundred completed attempts do not reduce concurrency',async()=>{
+ const h=publishHarness(100,100);await waitFor(()=>h.requests.length===100);
+ for(let i=0;i<95;i++)h.requests[i].done();await tick();
+ for(let i=95;i<100;i++)h.requests[i].done('Gateway request failed (503).');await tick();
+ assert.match(h.w.document.body.textContent,/Current limit: 100/);
+ assert.match(h.w.document.body.textContent,/0 slowdowns/);
+ h.click('pause');h.advance(250);await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));h.dom.window.close();
+});
+
+test('explicit Retry-After extends a shared cooldown without stacking reductions',async()=>{
+ const h=publishHarness(2,100);await waitFor(()=>h.requests.length===2);
+ h.requests[0].done(Object.assign(new Error('Provider throttled'),{status:429,retryAfterMs:20000}));await tick();
+ h.advance(1000);
+ h.requests[1].done(Object.assign(new Error('Provider throttled'),{status:429,retryAfterMs:60000}));await tick();
+ assert.match(h.w.document.body.textContent,/Current limit: 80/);
+ assert.match(h.w.document.body.textContent,/1 slowdowns/);
+ h.advance(59000);await tick();assert.equal(h.requests.length,2);
+ h.advance(1000);await waitFor(()=>h.requests.length===4);
+ h.requests[2].done();h.requests[3].done();await waitFor(()=>h.w.document.body.textContent.includes('No more pending'));
+ assert.equal(h.finished.length,2);h.dom.window.close();
 });
