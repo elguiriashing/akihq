@@ -1426,7 +1426,15 @@
     const text = await response.text();
     let payload = null;
     try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
-    if (!response.ok) throw new Error(payload?.message || payload?.error || `Gateway request failed (${response.status}).`);
+    if (!response.ok) {
+      const failure = new Error(payload?.message || payload?.error || `Gateway request failed (${response.status}).`);
+      failure.status = response.status;
+      failure.code = typeof payload?.error === "string" ? payload.error.slice(0,120) : "";
+      failure.requestId = response.headers.get("cf-ray") || response.headers.get("x-request-id") || "";
+      const retry = response.headers.get("retry-after");
+      failure.retryAfterMs = retry ? (/^\d+$/.test(retry) ? Number(retry)*1000 : Math.max(0,Date.parse(retry)-Date.now())) : 0;
+      throw failure;
+    }
     return payload;
   }
 

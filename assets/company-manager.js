@@ -13,7 +13,7 @@
     async function rpc(name,args={}) {
       if (!allowed()) throw new Error("Open the AkiPasa workspace and sign in again.");
       const {data,error}=await ctx.client().rpc(name,args);
-      if (error) throw new Error(error.message || "Database request failed.");
+      if (error) { const failure=new Error(error.message || "Database request failed."); failure.code=error.code||""; throw failure; }
       return data;
     }
     function table() {
@@ -42,6 +42,18 @@
     function download(name,content,type="text/csv;charset=utf-8") {
       const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
     }
+    function diagnostics(m) {
+      const d=m.diagnostics;if(!d)return "";
+      const stages={claim:"Database: claim company",publish:"Publishing service (includes address checks)",save:"Database: save result"};
+      const seconds=ms=>(ms/1000).toFixed(2)+"s";
+      const last=d.errors[0];
+      return `<section class="company-notice"><h3>Publishing diagnostics</h3><p>${number(d.retries)} retries · ${number(d.slowdowns)} slowdowns · ${number(d.recoveries)} recovery steps</p>
+      <p>Latest failure: ${last?esc(last.stageLabel+" — "+last.cause):"None recorded in this session"}</p>
+      <div class="table-scroll"><table class="data-table"><thead><tr><th>Stage</th><th>Calls / failed</th><th>Average / slowest</th></tr></thead><tbody>${Object.entries(stages).map(([key,name])=>{const t=d.stages[key];return `<tr><td>${name}</td><td>${number(t.calls)} / ${number(t.failed)}</td><td>${seconds(t.calls?t.total/t.calls:0)} / ${seconds(t.max)}</td></tr>`;}).join("")}</tbody></table></div>
+      <p>Timings include network travel. Publishing-service time combines its internal steps; it cannot by itself identify the address provider or Cloudflare as the cause.</p>
+      ${d.errors.slice(0,3).map(e=>`<p><strong>${esc(e.at)} · ${esc(e.stageLabel)}</strong><br>${esc(e.message)}${e.status?` · HTTP ${e.status}`:""}${e.code?` · Code ${esc(e.code)}`:""}${e.requestId?`<br>Request ID: ${esc(e.requestId)}`:""}</p>`).join("")}
+      ${btn("diagnostics","Download diagnostics")}</section>`;
+    }
     function dialog() {
       let el=document.getElementById("company-dialog");
       if (!modal) {el?.close();el?.remove();return;}
@@ -57,11 +69,12 @@
       } else if(m.kind==="history") {
         body=`<h2>Backups & import history</h2><p>Backups contain CRM companies. Restore brings back missing or archived companies and preserves current edits and map listings. Undo removes only untouched, unpublished additions from one import.</p>${btn("backup","Create company backup",active?"disabled":"")}<h3>Imports</h3>${(m.history?.imports||[]).map(j=>`<div class="company-history-item"><strong>${esc(j.file_name)} · ${esc(j.sheet_name)}</strong><small>${esc(new Date(j.created_at).toLocaleString())} · ${esc(j.status)}<br>${number(j.processed)}/${number(j.total_rows)} checked · ${number(j.inserted)} added · ${number(j.duplicates)} duplicates · ${number(j.invalid)} invalid${j.undone?` · ${number(j.undone)} undone · ${number(j.protected)} protected`:""}</small>${j.status==="running"?btn("import","Choose file to resume"):""}${btn("issues","Skipped-row CSV",`data-id="${j.id}"`)}${j.status!=="undone"?btn("undo","Undo this import",`data-id="${j.id}" ${active?"disabled":""}`):""}</div>`).join("")||"<p>No imports yet.</p>"}<h3>Saved company backups</h3>${(m.history?.backups||[]).map(b=>`<div class="company-history-item"><strong>${esc(b.label)}</strong><small>${esc(new Date(b.created_at).toLocaleString())} · ${number(b.row_count)} companies</small>${btn("restore","Restore missing companies",`data-id="${b.id}" ${active?"disabled":""}`)}${btn("download-backup","Download backup",`data-id="${b.id}" ${active?"disabled":""}`)}</div>`).join("")||"<p>No backups yet.</p>"}`;
       } else if(m.kind==="publish") {
-        body=`<h2>Publish companies to map</h2><p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><label>Simultaneous checks (1–100)<input type="number" inputmode="numeric" min="1" max="100" step="1" data-company-concurrency value="${esc(m.concurrency)}" ${active?"disabled":""}></label><p>Set how many businesses can be checked at once. Pause to change this number.</p>${active?`<p>Current limit: ${number(m.currentLimit)} simultaneous checks.</p>`:""}<p>Up to ${number(m.concurrency)} parallel checks, with automatic cooldown and reduced concurrency when the address service is busy. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
+        body=`<h2>Publish companies to map</h2><p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><label>Simultaneous checks (1–100)<input type="number" inputmode="numeric" min="1" max="100" step="1" data-company-concurrency value="${esc(m.concurrency)}" ${active?"disabled":""}></label><p>Set how many businesses can be checked at once. Pause to change this number.</p>${active?`<p>Current limit: ${number(m.currentLimit)} simultaneous checks.</p>`:""}<p>Up to ${number(m.concurrency)} parallel checks, with automatic cooldown and gradual recovery after temporary failures. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
       } else if(m.kind==="details") {
         const r=m.record;
         body=`<h2>Company details</h2><form data-company-edit><div class="company-mapping">${fields.filter(f=>!["source","externalId"].includes(f)).map(f=>`<label>${label[f]}<input name="${f}" value="${esc(r.data[f]||"")}" ${!ctx.admin()?"readonly":""}></label>`).join("")}</div><p>Source: ${esc(r.data.source||"—")}<br>Reference: ${esc(r.data.externalId||r.id)}</p>${r.publish_error?`<p class="company-error">${esc(r.publish_error)}</p>`:""}<p>${r.data.catalogueVenueId?"This company is on the map. Editing these details changes the CRM record; the public venue is managed separately.":"Not yet published. Saving a corrected address makes it eligible for publishing again."}</p>${ctx.admin()?`<button class="action-btn primary" type="submit" ${active?"disabled":""}>Save CRM details</button> ${btn("archive","Archive from CRM",active?"disabled":"")}`:""}</form>`;
       }
+      if(m.kind==="publish")body+=diagnostics(m);
       el.innerHTML=body+(m.message?`<p role="status" class="company-notice">${esc(m.message)}</p>`:"")+(m.error?`<p role="alert" class="company-error">${esc(m.error)}</p>`:"")+`<div class="company-dialog-actions">${btn("close","Close",active?"disabled":"")}</div>`;
       if(!el.open)el.showModal();
     }
@@ -108,15 +121,31 @@
       if(!Number.isInteger(selected)||selected<1||selected>100){modal.error="Enter a whole number from 1 to 100.";dialog();return;}
       modal.concurrency=selected;modal.currentLimit=selected;
       const run=modal,epoch=generation,current=()=>generation===epoch&&modal===run;
+      run.diagnostics ||= {startedAt:new Date().toISOString(),retries:0,slowdowns:0,recoveries:0,errors:[],stages:Object.fromEntries(["claim","publish","save"].map(k=>[k,{calls:0,failed:0,total:0,max:0}]))};
+      const d=run.diagnostics;
+      const stageLabels={claim:"Database claim",publish:"Publishing service",save:"Database save"};
+      const measure=async(stage,fn)=>{
+        const started=Date.now();const t=d.stages[stage];
+        try{return await fn();}catch(e){
+          t.failed++;
+          const message=String(e.message||e).slice(0,500);
+          const status=Number(e.status)||Number(message.match(/Gateway request failed \((\d+)\)/)?.[1])||0;
+          const cause=stage!=="publish"?"Supabase request failed":/Spanish address provider is unavailable/i.test(message)?"Address provider reported unavailable":status===429?"HTTP rate limit; originating service not confirmed":/Failed to fetch|NetworkError|Load failed/i.test(message)?"Network/CORS failure; service not confirmed":status>=500?"Gateway/server failure; originating service not confirmed":"Request failed; see original error";
+          d.errors.unshift({at:new Date().toISOString(),stage,stageLabel:stageLabels[stage],cause,message,status,code:String(e.code||"").slice(0,120),requestId:String(e.requestId||"").slice(0,120)});d.errors.length=Math.min(d.errors.length,20);
+          throw e;
+        }finally{const ms=Math.max(0,Date.now()-started);t.calls++;t.total+=ms;t.max=Math.max(t.max,ms);}
+      };
       active=true;paused=false;run.started=true;run.error="";run.message="";dialog();
-      let cooldown=0,backoff=15000,limit=selected,inFlight=0;
+      let cooldown=0,backoff=15000,limit=selected,inFlight=0,healthySince=Date.now(),healthySuccesses=0;
       const wait=()=>new Promise(resolve=>setTimeout(resolve,250));
       const temporary=error=>/Spanish address provider is unavailable|Gateway request failed \((429|502|503|504)\)|too many requests|rate limit/i.test(error);
-      const recover=()=>{
+      const recover=e=>{
+        healthySuccesses=0;healthySince=Date.now();
         if(Date.now()>=cooldown){
-          cooldown=Date.now()+backoff;backoff=Math.min(backoff*2,120000);
+          cooldown=Date.now()+Math.max(backoff,Number(e.retryAfterMs)||0);backoff=Math.min(backoff*2,120000);
+          d.slowdowns++;
           limit=Math.max(1,Math.floor(limit/2));run.currentLimit=limit;
-          run.message=`Address service busy. Automatically retrying after a cooldown; reduced to ${limit} parallel checks for this run.`;dialog();
+          run.message=`Temporary publishing failure. Automatically retrying after a cooldown; reduced to ${limit} parallel checks. Original error: ${String(e.message||e).slice(0,500)}`;dialog();
         }
       };
       const stop=e=>{if(current()){paused=true;run.message="Publishing paused after a service error: "+e.message+". Interrupted checks become available again after 10 minutes.";dialog();}};
@@ -126,7 +155,7 @@
             while(current()&&!paused&&(Date.now()<cooldown||inFlight>=limit))await wait();
             if(!current()||paused)return;
             // Atomic database leases prevent parallel workers claiming the same company.
-            const claim=await rpc("crm_company_publish_claim");
+            const claim=await measure("claim",()=>rpc("crm_company_publish_claim"));
             if(!current()||!claim)return;
             const deadline=Date.now()+480000;
             let error="";
@@ -137,12 +166,12 @@
               inFlight++;
               let retry=false;
               try{
-              const result=await ctx.request("/api/crm/leads/publish-unclaimed?mode=batch",{method:"POST",body:{workspaceId:"ws_akipasa",company:claim.data},signal:AbortSignal.timeout(Math.min(120000,Math.max(1,deadline-Date.now())))});
+              const result=await measure("publish",()=>ctx.request("/api/crm/leads/publish-unclaimed?mode=batch",{method:"POST",body:{workspaceId:"ws_akipasa",company:claim.data},signal:AbortSignal.timeout(Math.min(120000,Math.max(1,deadline-Date.now())))}));
               error=result?.data?.reason||"";
             }catch(e){
               error=e.message||String(e);
               if(!current())return;
-              if(temporary(error)&&attempt<4){recover();retry=true;}
+              if((temporary(error)||[429,502,503,504].includes(e.status))&&attempt<4){d.retries++;recover(e);retry=true;}
               // Only this known record-level validation failure is safe to continue past.
               else if(!/normalized address could not be confirmed by the authoritative Spanish address provider/i.test(error)){
                 stop(e);
@@ -153,9 +182,15 @@
             if(!retry)break;
             }
             if(!current())return;
-            const result=await rpc("crm_company_publish_finish",{p_id:claim.id,p_token:claim.token,p_error:error||null});
+            const result=await measure("save",()=>rpc("crm_company_publish_finish",{p_id:claim.id,p_token:claim.token,p_error:error||null}));
             if(!current())return;
-            run.checked++;result.published?run.published++:run.skipped++;dialog();
+            run.checked++;result.published?run.published++:run.skipped++;
+            if(!paused&&Date.now()>=cooldown&&++healthySuccesses>=25&&Date.now()-Math.max(healthySince,cooldown)>=30000&&limit<selected){
+              limit=Math.min(selected,limit+Math.max(1,Math.ceil(selected/10)));run.currentLimit=limit;
+              healthySuccesses=0;healthySince=Date.now();backoff=15000;d.recoveries++;
+              run.message=`Checks are succeeding again. Increased to ${limit} simultaneous checks (your maximum: ${selected}).`;
+            }
+            dialog();
           }catch(e){stop(e);return;}
         }
       };
@@ -167,7 +202,7 @@
     }
     async function action(action,target) {
       if(action==="pause"){paused=true;modal.message="Pausing after current requests finish… Interrupted checks become available again after 10 minutes.";dialog();return;}
-      if(action==="close"){close();return;}if(active)return;
+      if(action==="close"){close();return;}if(action==="diagnostics"&&modal?.diagnostics){download("publishing-diagnostics.json",JSON.stringify(modal.diagnostics,null,2),"application/json");return;}if(active)return;
       if(action==="import")return openImport();
       if(action==="preview")return preview();if(action==="commit")return runImport(true);if(action==="resume")return runImport();
       if(action==="history")return history();if(action==="publish")return publish();if(action==="run-publish")return runPublish();
