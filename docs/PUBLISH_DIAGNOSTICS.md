@@ -1,5 +1,17 @@
 # Publishing diagnostics
 
+## Gateway logs
+
+`cloudflare/wrangler.toml` enables persisted Workers logs, invocation logs and 100% sampling for `akihq-integration-gateway`. Apply this configuration with `cd cloudflare && npx wrangler deploy` using an authenticated Cloudflare account. A CRM static-site deployment alone does not deploy this Worker.
+
+For an existing live Worker, Cloudflare Dashboard → Workers & Pages → akihq-integration-gateway → Settings → Observability → Logs also permits enabling Logs, Include Invocation logs and Persist logs, then Deploy. This updates the logging setting without replacing the running application code. Keep the repository configuration in sync so future Wrangler deployments preserve it.
+
+After activation, open the Worker's Observability tab, select Logs/Events and a time range covering a new publishing run. Inspect failed requests and correlate their timestamps with the downloaded CRM diagnostics (which use UTC). Logs are collected from activation onward; earlier failures cannot be recovered retroactively. Enabling logs exposes invocation metadata and existing application logs, but does not add upstream address-provider timings or status codes where the running backend does not already log them. A generic `address_provider_unavailable` error alone still cannot establish which paid upgrade would help.
+
+The full sampling rate is intended to capture intermittent import failures. Review log volume after the import and adjust sampling if needed. Enabling logs does not require accepting new billing terms in the dashboard.
+
+## CRM session diagnostics
+
 The publish dialog shows cumulative call/failure counts and average/maximum round-trip times for database claim, publishing service, and database save. The latest three errors remain visible. Download diagnostics exports the latest 20 errors plus aggregate counters for the current dialog session. Closing the dialog clears this diagnostic history; publication progress remains in the database.
 
 Errors retain the original message (bounded to 500 characters), HTTP status, error code and request ID when available. Cross-origin responses may not expose request ID or Retry-After headers. No company payload, access token or response body is exported. Existing error messages can contain business-related text, so review the download before sharing publicly.

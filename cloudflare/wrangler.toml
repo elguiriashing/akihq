@@ -3,6 +3,13 @@ main = "worker.js"
 compatibility_date = "2026-07-28"
 workers_dev = true
 
+# Persist invocation and application logs for publishing diagnostics.
+[observability.logs]
+enabled = true
+invocation_logs = true
+head_sampling_rate = 1
+persist = true
+
 # Public/non-secret configuration only. Override these for your deployment.
 [vars]
 ALLOWED_ORIGINS = "https://crm.akipasa.com,http://127.0.0.1:8080"
