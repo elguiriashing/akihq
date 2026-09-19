@@ -17,7 +17,7 @@
       return data;
     }
     function table() {
-      return `<div class="panel-header"><div><h2>Companies</h2><p>${number(page.total)} matching companies · saved in AkiPasa</p></div>${ctx.admin()?btn("publish","Publish valid companies to map"):""}</div>
+      return `<div class="panel-header"><div><h2>Companies</h2><p>${number(page.total)} matching companies · saved in AkiPasa</p></div>${ctx.admin()?btn("publish","Publish valid companies to map")+btn("review-publish","Review & retry unpublished"):""}</div>
       <div class="company-toolbar"><form data-company-search><input aria-label="Search companies" name="search" value="${esc(search)}" placeholder="Search name, town or address"><button class="action-btn" type="submit">Search</button></form>
       <select aria-label="Company filter" data-company-filter>${[["all","All companies"],["imported","Imported companies"],["unpublished","Not on the map"],["review","Publishing needs review"]].map(([v,t])=>`<option value="${v}" ${view===v?"selected":""}>${t}</option>`).join("")}</select>${ctx.admin()?btn("history","Backups & import history"):""}${btn("refresh","Refresh")}</div>
       ${pageError?`<p class="company-error">${esc(pageError)}</p>`:""}
@@ -69,7 +69,7 @@
       } else if(m.kind==="history") {
         body=`<h2>Backups & import history</h2><p>Backups contain CRM companies. Restore brings back missing or archived companies and preserves current edits and map listings. Undo removes only untouched, unpublished additions from one import.</p>${btn("backup","Create company backup",active?"disabled":"")}<h3>Imports</h3>${(m.history?.imports||[]).map(j=>`<div class="company-history-item"><strong>${esc(j.file_name)} · ${esc(j.sheet_name)}</strong><small>${esc(new Date(j.created_at).toLocaleString())} · ${esc(j.status)}<br>${number(j.processed)}/${number(j.total_rows)} checked · ${number(j.inserted)} added · ${number(j.duplicates)} duplicates · ${number(j.invalid)} invalid${j.undone?` · ${number(j.undone)} undone · ${number(j.protected)} protected`:""}</small>${j.status==="running"?btn("import","Choose file to resume"):""}${btn("issues","Skipped-row CSV",`data-id="${j.id}"`)}${j.status!=="undone"?btn("undo","Undo this import",`data-id="${j.id}" ${active?"disabled":""}`):""}</div>`).join("")||"<p>No imports yet.</p>"}<h3>Saved company backups</h3>${(m.history?.backups||[]).map(b=>`<div class="company-history-item"><strong>${esc(b.label)}</strong><small>${esc(new Date(b.created_at).toLocaleString())} · ${number(b.row_count)} companies</small>${btn("restore","Restore missing companies",`data-id="${b.id}" ${active?"disabled":""}`)}${btn("download-backup","Download backup",`data-id="${b.id}" ${active?"disabled":""}`)}</div>`).join("")||"<p>No backups yet.</p>"}`;
       } else if(m.kind==="publish") {
-        body=`<h2>Publish companies to map</h2><p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><label>Simultaneous checks (1–100)<input type="number" inputmode="numeric" min="1" max="100" step="1" data-company-concurrency value="${esc(m.concurrency)}" ${active?"disabled":""}></label><p>Set how many businesses can be checked at once. Pause to change this number.</p>${active?`<p>Current limit: ${number(m.currentLimit)} simultaneous checks.</p>`:""}<p>Up to ${number(m.concurrency)} parallel checks, with individual retries for isolated errors, smaller reductions for repeated failures, and automatic recovery. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
+        body=`<h2>${m.review?"Review & retry unpublished companies":"Publish companies to map"}</h2>${m.review?`<p>Retry all companies currently needing review, across all pages and filters. The existing service uses AI when needed and publishes only verified addresses. Unresolved addresses stay in review.</p><p>AI checks use your API credits. AkiPasa also has a separate monthly cap. Manage it in <a href="#/crm/ai-team">AI Team → Usage & budget</a>.</p>${m.budget?`<p>Internal usage estimate: €${Number(m.budget.spent).toFixed(4)} / €${Number(m.budget.limit).toFixed(2)}. ${number(m.budget.count)} companies available to retry.</p>`:""}<p>Review runs start at 2 simultaneous checks and pace new attempts to avoid flooding the AI service.</p>`:""}<p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><label>Simultaneous checks (1–100)<input type="number" inputmode="numeric" min="1" max="100" step="1" data-company-concurrency value="${esc(m.concurrency)}" ${active?"disabled":""}></label><p>Set how many businesses can be checked at once. Pause to change this number.</p>${active?`<p>Current limit: ${number(m.currentLimit)} simultaneous checks.</p>`:""}<p>Up to ${number(m.concurrency)} parallel checks, with individual retries for isolated errors, smaller reductions for repeated failures, and automatic recovery. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
       } else if(m.kind==="details") {
         const r=m.record;
         body=`<h2>Company details</h2><form data-company-edit><div class="company-mapping">${fields.filter(f=>!["source","externalId"].includes(f)).map(f=>`<label>${label[f]}<input name="${f}" value="${esc(r.data[f]||"")}" ${!ctx.admin()?"readonly":""}></label>`).join("")}</div><p>Source: ${esc(r.data.source||"—")}<br>Reference: ${esc(r.data.externalId||r.id)}</p>${r.publish_error?`<p class="company-error">${esc(r.publish_error)}</p>`:""}<p>${r.data.catalogueVenueId?"This company is on the map. Editing these details changes the CRM record; the public venue is managed separately.":"Not yet published. Saving a corrected address makes it eligible for publishing again."}</p>${ctx.admin()?`<button class="action-btn primary" type="submit" ${active?"disabled":""}>Save CRM details</button> ${btn("archive","Archive from CRM",active?"disabled":"")}`:""}</form>`;
@@ -114,7 +114,7 @@
         if((data||[]).length<500)break;start+=500;
       }download(name,"\ufeff"+chunks.join(""));
     }
-    async function publish(){if(active)return;modal={kind:"publish",concurrency:50,checked:0,published:0,skipped:0};dialog();}
+    async function publish(review=false){if(active)return;modal={kind:"publish",review,concurrency:review?2:50,checked:0,published:0,skipped:0};dialog();if(review){const m=modal;m.budget=await rpc("crm_company_review_retry");if(modal===m)dialog();}}
     async function runPublish(){
       if(active)return;
       const selected=Number(document.querySelector("[data-company-concurrency]")?.value);
@@ -136,6 +136,7 @@
         }finally{const ms=Math.max(0,Date.now()-started);t.calls++;t.total+=ms;t.max=Math.max(t.max,ms);}
       };
       active=true;paused=false;run.started=true;run.error="";run.message="";dialog();
+      let nextReviewAttempt=0;
       let cooldown=0,backoff=15000,limit=selected,inFlight=0,healthySince=Date.now(),healthySuccesses=0;
       const wait=()=>new Promise(resolve=>setTimeout(resolve,250));
       let outcomes=[];
@@ -144,7 +145,7 @@
         outcomes.push({at:now,failed});outcomes=outcomes.slice(-100);
         d.recentRequests=outcomes.length;d.recentFailures=outcomes.filter(o=>o.failed).length;
       };
-      const temporary=error=>/Spanish address provider is unavailable|Gateway request failed \((429|502|503|504)\)|too many requests|rate limit/i.test(error);
+      const temporary=error=>/Spanish address provider is unavailable|Gateway request failed \((429|502|503|504)\)|too many requests|rate limit|AI concurrency limit reached/i.test(error);
       const recover=e=>{
         const status=Number(e.status)||Number(String(e.message||e).match(/Gateway request failed \((\d+)\)/)?.[1]);
         const retryAfter=Number.isFinite(e.retryAfterMs)?Math.max(0,e.retryAfterMs):0;
@@ -167,7 +168,7 @@
         }
         dialog();
       };
-      const stop=e=>{if(current()){paused=true;run.message="Publishing paused after a service error: "+e.message+". Interrupted checks become available again after 10 minutes.";dialog();}};
+      const stop=e=>{if(current()){paused=true;run.message="Publishing paused after a service error: "+(/AI monthly budget exhausted/i.test(e.message)?"AkiPasa internal AI budget reached. Open AI Team → Usage & budget to review your cap; this is separate from OpenAI credit.":e.message)+". Interrupted checks become available again after 10 minutes.";dialog();}};
       const worker=async()=>{
         while(current()&&!paused){
           try{
@@ -182,11 +183,18 @@
               while(current()&&!paused&&(Date.now()<Math.max(cooldown,retryAt)||inFlight>=limit)&&Date.now()<deadline)await wait();
               if(!current()||paused)return;
               if(Date.now()>=deadline){stop(new Error("Retry window exhausted; the address service has not recovered"));return;}
+              if(run.review){
+                const slot=Math.max(Date.now(),nextReviewAttempt);nextReviewAttempt=slot+1200;
+                while(current()&&!paused&&Date.now()<slot)await wait();
+                if(!current()||paused)return;
+              }
               inFlight++;
               let retry=false;
               try{
               const result=await measure("publish",()=>ctx.request("/api/crm/leads/publish-unclaimed?mode=batch",{method:"POST",body:{workspaceId:"ws_akipasa",company:claim.data},signal:AbortSignal.timeout(Math.min(120000,Math.max(1,deadline-Date.now())))}));
               error=result?.data?.reason||"";
+              // The backend may return service failures as a successful HTTP response.
+              if(/AI monthly budget exhausted|AI (minute|hourly) rate limit reached|AI concurrency limit reached/i.test(error))throw new Error(error);
               if(current())recordOutcome(false);
             }catch(e){
               error=e.message||String(e);
@@ -221,17 +229,28 @@
         }
       };
       try{
+        if(run.review&&!run.prepared){
+          run.budget=await rpc("crm_company_review_retry");
+          let cursor=0,done=false,queued=0;
+          while(current()&&!paused&&!done){
+            const batch=await rpc("crm_company_review_retry",{p_requeue:true,p_after:cursor,p_until:run.budget.until});
+            cursor=batch.cursor;done=batch.done;queued+=batch.queued;
+            run.message=`${number(queued)} companies queued for another verification pass…`;dialog();
+          }
+          if(!current()||paused)return;
+          run.prepared=true;
+        }
         // Workers handle their own failures; all in-flight checks drain before resume is enabled.
         await Promise.allSettled(Array.from({length:selected},()=>worker()));
         if(current()&&!paused)run.message="No more pending companies. Check the ‘Publishing needs review’ filter for skipped addresses. Interrupted checks become available again after 10 minutes.";
-      }finally{if(current()){active=false;dialog();void refresh();}}
+      }catch(e){stop(e);}finally{if(current()){active=false;dialog();void refresh();}}
     }
     async function action(action,target) {
       if(action==="pause"){paused=true;modal.message="Pausing after current requests finish… Interrupted checks become available again after 10 minutes.";dialog();return;}
       if(action==="close"){close();return;}if(action==="diagnostics"&&modal?.diagnostics){download("publishing-diagnostics.json",JSON.stringify(modal.diagnostics,null,2),"application/json");return;}if(active)return;
       if(action==="import")return openImport();
       if(action==="preview")return preview();if(action==="commit")return runImport(true);if(action==="resume")return runImport();
-      if(action==="history")return history();if(action==="publish")return publish();if(action==="run-publish")return runPublish();
+      if(action==="history")return history();if(action==="publish")return publish();if(action==="review-publish")return publish(true);if(action==="run-publish")return runPublish();
       if(action==="refresh")return refresh();if(action==="prev"||action==="next"){offset=Math.max(0,offset+(action==="next"?50:-50));return refresh();}
       if(action==="details"){modal={kind:"details",record:page.rows.find(r=>r.id===target.dataset.id)};dialog();return;}
       active=true;if(modal){modal.error="";modal.message="Working…";}dialog();

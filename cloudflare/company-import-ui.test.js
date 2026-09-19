@@ -76,7 +76,7 @@ function publishHarness(total=250,concurrency=100,faults={}){
  w.eval(source);
  const manager=w.createCompanyManager({allowed:()=>true,admin:()=>true,client:()=>client,toast(){},request:(_path,options)=>new Promise((resolve,reject)=>{
    inFlight++;peak=Math.max(peak,inFlight);
-   requests.push({id:options.body.company.id,done(error){inFlight--;error?reject(typeof error==="object"?error:new Error(error)):resolve({data:{}});}});
+   requests.push({id:options.body.company.id,done(error,result){inFlight--;error?reject(typeof error==="object"?error:new Error(error)):resolve(result||{data:{}});}});
  })});
  const click=a=>w.document.querySelector(`[data-company-action="${a}"]`).click();
  manager.publish();if(concurrency!==null)w.document.querySelector('[data-company-concurrency]').value=String(concurrency);click('run-publish');
@@ -248,4 +248,38 @@ test('explicit Retry-After extends a shared cooldown without stacking reductions
  h.advance(1000);await waitFor(()=>h.requests.length===4);
  h.requests[2].done();h.requests[3].done();await waitFor(()=>h.w.document.body.textContent.includes('No more pending'));
  assert.equal(h.finished.length,2);h.dom.window.close();
+});
+
+test('budget failure in HTTP-success body pauses without misclassifying the company',async()=>{
+ const h=publishHarness(1,1);await waitFor(()=>h.requests.length===1);
+ h.requests[0].done(null,{data:{reason:'AI monthly budget exhausted'}});
+ await waitFor(()=>h.w.document.querySelector('[data-company-action="run-publish"]'));
+ assert.equal(h.finished.length,0);
+ assert.match(h.w.document.body.textContent,/AkiPasa internal AI budget reached/);
+ h.dom.window.close();
+});
+test('AI concurrency failure in HTTP-success body retries rather than saving a bad address',async()=>{
+ const h=publishHarness(1,1);await waitFor(()=>h.requests.length===1);
+ h.requests[0].done(null,{data:{reason:'AI concurrency limit reached'}});
+ await tick();assert.equal(h.finished.length,0);h.advance(2000);
+ await waitFor(()=>h.requests.length===2);h.requests[1].done();
+ await waitFor(()=>h.finished.length===1);h.dom.window.close();
+});
+test('bulk review queues once and does not endlessly retry unresolved companies',async()=>{
+ const dom=new JSDOM('<!doctype html><main></main>',{url:'https://crm.example/',runScripts:'outside-only'}),w=dom.window;
+ w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
+ let queued=0,claims=0,saves=0;
+ const client={rpc:async(name,args)=>{
+   if(name==='crm_company_review_retry')return {data:args.p_requeue?(queued++,{queued:1,cursor:7,done:true}):{count:1,until:7,spent:3.97,limit:4}};
+   if(name==='crm_company_publish_claim')return {data:claims++===0?{id:'a',token:'t',data:{id:'a'}}:null};
+   if(name==='crm_company_publish_finish'){saves++;return {data:{published:false}};}
+   if(name==='crm_company_list')return {data:{rows:[],total:1}};
+   throw new Error(name);
+ }};
+ w.eval(source);const manager=w.createCompanyManager({allowed:()=>true,admin:()=>true,client:()=>client,request:async()=>({data:{reason:'Address still ambiguous'}})});
+ await manager.publish(true);assert.match(w.document.body.textContent,/€3.9700 \/ €4.00/);
+ w.document.querySelector('[data-company-action="run-publish"]').click();
+ await waitFor(()=>w.document.body.textContent.includes('No more pending companies'));
+ assert.equal(queued,1);assert.equal(saves,1);assert.equal(w.document.querySelector('[data-company-concurrency]').value,'2');
+ dom.window.close();
 });

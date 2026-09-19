@@ -25,6 +25,9 @@ before(async()=>{
  insert into workspace_snapshots values('ws_akipasa','{"companies":[{"id":"existing","name":"Existing Cafe","address":"Calle Uno 1","catalogueVenueId":"20000000-0000-4000-8000-000000000001"}]}');
  `);
  await db.exec(readFileSync(new URL('../supabase/migrations/20260917145343_bulk_company_import.sql',import.meta.url),'utf8'));
+ await db.exec(`create table ai_budget_settings(singleton boolean, monthly_limit_eur numeric,hard_cap_enabled boolean);insert into ai_budget_settings values(true,4,true);
+ create table ai_usage_ledger(billing_month date,status text,actual_cost_eur numeric,reserved_cost_eur numeric);`);
+ await db.exec(readFileSync(new URL('../supabase/migrations/20260919024657_company_review_retry.sql',import.meta.url),'utf8'));
  await db.exec(`set role authenticated;set request.jwt.claim.sub='${admin}';`);
 });
 after(()=>db.close());
@@ -94,4 +97,24 @@ test('100,000 rows persist in bounded batches and list pages remain at 50 record
  const page=await rpc('crm_company_list',['Scale company','imported',99950]);assert.equal(page.total,100000);assert.equal(page.rows.length,50);
  const backup=await rpc('crm_company_backup_create',['100k test']);assert.ok(backup.rows>=100000);
  console.log(`100k durable import and backup: ${Math.round(performance.now()-began)}ms`);
+});
+
+test('review retry is admin-only, bounded and preserves published, archived and active records',async()=>{
+ await db.exec(`reset role;
+ insert into crm_company_records(workspace_id,id,data,identity_key,publish_state,deleted_at) values
+ ('ws_akipasa','retry-a','{"name":"A"}','retry-a','skipped',null),
+ ('ws_akipasa','retry-b','{"catalogueVenueId":"linked"}','retry-b','skipped',null),
+ ('ws_akipasa','retry-c','{}','retry-c','working',null),
+ ('ws_akipasa','retry-d','{}','retry-d','skipped',now());
+ set role authenticated;set request.jwt.claim.sub='${viewer}';`);
+ await assert.rejects(rpc('crm_company_review_retry'),/Administrator required/);
+ await db.exec(`set request.jwt.claim.sub='${admin}';`);
+ const info=await rpc('crm_company_review_retry');assert.equal(info.limit,4);
+ const result=await rpc('crm_company_review_retry',[true,info.until-4,info.until]);
+ assert.ok(result.queued>=1);
+ await db.exec('reset role');
+ const rows=(await db.query("select id,publish_state from crm_company_records where id like 'retry-%' order by id")).rows;
+ assert.deepEqual(rows.map(r=>r.publish_state),['pending','skipped','working','skipped']);
+ await db.exec(`set role anon;`);await assert.rejects(rpc('crm_company_review_retry'),/permission denied/);
+ await db.exec(`set role authenticated;set request.jwt.claim.sub='${admin}';`);
 });
