@@ -110,11 +110,28 @@ test('review retry is admin-only, bounded and preserves published, archived and 
  await assert.rejects(rpc('crm_company_review_retry'),/Administrator required/);
  await db.exec(`set request.jwt.claim.sub='${admin}';`);
  const info=await rpc('crm_company_review_retry');assert.equal(info.limit,4);
- const result=await rpc('crm_company_review_retry',[true,info.until-4,info.until]);
+ const result=await rpc('crm_company_review_retry',[true,Math.max(0,info.until-4),info.until]);
  assert.ok(result.queued>=1);
  await db.exec('reset role');
  const rows=(await db.query("select id,publish_state from crm_company_records where id like 'retry-%' order by id")).rows;
  assert.deepEqual(rows.map(r=>r.publish_state),['pending','skipped','working','skipped']);
  await db.exec(`set role anon;`);await assert.rejects(rpc('crm_company_review_retry'),/permission denied/);
  await db.exec(`set role authenticated;set request.jwt.claim.sub='${admin}';`);
+});
+
+test('screening corrections require server access, current lease and evidence; preserve original data',async()=>{
+ await db.exec('reset role');
+ await db.exec(readFileSync(new URL('../supabase/migrations/20260919030513_company_screen_apply.sql',import.meta.url),'utf8'));
+ const token='30000000-0000-4000-8000-000000000001';
+ await db.query(`insert into crm_company_records(workspace_id,id,data,identity_key,publish_state,publish_token,publish_lease) values('ws_akipasa','screen-test',$1,public.crm_company_key('Screen Cafe','Calle Old'),'working',$2,now()+interval '10 minutes')`,[JSON.stringify(row('Screen Cafe','Calle Old')),token]);
+ const resolution={status:'resolved',normalizedAddress:'Calle Verified 42',city:'Madrid',confidence:0.95,evidenceUrls:['https://example.com/address']};
+ await db.exec('set role authenticated');
+ await assert.rejects(rpc('crm_company_screen_apply',['screen-test',token,1,resolution]),/permission denied/);
+ await db.exec('reset role');
+ await assert.rejects(rpc('crm_company_screen_apply',['screen-test',token,99,resolution]),/lease expired or company changed/);
+ await assert.rejects(rpc('crm_company_screen_apply',['screen-test',token,1,{...resolution,evidenceUrls:[]}]),/sufficient evidence/);
+ const result=await rpc('crm_company_screen_apply',['screen-test',token,1,resolution]);
+ assert.equal(result.company.address,'Calle Verified 42');assert.equal(result.company.screening.originalAddress,'Calle Old');
+ await assert.rejects(rpc('crm_company_screen_apply',['screen-test',token,1,resolution]),/company changed/);
+ await db.exec('set role authenticated');
 });

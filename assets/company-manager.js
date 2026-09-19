@@ -17,7 +17,7 @@
       return data;
     }
     function table() {
-      return `<div class="panel-header"><div><h2>Companies</h2><p>${number(page.total)} matching companies · saved in AkiPasa</p></div>${ctx.admin()?btn("publish","Publish valid companies to map")+btn("review-publish","Review & retry unpublished"):""}</div>
+      return `<div class="panel-header"><div><h2>Companies</h2><p>${number(page.total)} matching companies · saved in AkiPasa</p></div>${ctx.admin()?btn("publish","Publish valid companies to map")+btn("review-publish","AI screen & publish unpublished"):""}</div>
       <div class="company-toolbar"><form data-company-search><input aria-label="Search companies" name="search" value="${esc(search)}" placeholder="Search name, town or address"><button class="action-btn" type="submit">Search</button></form>
       <select aria-label="Company filter" data-company-filter>${[["all","All companies"],["imported","Imported companies"],["unpublished","Not on the map"],["review","Publishing needs review"]].map(([v,t])=>`<option value="${v}" ${view===v?"selected":""}>${t}</option>`).join("")}</select>${ctx.admin()?btn("history","Backups & import history"):""}${btn("refresh","Refresh")}</div>
       ${pageError?`<p class="company-error">${esc(pageError)}</p>`:""}
@@ -44,7 +44,7 @@
     }
     function diagnostics(m) {
       const d=m.diagnostics;if(!d)return "";
-      const stages={claim:"Database: claim company",publish:"Publishing service (includes address checks)",save:"Database: save result"};
+      const stages={claim:"Database: claim company",screen:"AI research & correction",publish:"Publishing service (includes address checks)",save:"Database: save result"};
       const seconds=ms=>(ms/1000).toFixed(2)+"s";
       const last=d.errors[0];
       return `<section class="company-notice"><h3>Publishing diagnostics</h3><p>${number(d.retries)} retries · ${number(d.slowdowns)} slowdowns · ${number(d.recoveries)} recovery steps</p>
@@ -69,7 +69,7 @@
       } else if(m.kind==="history") {
         body=`<h2>Backups & import history</h2><p>Backups contain CRM companies. Restore brings back missing or archived companies and preserves current edits and map listings. Undo removes only untouched, unpublished additions from one import.</p>${btn("backup","Create company backup",active?"disabled":"")}<h3>Imports</h3>${(m.history?.imports||[]).map(j=>`<div class="company-history-item"><strong>${esc(j.file_name)} · ${esc(j.sheet_name)}</strong><small>${esc(new Date(j.created_at).toLocaleString())} · ${esc(j.status)}<br>${number(j.processed)}/${number(j.total_rows)} checked · ${number(j.inserted)} added · ${number(j.duplicates)} duplicates · ${number(j.invalid)} invalid${j.undone?` · ${number(j.undone)} undone · ${number(j.protected)} protected`:""}</small>${j.status==="running"?btn("import","Choose file to resume"):""}${btn("issues","Skipped-row CSV",`data-id="${j.id}"`)}${j.status!=="undone"?btn("undo","Undo this import",`data-id="${j.id}" ${active?"disabled":""}`):""}</div>`).join("")||"<p>No imports yet.</p>"}<h3>Saved company backups</h3>${(m.history?.backups||[]).map(b=>`<div class="company-history-item"><strong>${esc(b.label)}</strong><small>${esc(new Date(b.created_at).toLocaleString())} · ${number(b.row_count)} companies</small>${btn("restore","Restore missing companies",`data-id="${b.id}" ${active?"disabled":""}`)}${btn("download-backup","Download backup",`data-id="${b.id}" ${active?"disabled":""}`)}</div>`).join("")||"<p>No backups yet.</p>"}`;
       } else if(m.kind==="publish") {
-        body=`<h2>${m.review?"Review & retry unpublished companies":"Publish companies to map"}</h2>${m.review?`<p>Retry all companies currently needing review, across all pages and filters. The existing service uses AI when needed and publishes only verified addresses. Unresolved addresses stay in review.</p><p>AI checks use your API credits. AkiPasa also has a separate monthly cap. Manage it in <a href="#/crm/ai-team">AI Team → Usage & budget</a>.</p>${m.budget?`<p>Internal usage estimate: €${Number(m.budget.spent).toFixed(4)} / €${Number(m.budget.limit).toFixed(2)}. ${number(m.budget.count)} companies available to retry.</p>`:""}<p>Review runs start at 2 simultaneous checks and pace new attempts to avoid flooding the AI service.</p>`:""}<p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><label>Simultaneous checks (1–100)<input type="number" inputmode="numeric" min="1" max="100" step="1" data-company-concurrency value="${esc(m.concurrency)}" ${active?"disabled":""}></label><p>Set how many businesses can be checked at once. Pause to change this number.</p>${active?`<p>Current limit: ${number(m.currentLimit)} simultaneous checks.</p>`:""}<p>Up to ${number(m.concurrency)} parallel checks, with individual retries for isolated errors, smaller reductions for repeated failures, and automatic recovery. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
+        body=`<h2>${m.review?"AI screen & publish unpublished companies":"Publish companies to map"}</h2>${m.review?`<p>Research and clean addresses for companies needing review, across all pages and filters. Supported corrections are saved before publishing is attempted. Unresolved records stay in review without another publishing attempt.</p><p>AI checks use your API credits. AkiPasa also has a separate monthly cap. Manage it in <a href="#/crm/ai-team">AI Team → Usage & budget</a>.</p>${m.budget?`<p>Internal usage estimate: €${Number(m.budget.spent).toFixed(4)} / €${Number(m.budget.limit).toFixed(2)}. ${number(m.budget.count)} companies available to retry.</p>`:""}<p>Review runs start at 2 simultaneous checks and pace new attempts to avoid flooding the AI service.</p>`:""}<p>Addresses are verified through the existing publishing service. Successful businesses become unclaimed venues. Ambiguous addresses are saved for review.</p><label>Simultaneous checks (1–100)<input type="number" inputmode="numeric" min="1" max="100" step="1" data-company-concurrency value="${esc(m.concurrency)}" ${active?"disabled":""}></label><p>Set how many businesses can be checked at once. Pause to change this number.</p>${active?`<p>Current limit: ${number(m.currentLimit)} simultaneous checks.</p>`:""}<p>Up to ${number(m.concurrency)} parallel checks, with individual retries for isolated errors, smaller reductions for repeated failures, and automatic recovery. Progress is saved after each company. Keep this tab open, or pause and resume later.</p><p><strong>${number(m.checked)}</strong> checked in this session · ${number(m.published)} published or linked · ${number(m.skipped)} need review</p>${active?btn("pause","Pause after current checks"):btn("run-publish",m.started?"Resume publishing":"Start publishing")}`;
       } else if(m.kind==="details") {
         const r=m.record;
         body=`<h2>Company details</h2><form data-company-edit><div class="company-mapping">${fields.filter(f=>!["source","externalId"].includes(f)).map(f=>`<label>${label[f]}<input name="${f}" value="${esc(r.data[f]||"")}" ${!ctx.admin()?"readonly":""}></label>`).join("")}</div><p>Source: ${esc(r.data.source||"—")}<br>Reference: ${esc(r.data.externalId||r.id)}</p>${r.publish_error?`<p class="company-error">${esc(r.publish_error)}</p>`:""}<p>${r.data.catalogueVenueId?"This company is on the map. Editing these details changes the CRM record; the public venue is managed separately.":"Not yet published. Saving a corrected address makes it eligible for publishing again."}</p>${ctx.admin()?`<button class="action-btn primary" type="submit" ${active?"disabled":""}>Save CRM details</button> ${btn("archive","Archive from CRM",active?"disabled":"")}`:""}</form>`;
@@ -121,16 +121,16 @@
       if(!Number.isInteger(selected)||selected<1||selected>100){modal.error="Enter a whole number from 1 to 100.";dialog();return;}
       modal.concurrency=selected;modal.currentLimit=selected;
       const run=modal,epoch=generation,current=()=>generation===epoch&&modal===run;
-      run.diagnostics ||= {startedAt:new Date().toISOString(),retries:0,slowdowns:0,recoveries:0,errors:[],stages:Object.fromEntries(["claim","publish","save"].map(k=>[k,{calls:0,failed:0,total:0,max:0}]))};
+      run.diagnostics ||= {startedAt:new Date().toISOString(),retries:0,slowdowns:0,recoveries:0,errors:[],stages:Object.fromEntries(["claim","screen","publish","save"].map(k=>[k,{calls:0,failed:0,total:0,max:0}]))};
       const d=run.diagnostics;
-      const stageLabels={claim:"Database claim",publish:"Publishing service",save:"Database save"};
+      const stageLabels={claim:"Database claim",screen:"AI research & correction",publish:"Publishing service",save:"Database save"};
       const measure=async(stage,fn)=>{
         const started=Date.now();const t=d.stages[stage];
         try{return await fn();}catch(e){
           t.failed++;
           const message=String(e.message||e).slice(0,500);
           const status=Number(e.status)||Number(message.match(/Gateway request failed \((\d+)\)/)?.[1])||0;
-          const cause=stage!=="publish"?"Supabase request failed":/Spanish address provider is unavailable/i.test(message)?"Address provider reported unavailable":status===429?"HTTP rate limit; originating service not confirmed":/Failed to fetch|NetworkError|Load failed/i.test(message)?"Network/CORS failure; service not confirmed":status>=500?"Gateway/server failure; originating service not confirmed":"Request failed; see original error";
+          const cause=stage==="screen"?"AI screening failed":stage!=="publish"?"Supabase request failed":/Spanish address provider is unavailable/i.test(message)?"Address provider reported unavailable":status===429?"HTTP rate limit; originating service not confirmed":/Failed to fetch|NetworkError|Load failed/i.test(message)?"Network/CORS failure; service not confirmed":status>=500?"Gateway/server failure; originating service not confirmed":"Request failed; see original error";
           d.errors.unshift({at:new Date().toISOString(),stage,stageLabel:stageLabels[stage],cause,message,status,code:String(e.code||"").slice(0,120),requestId:String(e.requestId||"").slice(0,120)});d.errors.length=Math.min(d.errors.length,20);
           throw e;
         }finally{const ms=Math.max(0,Date.now()-started);t.calls++;t.total+=ms;t.max=Math.max(t.max,ms);}
@@ -178,7 +178,7 @@
             const claim=await measure("claim",()=>rpc("crm_company_publish_claim"));
             if(!current()||!claim)return;
             const deadline=Date.now()+480000;
-            let error="",retryAt=0;
+            let error="",retryAt=0,screened=false;
             for(let attempt=0;;attempt++){
               while(current()&&!paused&&(Date.now()<Math.max(cooldown,retryAt)||inFlight>=limit)&&Date.now()<deadline)await wait();
               if(!current()||paused)return;
@@ -191,6 +191,22 @@
               inFlight++;
               let retry=false;
               try{
+              if(run.review&&!screened){
+                const screening=await measure("screen",async()=>{
+                  const {data:session,error:sessionError}=await ctx.client().auth.getSession();
+                  if(sessionError||!session.session?.access_token)throw new Error("Sign in again before screening.");
+                  const response=await fetch("https://akipasa.com/api/ai-team/company-screen",{method:"POST",headers:{Authorization:"Bearer "+session.session.access_token,"Content-Type":"application/json"},body:JSON.stringify({id:claim.id,token:claim.token}),signal:AbortSignal.timeout(120000)});
+                  const payload=await response.json();
+                  if(!response.ok){const e=new Error(payload.message||payload.error||"AI screening failed");e.status=response.status;throw e;}
+                  return payload.data;
+                });
+                if(screening.status!=="resolved"){
+                  error="AI screening: "+(screening.note||"Address still needs manual review.");
+                  d.screeningUnresolved=(d.screeningUnresolved||0)+1;
+                  break;
+                }
+                claim.data=screening.company;screened=true;d.screeningResolved=(d.screeningResolved||0)+1;
+              }
               const result=await measure("publish",()=>ctx.request("/api/crm/leads/publish-unclaimed?mode=batch",{method:"POST",body:{workspaceId:"ws_akipasa",company:claim.data},signal:AbortSignal.timeout(Math.min(120000,Math.max(1,deadline-Date.now())))}));
               error=result?.data?.reason||"";
               // The backend may return service failures as a successful HTTP response.
@@ -235,7 +251,7 @@
           while(current()&&!paused&&!done){
             const batch=await rpc("crm_company_review_retry",{p_requeue:true,p_after:cursor,p_until:run.budget.until});
             cursor=batch.cursor;done=batch.done;queued+=batch.queued;
-            run.message=`${number(queued)} companies queued for another verification pass…`;dialog();
+            run.message=`${number(queued)} companies queued for AI research and address cleaning…`;dialog();
           }
           if(!current()||paused)return;
           run.prepared=true;

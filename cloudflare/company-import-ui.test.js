@@ -265,21 +265,23 @@ test('AI concurrency failure in HTTP-success body retries rather than saving a b
  await waitFor(()=>h.requests.length===2);h.requests[1].done();
  await waitFor(()=>h.finished.length===1);h.dom.window.close();
 });
-test('bulk review queues once and does not endlessly retry unresolved companies',async()=>{
+for(const resolved of [false,true])test('bulk screening '+(resolved?'publishes corrected data':'does not publish unresolved data'),async()=>{
  const dom=new JSDOM('<!doctype html><main></main>',{url:'https://crm.example/',runScripts:'outside-only'}),w=dom.window;
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
- let queued=0,claims=0,saves=0;
- const client={rpc:async(name,args)=>{
+ let queued=0,claims=0,saves=0,publishes=0;
+ w.AbortSignal=globalThis.AbortSignal;
+ w.fetch=async()=>({ok:true,json:async()=>({data:resolved?{status:'resolved',company:{id:'a',address:'Verified 42'}}:{status:'insufficient',note:'Address still ambiguous'}})});
+ const client={auth:{getSession:async()=>({data:{session:{access_token:'test'}}})},rpc:async(name,args)=>{
    if(name==='crm_company_review_retry')return {data:args.p_requeue?(queued++,{queued:1,cursor:7,done:true}):{count:1,until:7,spent:3.97,limit:4}};
    if(name==='crm_company_publish_claim')return {data:claims++===0?{id:'a',token:'t',data:{id:'a'}}:null};
    if(name==='crm_company_publish_finish'){saves++;return {data:{published:false}};}
    if(name==='crm_company_list')return {data:{rows:[],total:1}};
    throw new Error(name);
  }};
- w.eval(source);const manager=w.createCompanyManager({allowed:()=>true,admin:()=>true,client:()=>client,request:async()=>({data:{reason:'Address still ambiguous'}})});
+ w.eval(source);const manager=w.createCompanyManager({allowed:()=>true,admin:()=>true,client:()=>client,request:async(path,options)=>{publishes++;assert.equal(options.body.company.address,'Verified 42');return {data:{}};}});
  await manager.publish(true);assert.match(w.document.body.textContent,/€3.9700 \/ €4.00/);
  w.document.querySelector('[data-company-action="run-publish"]').click();
  await waitFor(()=>w.document.body.textContent.includes('No more pending companies'));
- assert.equal(queued,1);assert.equal(saves,1);assert.equal(w.document.querySelector('[data-company-concurrency]').value,'2');
+ assert.equal(publishes,resolved?1:0);assert.equal(queued,1);assert.equal(saves,1);assert.equal(w.document.querySelector('[data-company-concurrency]').value,'2');
  dom.window.close();
 });

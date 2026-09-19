@@ -1,0 +1,5 @@
+# AI company screening
+
+Companies → AI screen & publish unpublished now researches addresses before retrying publishing. The CRM calls the administrator-only AkiPasa /api/ai-team/company-screen endpoint with its existing Supabase bearer and publishing lease. The endpoint enables the existing web-capable venue resolver. Results need confidence >=0.85 and source URLs. Supported corrections and original values are saved atomically under the lease before the existing authoritative publisher is called. Insufficient results remain in review without publishing. Diagnostics distinguish screening from publishing; service outages pause, preserving recoverable leases.
+
+Deploy the company_screen_apply migration and public-site endpoint before deploying the CRM frontend. This does not require replacing the integration gateway. Existing AI budget and rate limits remain in force. The browser tab must remain open. AI-generated source references support review; the publishing service still performs its authoritative address check. No guarantee is made that all ambiguous records can be repaired.
