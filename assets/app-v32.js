@@ -2193,7 +2193,9 @@
           <span class="context-spacer"></span>
           <button class="action-btn primary" data-action="open-form" data-entity="event">${icon("plus")} Event</button>`;
       case "inventory":
-        return `<span class="context-spacer"></span><button class="action-btn" data-action="export-csv" data-entity="products">${icon("download")} CSV</button><button class="action-btn primary" data-action="open-form" data-entity="product">${icon("plus")} Product</button>`;
+        return `<span class="context-spacer"></span><button class="action-btn" data-action="commerce-export" data-mode="inventory">${icon("download")} Export records</button><button class="action-btn" data-action="export-csv" data-entity="products">${icon("download")} CSV</button><button class="action-btn primary" data-action="open-form" data-entity="product">${icon("plus")} Product</button>`;
+      case "pos":
+        return `<span class="context-spacer"></span><button class="action-btn" data-action="commerce-export" data-mode="pos">${icon("download")} Export records</button>`;
       case "sales":
         return `<span class="context-spacer"></span><button class="action-btn" data-action="open-form" data-entity="invoice" data-type="Quote">${icon("plus")} Quote</button><button class="action-btn primary" data-action="open-form" data-entity="invoice" data-type="Invoice">${icon("plus")} Invoice</button>`;
       case "marketing":
@@ -4572,6 +4574,7 @@
   }
 
   function renderModal() {
+    if (ui.modal.kind === "commerce-export") return renderCommerceExportModal();
     if (ui.modal.kind === "quick") return renderQuickCreateModal();
     if (ui.modal.kind === "mail-compose") return renderMailComposeModal();
     if (ui.modal.kind === "media-folder") return renderMediaFolderModal();
@@ -5541,6 +5544,11 @@
           companyManager.exportCSV().catch(error => toast("Export failed", error.message, "danger"));
         } else exportEntityCsv(target.dataset.entity);
         break;
+      case "commerce-export":
+        if (!canUseTool(target.dataset.mode)) return;
+        ui.modal = { kind: "commerce-export", mode: target.dataset.mode };
+        renderPortal();
+        break;
       case "export-crm-bundle":
         ["deals", "contacts", "companies"].forEach((entity, index) => setTimeout(() => exportEntityCsv(entity), index * 200));
         break;
@@ -6308,6 +6316,7 @@
 
   async function handleSubmit(form, event) {
     const kind = form.dataset.form;
+    if (kind === "commerce-export") return exportCommerceRecords(form);
     if (kind === "telegram-chat") {
       const message = String(new FormData(form).get("message") || "").trim();
       const button = event.submitter || form.querySelector('[type="submit"]');
@@ -6937,6 +6946,55 @@
     }
   }
 
+  let commerceExportBusy = false;
+  let commerceWorkbookPromise;
+
+  function renderCommerceExportModal() {
+    const timezone = state.workspace.timezone || "Europe/Madrid";
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map(p => [p.type, p.value]));
+    const today = `${parts.year}-${parts.month}-${parts.day}`;
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true" aria-labelledby="commerce-export-title"><header class="modal-head"><div><h2 id="commerce-export-title">Export ${ui.modal.mode === "pos" ? "sales" : "inventory"} records</h2><p>Excel workbook · ${escapeHtml(timezone)}</p></div><button class="icon-btn" data-action="close-modal" aria-label="Close">${icon("close")}</button></header><form data-form="commerce-export" data-mode="${escapeHtml(ui.modal.mode)}"><div class="modal-body"><p>Operational records for reconciliation with your accountant. This is not an IVA book or fiscal invoice. Historical IVA was not recorded.</p><div class="form-grid"><label>From<input name="from" type="date" value="${today.slice(0, 7)}-01" required></label><label>Through<input name="through" type="date" value="${today}" required></label></div><p>All available records in the period are fetched. Inventory quantities and costs are current, not historical closing balances. Sales totals do not prove payment settlement.</p></div><footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button class="action-btn primary" type="submit" ${commerceExportBusy ? "disabled" : ""}>${commerceExportBusy ? "Preparing…" : "Download Excel"}</button></footer></form></section>`;
+  }
+
+  async function exportCommerceRecords(form) {
+    if (commerceExportBusy) return;
+    const mode = form.dataset.mode;
+    if (!["pos", "inventory"].includes(mode) || !canUseTool(mode)) throw new Error("Export access required.");
+    const client = getSupabaseClient();
+    if (!client || !authUser) throw new Error("Sign in before exporting.");
+    const input = new FormData(form);
+    const options = { mode, workspace: state.workspace.id, from: String(input.get("from")), through: String(input.get("through")), timezone: state.workspace.timezone || "Europe/Madrid" };
+    window.AkiCommerceExport.period(options.from, options.through, options.timezone);
+    commerceExportBusy = true;
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Preparing…";
+    try {
+      if (!window.XLSX) {
+        commerceWorkbookPromise ||= new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "assets/vendor/xlsx-0.20.3.min.js";
+          script.onload = resolve;
+          script.onerror = () => { script.remove(); commerceWorkbookPromise = null; reject(new Error("Could not load Excel export support.")); };
+          document.head.appendChild(script);
+        });
+        await commerceWorkbookPromise;
+      }
+      const data = await window.AkiCommerceExport.collect(client, options);
+      if (state.workspace.id !== options.workspace || !authUser || !canUseTool(mode)) throw new Error("Workspace or permissions changed. Start the export again.");
+      const workbook = window.AkiCommerceExport.workbook(window.XLSX, data);
+      const bytes = window.XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      downloadBlob(`akihq-${mode}-${options.from}-${options.through}.xlsx`, new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      toast("Operational export downloaded", "Read the workbook notes and reconciliation results before accounting use.", "success");
+    } catch (error) {
+      toast("Export failed", error.message || "No partial workbook was downloaded.", "danger");
+    } finally {
+      commerceExportBusy = false;
+      button.disabled = false;
+      button.textContent = "Download Excel";
+    }
+  }
+
   function printInvoice(id) {
     const invoice = getEntity("invoice", id);
     if (!invoice) return;
@@ -6977,7 +7035,8 @@
   }
 
   function csvCell(value) {
-    const string = Array.isArray(value) ? value.join("; ") : value && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+    let string = Array.isArray(value) ? value.join("; ") : value && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+    if (typeof value !== "number" && /^[\s\uFEFF]*[=+@-]/.test(string)) string = "'" + string;
     return `"${string.replaceAll('"', '""')}"`;
   }
 
