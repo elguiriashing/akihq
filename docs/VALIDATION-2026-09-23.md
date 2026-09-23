@@ -13,6 +13,6 @@ Automated checks run against the release candidate, with pinned PGlite 0.3.14 an
 - AEAT official SHA256 examples and generated F1/F2/R1/R5 XML validated against the official schemas fetched during this work. XML validity is not a complete fiscal-service acceptance test.
 - Cloudflare Worker bundled successfully using Wrangler's deployment dry run. No upload/deployment occurred.
 
-Final run: **276 tests, 275 passed, zero failed, one skipped** (43.9 seconds, including the accommodation changes merged from main). The same totals are recorded in the pull request. One optional 107,357-row private workbook fixture is skipped when `AKIPASA_IMPORT_FIXTURE` is unavailable; the normal generated parser/import fixtures run.
+Final run: **276 tests, 275 passed, zero failed, one skipped** (approximately 44 seconds, including the accommodation changes merged from main). The same totals are recorded in the pull request. One optional 107,357-row private workbook fixture is skipped when `AKIPASA_IMPORT_FIXTURE` is unavailable; the normal generated parser/import fixtures run.
 
 Not verified: an authenticated deployed browser session, actual PostgreSQL multi-session concurrency, live AEAT/provider delivery, production restore, full device/accessibility acceptance or operational/legal organizational procedures. No production records or schema were changed. Local tests cannot certify the full suite as legally compliant.
