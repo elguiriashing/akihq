@@ -15,3 +15,5 @@
 .company-history-item small{display:block;margin:6px 0;line-height:1.5}.company-history-item button{margin:6px 8px 0 0}
 .company-dialog .data-table td{max-width:350px;white-space:normal;overflow-wrap:anywhere}
 @media(max-width:600px){.company-dialog{padding:16px}.company-mapping{grid-template-columns:1fr 1fr}.company-toolbar{padding:12px}.company-toolbar form{min-width:100%}.company-dialog-actions>*{flex:1}.company-pagination{padding:12px}.company-dialog h2{font-size:20px}}
+
+.company-accommodation { color:#fff; background:#166534; padding:4px 9px; border-radius:16px; white-space:nowrap; }

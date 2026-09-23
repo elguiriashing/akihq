@@ -285,3 +285,14 @@ for(const resolved of [false,true])test('bulk screening '+(resolved?'publishes c
  assert.equal(publishes,resolved?1:0);assert.equal(queued,1);assert.equal(saves,1);assert.equal(w.document.querySelector('[data-company-concurrency]').value,'2');
  dom.window.close();
 });
+
+
+test('accommodation and mixed-label filters request server-side categories across all pages',async()=>{
+ const h=harness();h.w.document.querySelector('main').innerHTML=h.manager.render();await waitFor(()=>h.calls.some(c=>c.name==='crm_company_list'));
+ for(const view of ['accommodation','activities','accommodation_review']){
+  const select=h.w.document.querySelector('[data-company-filter]');select.value=view;select.dispatchEvent(new h.w.Event('change',{bubbles:true}));
+  await waitFor(()=>h.calls.some(c=>c.name==='crm_company_list'&&c.args.p_view===view));await tick();
+  assert.equal(h.calls.filter(c=>c.name==='crm_company_list').at(-1).args.p_offset,0);
+ }
+ h.dom.window.close();
+});

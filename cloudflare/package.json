@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test prospect-import.test.js company-import-parser.test.js company-import-db.test.js company-import-ui.test.js support.test.js support-db.test.js support-ui.test.js support-routing.test.js",
+    "test": "node --test accommodation-db.test.js prospect-import.test.js company-import-parser.test.js company-import-db.test.js company-import-ui.test.js support.test.js support-db.test.js support-ui.test.js support-routing.test.js",
     "check": "node --check worker.js && node --check support.js && node --check ../assets/support-desk.js && node --check ../assets/app-v32.js && npm test && node --test ../multi-tenant.test.mjs"
   },
   "dependencies": {
