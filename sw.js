@@ -1,12 +1,16 @@
-const CACHE = "akihq-v89";
+const CACHE = "akihq-v91";
 const ASSETS = [
   "./",
   "./index.html",
   "./assets/styles.css?v=57",
-  "./assets/app-v32.js?v=24",
-  "./assets/commerce-export.js?v=1",
-  "./assets/company-manager.js?v=10",
-  "./assets/company-manager.css?v=1",
+  "./assets/app-v32.js?v=25",
+  "./assets/commerce-export.js?v=2",
+  "./assets/checkout-session.js?v=1",
+  "./assets/fiscal-core.js?v=1",
+  "./assets/inventory-ops.js?v=1",
+  "./assets/suite-controls.js?v=1",
+  "./assets/company-manager.js?v=11",
+  "./assets/company-manager.css?v=2",
   "./assets/company-import-worker.js?v=1",
   "./assets/company-import-core.js?v=1",
   "./assets/vendor/xlsx-0.20.3.min.js",

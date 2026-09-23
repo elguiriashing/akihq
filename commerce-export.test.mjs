@@ -21,7 +21,7 @@ function client(tables, cap = 2, failAt = Infinity) {
       lte(k, v) { filters.push(r => r[k] <= v); return this; },
       in(k, v) { filters.push(r => v.includes(r[k])); return this; },
       then(resolve, reject) {
-        const result = ++calls === failAt ? { error: { message: 'permission denied' } } : { data: (tables[table] || []).filter(r => filters.every(f => f(r))).sort((a, b) => a.id.localeCompare(b.id)).slice(0, size) };
+        const result = ++calls === failAt ? { error: { message: 'permission denied' } } : { data: (tables[table] || []).filter(r => filters.every(f => f(r))).sort((a, b) => typeof a.id === 'number' ? a.id-b.id : a.id.localeCompare(b.id)).slice(0, size) };
         return Promise.resolve(result).then(resolve, reject);
       }
     }; return query;
@@ -90,13 +90,36 @@ test('Excel roundtrip preserves text and numbers without formula execution', () 
   assert.equal(book.Sheets.Sales.F2.v, 101);
   assert.equal(book.Sheets['Sale lines'].D2.v, 0.5);
 });
-test('inventory workbook clearly separates current valuation from period movements', () => {
-  const data = { ...sample(), mode: 'inventory', sales: [], lines: [], items: [{ id: 'i', sku: '00123', name: '+formula', on_hand: 1.5, cost_cents: 200, sale_price_cents: 250 }] };
+test('inventory workbook uses historical evidence and never catalogue-cost valuation', () => {
+  const data = { ...sample(), mode: 'inventory', sales: [], lines: [], valuationAt:'2026-09-22T21:59:59.999999Z', valuation:[{item_id:'i',sku:'00123',item_name:'+formula',unit:'kg',quantity:1,carrying_value_cents:'112.345678',currency:'EUR',cost_status:'recorded_weighted_average'}],items: [{ id: 'i', sku: '00123', name: '+formula', on_hand: 1.5, cost_cents: 200, sale_price_cents: 250 }] };
   const book = api.workbook(XLSX, data);
-  assert.equal(book.Sheets['Current inventory'].G2.v, 300);
+  assert.equal(book.Sheets['Current inventory'].G2.v, 250);
   assert.equal(book.Sheets['Current inventory'].B2.v, '00123');
   assert.equal(book.Sheets['Current inventory'].C2.t, 's');
+  assert.equal(book.Sheets['Recorded stock valuation'].G2.v,'112.345678');
+  assert.equal(book.Sheets['Recorded stock valuation'].G2.t,'s');
+  assert.equal(book.Sheets['Recorded stock valuation'].F2.v,1);
+  assert(!api.sheets(data)['Current inventory'][0].includes('Operational value cents'));
   assert.ok(!book.Sheets.Sales);
+});
+
+test('inventory collection paginates immutable evidence and exact period-end valuations',async()=>{
+  const date='2026-09-01T10:00:00Z';
+  const records={crm_inventory_items:[{id:'i',workspace_id:'ours'}],crm_inventory_movements:[],crm_inventory_locations:[{id:'loc',workspace_id:'ours',name:'Till'}],crm_inventory_operations:[{id:'op',workspace_id:'ours',recorded_at:date,operation_type:'receive',request:{lines:[{item_id:'i',quantity:1,unit_cost_cents:100}]}}],crm_inventory_value_events:[{id:1,workspace_id:'ours',recorded_at:date,carrying_value_cents:'100.000000'}]};
+  const mock=client(records); const calls=[];
+  const valuation=Array.from({length:1201},(_,i)=>({item_id:String(i),quantity:1,carrying_value_cents:null,cost_status:'unknown_cost'}));
+  mock.rpc=(name,args)=>{calls.push({name,args});let start=0;return {order(){return this;},range(n){start=n;return this;},then(resolve){return Promise.resolve({data:valuation.slice(start,start+150)}).then(resolve);}};};
+  const data=await api.collect(mock,{...options,mode:'inventory'});
+  assert.equal(data.operations.length,1);assert.equal(data.valueEvents.length,1);assert.equal(data.valuation.length,1201);
+  assert.equal(data.valuationAt,'2026-09-22T21:59:59.999999Z');
+  assert(calls.every(call=>call.args.p_workspace==='ours' && call.args.p_at===data.valuationAt));
+  const sheets=api.sheets(data);assert.equal(sheets['Recorded stock valuation'][1][6],'UNKNOWN');
+  assert.equal(sheets['Operation lines'][1][4],'100');
+});
+test('missing inventory migration and valuation errors stop the entire export',async()=>{
+  await assert.rejects(api.collect(client({}),{...options,mode:'inventory'}),/migration/);
+  const broken={rpc(){return {order(){return this;},range(){return this;},then(resolve){return Promise.resolve({error:{message:'permission denied'}}).then(resolve);}};}};
+  await assert.rejects(api.valuationRows(broken,'ours','2026-09-01T00:00:00Z'),/permission denied/);
 });
 test('legacy CSV export neutralises spreadsheet formulas and keeps numeric negatives', () => {
   const source = readFileSync(new URL('./assets/app-v32.js', import.meta.url), 'utf8');

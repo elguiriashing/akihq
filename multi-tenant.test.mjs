@@ -7,9 +7,10 @@ const css = readFileSync(new URL("./assets/styles.css", import.meta.url), "utf8"
 
 test("loads only database-authorized workspaces and routes", () => {
   assert.match(app, /crm_workspace_members/);
-  assert.match(app, /crm_workspace_entitlements/);
+  assert.match(app, /crm_workspace_access/);
+  assert.doesNotMatch(app, /event: "workspace-state"/);
   assert.match(app, /function canUseRoute/);
-  assert.match(app, /workspace-live-sync:\$\{state\.workspace/);
+  assert.match(app, /workspace-live-sync:\$\{workspaceId/);
   assert.match(app, /workspaceRows\.unshift\(platformWorkspace\)/);
   assert.match(app, /sidebar-workspace-switcher/);
   assert.match(app, /availableWorkspaces\.map\(workspace/);
@@ -26,7 +27,7 @@ test("business teams use tenant roles and the four-seat RPC", () => {
   assert.match(app, /toolKeys: authoritativeToolKeys/);
   assert.match(app, /\["Admin", "Manager", "Staff", "Viewer"\]/);
   assert.match(app, /owner plus three team seats/);
-  assert.match(app, /profiles\(id,display_name,app_role,created_at,updated_at\)/);
+  assert.match(app, /crm_workspace_directory/);
   assert.match(app, /lastActiveAt: profile\?\.updated_at/);
   assert.doesNotMatch(app, /setupPresence\(\);/);
 });
@@ -56,7 +57,9 @@ test("point of sale is entitlement-gated and records atomic inventory sales", ()
   assert.match(app, /pos: renderPOS/);
   assert.match(app, /crm_record_pos_sale/);
   assert.match(app, /Every completed sale reduces this workspace's inventory immediately/);
-  assert.match(app, /p_lines: lines\.map/);
+  assert.match(app, /p_lines: lines/);
+  assert.match(app, /AkiCheckoutSession.stage/);
+  assert.match(app, /crm_pos_catalogue/);
   assert.match(app, /crm_set_pos_sale_tip/);
   assert.match(app, /crm_adjust_tip_balance/);
   assert.match(app, /view-pos-sale/);

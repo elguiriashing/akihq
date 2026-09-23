@@ -50,7 +50,7 @@
     const bounds = period(from, through, timezone);
     const cutoff = new Date().toISOString();
     const dateFilters = column => [["gte", column, bounds.from], ["lt", column, bounds.until], ["lte", "created_at", cutoff]];
-    const data = { ...options, cutoff, bounds, sales: [], lines: [], items: [], movements: [] };
+    const data = { ...options, cutoff, bounds, sales: [], lines: [], items: [], movements: [], locations: [], operations: [], valueEvents: [], valuation: [] };
     if (mode === "pos") {
       data.sales = await allRows(client, "crm_pos_sales", "id,workspace_id,provider,external_id,status,total_cents,currency,sold_at,created_at,created_by,employee_profile_id,tip_cents,tipped_profile_id", workspace, dateFilters("sold_at"));
       // Fetch lines by parent IDs so old transactions do not bloat a short export.
@@ -60,9 +60,29 @@
       }
     } else {
       data.items = await allRows(client, "crm_inventory_items", "id,workspace_id,sku,name,unit,on_hand,category,cost_cents,sale_price_cents,active,reorder_point,updated_at", workspace);
-      data.movements = await allRows(client, "crm_inventory_movements", "id,workspace_id,item_id,quantity_delta,movement_type,source_type,source_id,notes,occurred_at,created_at,created_by,employee_profile_id", workspace, dateFilters("occurred_at"));
+      data.movements = await allRows(client, "crm_inventory_movements", "id,workspace_id,item_id,quantity_delta,movement_type,source_type,source_id,notes,occurred_at,created_at,created_by,employee_profile_id,location_id,operation_id,receipt_unit_cost_cents,movement_value_cents", workspace, dateFilters("occurred_at"));
+      data.locations = await allRows(client, "crm_inventory_locations", "id,workspace_id,code,name,is_default,active", workspace);
+      const recordedFilters = [["gte", "recorded_at", bounds.from], ["lt", "recorded_at", bounds.until], ["lte", "recorded_at", cutoff]];
+      data.operations = await allRows(client, "crm_inventory_operations", "id,workspace_id,request_key,operation_type,request,reason,supplier_name,reference,currency,actor_id,approved_by,recorded_at", workspace, recordedFilters);
+      data.valueEvents = await allRows(client, "crm_inventory_value_events", "id,workspace_id,item_id,location_id,movement_id,operation_id,event_type,quantity_delta,quantity_after,unit_cost_cents,value_delta_cents,carrying_value_cents,currency,sku,item_name,unit,actor_id,recorded_at", workspace, recordedFilters);
+      // End-of-period is exclusive, to PostgreSQL's microsecond precision.
+      data.valuationAt = bounds.until <= cutoff ? new Date(Date.parse(bounds.until) - 1).toISOString().replace(/(\.\d{3})Z$/, "$1999Z") : cutoff;
+      data.valuation = await valuationRows(client, workspace, data.valuationAt);
     }
     return data;
+  }
+  async function valuationRows(client, workspace, at) {
+    if (!client?.rpc) throw new Error("Historical valuation requires the inventory operations database migration.");
+    const rows = [];
+    while (true) {
+      const { data, error } = await client.rpc("crm_inventory_valuation", { p_workspace: workspace, p_at: at })
+        .order("item_id").order("location_id", { nullsFirst: true }).range(rows.length, rows.length + 499);
+      if (error) throw new Error(`Historical valuation: ${error.message || "query failed"}`);
+      if (!Array.isArray(data)) throw new Error("Historical valuation returned invalid data.");
+      if (!data.length) return rows;
+      rows.push(...data);
+      if (rows.length > 100000) throw new Error("Historical valuation exceeds 100,000 rows. Request a server export.");
+    }
   }
   function sheets(data) {
     const output = {};
@@ -72,12 +92,15 @@
       ["Business timezone", data.timezone], ["UTC start", data.bounds.from], ["UTC end (exclusive)", data.bounds.until], ["Collection started UTC", data.cutoff],
       ["Consistency", "Live paginated reads, not a transactionally frozen accounting snapshot. Reconcile before use."],
       ["Tax", "Historical taxable base, IVA rate and IVA amount were not recorded. Missing tax is UNKNOWN, not zero."],
-      ["Currency", "Sales retain recorded currencies. Inventory currency is not stored per item; confirm workspace currency."],
+      ["Currency", "Sales and inventory value events retain recorded currency. Never add different currencies together."],
       ["Payments", "Tender records do not prove payment settlement. Tips are separate from the stored sale total."],
-      ["Inventory", "Current quantity × current unit cost is operational value, NOT historical closing stock or FIFO/weighted-average valuation."],
+      ["Inventory", data.mode === "inventory" ? "Recorded stock valuation uses perpetual weighted average by item/location from adoption onward. UNKNOWN means evidence is missing; current catalogue cost never fills it. This is an operational subledger, not general-ledger postings or an audited accounting valuation." : "Inventory quantities are separate operational records."],
+      ["Stock valuation cutoff", data.valuationAt || "Not included"],
+      ["Receiving costs", "Recorded unit costs exclude recoverable IVA. Supplier names/references are receiving evidence, not a received-invoice IVA book or proof of tax deductibility."],
+      ["Stock approvals", "Counts and waste require a manager; the approving manager may be the recording actor. No separate two-person approval is claimed."],
       ["Precision", "Money columns use cents. Quantities can have three decimal places. Reconciliation rounds each line to whole cents."],
       ["Identifiers", "UUIDs and external references are not legally sequenced invoice numbers."],
-      ["Row counts", `Sales ${data.sales.length}; lines ${data.lines.length}; items ${data.items.length}; movements ${data.movements.length}`]
+      ["Row counts", `Sales ${data.sales.length}; lines ${data.lines.length}; items ${data.items.length}; movements ${data.movements.length}; operations ${(data.operations || []).length}; value events ${(data.valueEvents || []).length}; valuation rows ${(data.valuation || []).length}`]
     ];
     const table = (name, headers, rows) => { output[name] = [headers, ...rows]; };
     if (data.mode === "pos") {
@@ -99,8 +122,14 @@
       }
       table("Tender totals", ["Currency", "Tender", "Status", "Sale count", "Recorded total cents", "Tip cents (separate)"], [...grouped.values()]);
     } else {
-      table("Current inventory", ["Item ID", "SKU (current)", "Name (current)", "Unit", "Quantity now", "Current unit cost cents", "Operational value cents", "Current sale price cents", "Active", "Category", "Updated UTC"], data.items.map(i => [i.id, i.sku, i.name, i.unit, Number(i.on_hand), i.cost_cents, Math.round(Number(i.on_hand) * Number(i.cost_cents)), i.sale_price_cents, i.active, i.category, i.updated_at]));
-      table("Stock movements", ["Movement ID", "Item ID", "Occurred UTC", "Recorded UTC", "Quantity delta", "Type", "Source type", "Source ID", "Operator", "Created by", "Notes"], data.movements.map(m => [m.id, m.item_id, m.occurred_at, m.created_at, Number(m.quantity_delta), m.movement_type, m.source_type, m.source_id, m.employee_profile_id, m.created_by, m.notes]));
+      const exact = value => value === null || value === undefined ? "UNKNOWN" : String(value);
+      table("Current inventory", ["Item ID", "SKU (current)", "Name (current)", "Unit", "Quantity now", "Catalogue unit cost cents (unverified)", "Current sale price cents", "Active", "Category", "Updated UTC"], data.items.map(i => [i.id, i.sku, i.name, i.unit, Number(i.on_hand), i.cost_cents, i.sale_price_cents, i.active, i.category, i.updated_at]));
+      table("Stock movements", ["Movement ID", "Item ID", "Occurred UTC", "Recorded UTC", "Quantity delta", "Type", "Source type", "Source ID", "Operator", "Created by", "Notes", "Location ID", "Operation ID", "Receipt unit cost cents (exact)", "Stock value delta cents (exact)"], data.movements.map(m => [m.id, m.item_id, m.occurred_at, m.created_at, Number(m.quantity_delta), m.movement_type, m.source_type, m.source_id, m.employee_profile_id, m.created_by, m.notes, m.location_id, m.operation_id, exact(m.receipt_unit_cost_cents), exact(m.movement_value_cents)]));
+      table("Locations", ["Location ID", "Code", "Name", "Default PoS location", "Active"], (data.locations || []).map(l => [l.id,l.code,l.name,l.is_default,l.active]));
+      table("Stock operations", ["Operation ID", "Type", "Recorded UTC", "Supplier", "Delivery or invoice reference", "Currency", "Reason", "Actor", "Approver", "Request key"], (data.operations || []).map(o => [o.id,o.operation_type,o.recorded_at,o.supplier_name,o.reference,o.currency,o.reason,o.actor_id,o.approved_by,o.request_key]));
+      table("Operation lines", ["Operation ID", "Item ID", "Quantity (count = absolute)", "Expected quantity before count", "Receipt unit cost cents (exact)", "Location ID", "From location ID", "To location ID"], (data.operations || []).flatMap(o => (o.request?.lines || []).map(l => [o.id,l.item_id,Number(l.quantity),l.expected_quantity == null ? "" : Number(l.expected_quantity),o.operation_type === "receive" ? exact(l.unit_cost_cents) : "",o.request.location_id,o.request.from_location_id,o.request.to_location_id])));
+      table("Stock value ledger", ["Event ID", "Recorded UTC", "Item ID", "SKU at event", "Name at event", "Unit at event", "Location ID", "Movement ID", "Operation ID", "Type", "Quantity delta", "Quantity after", "Receipt unit cost cents (exact)", "Value delta cents (exact)", "Carrying value cents (exact)", "Currency", "Actor"], (data.valueEvents || []).map(e => [String(e.id),e.recorded_at,e.item_id,e.sku,e.item_name,e.unit,e.location_id,e.movement_id,e.operation_id,e.event_type,Number(e.quantity_delta),Number(e.quantity_after),exact(e.unit_cost_cents),exact(e.value_delta_cents),exact(e.carrying_value_cents),e.currency,e.actor_id]));
+      table("Recorded stock valuation", ["Item ID", "SKU at latest event", "Name at latest event", "Unit at latest event", "Location ID", "Quantity at cutoff", "Carrying value cents (exact)", "Currency", "Evidence status", "Latest event UTC", "Valuation cutoff UTC"], (data.valuation || []).map(v => [v.item_id,v.sku,v.item_name,v.unit,v.location_id,v.quantity == null ? "UNKNOWN" : Number(v.quantity),exact(v.carrying_value_cents),v.currency,v.cost_status,v.recorded_at,data.valuationAt]));
     }
     return output;
   }
@@ -123,7 +152,7 @@
     }
     return book;
   }
-  const api = { period, allRows, collect, sheets, workbook, roundedLine };
+  const api = { period, allRows, collect, sheets, workbook, roundedLine, valuationRows };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.AkiCommerceExport = api;
 })(typeof window !== "undefined" ? window : globalThis);

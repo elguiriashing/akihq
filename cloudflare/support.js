@@ -176,12 +176,20 @@ export async function deliverSupportMessage(env, workspace, id) {
   if (!env.EMAIL) return;
   const delivery = await rpc(env, "crm_support_claim_delivery", { p_workspace: workspace, p_message: id });
   if (!delivery) return; // Atomic claim: a retry cannot send a second copy.
-  let providerId = ""; let outcome = "uncertain";
+  let providerId = ""; let outcome = "failed";
   try {
+    // Check only the already-claimed tenant/message. Never infer AI authorship
+    // from customer-controlled content or ask the model to disclose itself.
+    const authors = await supportDb(env, `crm_support_messages?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${encodeURIComponent(workspace)}&select=author_kind&limit=1`);
+    if (authors.length !== 1 || !["human", "ai"].includes(authors[0].author_kind)) throw new SupportError(503, "Reply authorship could not be verified.");
+    const text = authors[0].author_kind === "ai"
+      ? `Respuesta automática de un asistente de IA. Responde «humano» para hablar con una persona.\nAutomated reply from an AI assistant. Reply “human” to speak to a person.\n\n${delivery.text}`
+      : delivery.text;
     const replyTo = messageReferences(delivery.in_reply_to)[0];
+    outcome = "uncertain";
     const result = await env.EMAIL.send({
       from: address(delivery.from), to: address(delivery.to), replyTo: address(delivery.from),
-      subject: headerText.parse(delivery.subject), text: delivery.text,
+      subject: headerText.parse(delivery.subject), text,
       headers: { "Auto-Submitted": "auto-replied", ...(replyTo ? { "In-Reply-To": replyTo, References: replyTo } : {}) },
     });
     const rawId = String(result?.messageId || "").slice(0, 300);

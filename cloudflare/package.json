@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test prospect-import.test.js company-import-parser.test.js company-import-db.test.js company-import-ui.test.js support.test.js support-db.test.js support-ui.test.js support-routing.test.js",
-    "check": "node --check worker.js && node --check support.js && node --check ../assets/support-desk.js && node --check ../assets/app-v32.js && npm test && node --test ../multi-tenant.test.mjs"
+    "test": "node --test --test-concurrency=2 *.test.js ../tests/*.test.mjs ../*.test.mjs",
+    "check": "node --check worker.js && node --check support.js && node --check ../assets/support-desk.js && node --check privacy.js && node --check verifactu.js && node --check ../assets/app-v32.js && node --check ../assets/suite-controls.js && node --check ../assets/inventory-ops.js && node --check ../assets/checkout-session.js && node --check ../assets/fiscal-core.js && npm test"
   },
   "dependencies": {
     "postal-mime": "^2.4.3",
