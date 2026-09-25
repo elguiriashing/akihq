@@ -1,7 +1,6 @@
 import { parseProspectWorkbook } from "./prospect-import.js";
 import PostalMime from "postal-mime";
 import { handleSupport, ingestSupportEmail, processSupportQueue } from "./support.js";
-import { handlePrivacy } from "./privacy.js";
 
 /**
  * AkiHQ optional integration gateway for Cloudflare Workers.
@@ -70,11 +69,7 @@ export default {
 
     try {
       if (request.method === "GET" && url.pathname === "/api/health") {
-        return json({ ok: true, service: "akihq-integration-gateway", capabilities: { support: 1, privacy: 1 }, time: new Date().toISOString() }, 200, { ...cors, "cache-control": "no-store" });
-      }
-
-      if (url.pathname.startsWith("/api/privacy/")) {
-        return withCors(await handlePrivacy(request, env), { ...cors, "cache-control": "private, no-store" });
+        return json({ ok: true, service: "akihq-integration-gateway", capabilities: { support: 1 }, time: new Date().toISOString() }, 200, { ...cors, "cache-control": "no-store" });
       }
 
       if (url.pathname.startsWith("/api/support/")) {
@@ -165,25 +160,35 @@ export default {
         return json({ ok: false, error: "not_found" }, 404, cors);
       }
 
-      // Unscoped sends cannot establish a tenant, purpose, consent or suppression
-      // status. Auth/service notifications already use their dedicated handlers.
-      if (request.method === "POST" && ["/api/resend/send", "/api/twilio/sms"].includes(url.pathname)) {
-        return json({ ok: false, error: "governed_delivery_required", message: "Use workspace support for customer replies or the consent-checked marketing endpoint. Unscoped email and SMS sending is disabled." }, 409, cors);
-      }
-      if (request.method === "POST" && ["/api/notify/slack", "/api/notify/discord", "/api/notify/telegram", "/api/outbound/webhook"].includes(url.pathname)) {
-        const staff = await authenticateStaff(request, env);
-        requireAdministrator(staff);
-        if (url.pathname === "/api/notify/slack") return await sendSlack(request, env, cors);
-        if (url.pathname === "/api/notify/discord") return await sendDiscord(request, env, cors);
-        if (url.pathname === "/api/notify/telegram") return await sendTelegram(request, env, cors);
-        return await sendAllowlistedWebhook(request, env, cors);
-      }
-
       const authFailure = await requireApiToken(request, env);
       if (authFailure) return withCors(authFailure, cors);
 
       if (request.method === "GET" && url.pathname === "/api/integrations/status") {
         return json(integrationStatus(env), 200, cors);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/resend/send") {
+        return await sendResend(request, env, cors);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/notify/slack") {
+        return await sendSlack(request, env, cors);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/notify/discord") {
+        return await sendDiscord(request, env, cors);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/notify/telegram") {
+        return await sendTelegram(request, env, cors);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/twilio/sms") {
+        return await sendTwilioSms(request, env, cors);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/outbound/webhook") {
+        return await sendAllowlistedWebhook(request, env, cors);
       }
 
       if (url.pathname.startsWith("/api/oauth/")) {
@@ -196,11 +201,11 @@ export default {
 
       return json({ ok: false, error: "not_found" }, 404, cors);
     } catch (error) {
-      console.error("AkiHQ Worker request failed", error instanceof HttpError ? error.code : "internal_error");
+      console.error("AkiHQ Worker error", error);
       if (error instanceof HttpError) {
         return json({ ok: false, error: error.code, message: error.message }, error.status, cors);
       }
-      return json({ ok: false, error: "internal_error", message: "The request could not be completed." }, 500, cors);
+      return json({ ok: false, error: "internal_error", message: safeError(error) }, 500, cors);
     }
   },
   async scheduled(_controller, env, ctx) {
@@ -268,16 +273,6 @@ async function authenticateStaff(request, env) {
   const profiles = await profileResponse.json();
   const role = profiles?.[0]?.app_role;
   if (!new Set(["moderator", "administrator"]).has(role)) throw new HttpError(403, "forbidden", "Staff access is required.");
-  // These legacy KV integrations hold AkiPasa company data, not tenant data.
-  // Being a platform moderator alone must never expose a shared mailbox/vault.
-  const workspace = request.headers.get("x-workspace-id") || "ws_akipasa";
-  if (workspace !== "ws_akipasa") throw new HttpError(403, "tenant_integration_unavailable", "This company integration is available only in the AkiPasa workspace. Use workspace support for tenant email.");
-  const memberResponse = await fetch(`${supabaseUrl}/rest/v1/crm_workspace_members?workspace_id=eq.ws_akipasa&profile_id=eq.${encodeURIComponent(user.id)}&status=eq.active&select=role,role_template_id&limit=1`, {
-    headers: { apikey: databaseKey, authorization: `Bearer ${databaseToken}` }, signal: AbortSignal.timeout(10000)
-  });
-  if (!memberResponse.ok) throw new HttpError(403, "membership_check_failed", "Workspace membership could not be verified.");
-  const members = await memberResponse.json();
-  if (!members.some(member => member.role === "owner" || (member.role === "admin" && !member.role_template_id))) throw new HttpError(403, "workspace_administrator_required", "An active AkiPasa workspace owner or unrestricted administrator membership is required.");
   return { id: user.id, email: user.email || "", role };
 }
 
@@ -384,19 +379,10 @@ async function constantTimeEqual(left, right) {
 }
 
 async function readJson(request) {
-  const declared = Number(request.headers.get("content-length"));
-  if (declared > MAX_BODY_BYTES) throw new HttpError(413, "request_too_large", "The JSON body exceeds 1 MB.");
-  const reader = request.body?.getReader();
-  const chunks = []; let length = 0;
-  if (reader) for (;;) {
-    const { done, value } = await reader.read(); if (done) break;
-    length += value.byteLength;
-    if (length > MAX_BODY_BYTES) { await reader.cancel(); throw new HttpError(413, "request_too_large", "The JSON body exceeds 1 MB."); }
-    chunks.push(value);
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) {
+    throw new HttpError(413, "request_too_large", "The JSON body exceeds 1 MB.");
   }
-  const bytes = new Uint8Array(length); let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-  const text = new TextDecoder().decode(bytes);
   if (!text) return {};
   try {
     return JSON.parse(text);
@@ -545,7 +531,7 @@ async function sendAllowlistedWebhook(request, env, cors) {
   const event = {
     id: crypto.randomUUID(),
     type: body.event,
-    workspace_id: "ws_akipasa",
+    workspace_id: body.workspace_id || "workspace_main",
     created_at: new Date().toISOString(),
     data: body.payload || {}
   };
@@ -572,8 +558,6 @@ async function receiveWebhook(request, env, url, cors) {
   }
 
   const configuredSecret = String(env.WEBHOOK_INGEST_SECRET || "");
-  const workspace = String(env.WEBHOOK_WORKSPACE_ID || "");
-  if (!configuredSecret || !/^[a-zA-Z0-9_-]{1,100}$/.test(workspace)) return json({ ok: false, error: "webhook_not_configured" }, 503, cors);
   const suppliedSecret = request.headers.get("x-akihq-webhook-secret") || "";
   const signatureVerified = configuredSecret ? await constantTimeEqual(suppliedSecret, configuredSecret) : false;
   if (configuredSecret && !signatureVerified) return json({ ok: false, error: "invalid_webhook_secret" }, 401, cors);
@@ -589,7 +573,7 @@ async function receiveWebhook(request, env, url, cors) {
   };
 
   await storeIntegrationEvent(env, {
-    workspace_id: workspace,
+    workspace_id: payload.workspace_id || "workspace_main",
     provider,
     event_type: eventType,
     external_event_id: externalEventId ? String(externalEventId).slice(0, 250) : null,
@@ -615,7 +599,8 @@ async function storeIntegrationEvent(env, event) {
     body: JSON.stringify(event)
   });
   if (!response.ok && response.status !== 409) {
-    throw new HttpError(502, "event_storage_failed", "The integration event could not be stored.");
+    const detail = (await response.text()).slice(0, 600);
+    throw new HttpError(502, "event_storage_failed", detail || `Supabase returned ${response.status}.`);
   }
 }
 
@@ -640,9 +625,8 @@ function requireMediaBucket(env) {
 }
 
 function cleanWorkspaceId(value) {
-  const id = String(value || "ws_akipasa").trim();
-  if (id !== "ws_akipasa") throw new HttpError(403, "tenant_integration_unavailable", "This company media store is available only in the AkiPasa workspace.");
-  return id;
+  const id = String(value || "ws_akipasa").trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 100);
+  return id || "ws_akipasa";
 }
 
 function safeMediaFilename(value) {
@@ -766,8 +750,6 @@ async function serveMediaAsset(env, id, url, cors) {
   headers.set("cache-control", access.purpose === "share" ? "private, max-age=3600" : "private, no-store");
   headers.set("content-disposition", `inline; filename*=UTF-8''${encodeURIComponent(asset.name)}`);
   headers.set("x-content-type-options", "nosniff");
-  headers.set("content-security-policy", "default-src 'none'; sandbox");
-  headers.set("referrer-policy", "no-referrer");
   return new Response(object.body, { headers });
 }
 
@@ -905,10 +887,6 @@ async function sendMailboxMessage(request, env) {
   const timestamp = new Date().toISOString();
   const headers = {};
   const inReplyTo = String(body.in_reply_to || "").trim().slice(0, 1000);
-  if (/[\r\n]/.test(inReplyTo) || /[\r\n]/.test(subject)) throw new HttpError(400, "invalid_header", "Mail headers cannot contain line breaks.");
-  const messages = await listMailboxMessages(env, 1000);
-  const inbound = messages.find(item => item.direction === "inbound" && item.message_id === inReplyTo && normalizeEmail(item.from) === to && normalizeEmail(item.to) === from);
-  if (!inReplyTo || !inbound) throw new HttpError(409, "governed_delivery_required", "This mailbox can reply to received messages. Use consent-checked marketing delivery for new promotional messages.");
   if (inReplyTo) {
     headers["In-Reply-To"] = inReplyTo;
     headers.References = inReplyTo;
@@ -1188,15 +1166,6 @@ async function handleSocialOAuthCallback(request, env, url) {
   const session = await decryptSocialValue(env, encryptedSession);
   if (session.provider !== provider) return json({ ok: false, error: "provider_mismatch" }, 400);
   try {
-    // Membership can be revoked while the browser is on the provider's site.
-    // Recheck the identity saved in encrypted OAuth state before storing tokens.
-    const dbUrl = requireEnv(env, "SUPABASE_URL").replace(/\/$/, "");
-    const serviceKey = requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY");
-    const membership = await fetch(`${dbUrl}/rest/v1/crm_workspace_members?workspace_id=eq.ws_akipasa&profile_id=eq.${encodeURIComponent(session.staffId)}&status=eq.active&select=role,role_template_id&limit=1`, {
-      headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` }, signal: AbortSignal.timeout(10000)
-    });
-    const members = membership.ok ? await membership.json() : [];
-    if (!members.some(member => member.role === "owner" || (member.role === "admin" && !member.role_template_id))) throw new HttpError(403, "membership_revoked", "Workspace administrator access is no longer available.");
     if (url.searchParams.get("error")) throw new Error(url.searchParams.get("error_description") || "The provider denied the connection request.");
     const code = cleanText(url.searchParams.get("code"), 3000, "code");
     const credentials = await getSocialCredentials(env, provider);
@@ -1205,8 +1174,8 @@ async function handleSocialOAuthCallback(request, env, url) {
     else await exchangeTikTokAuthorization(code, credentials, session, env);
     return Response.redirect(socialResultUrl(session.returnUrl, "connected"), 303);
   } catch (error) {
-    console.error("Social OAuth callback failed", provider, error instanceof HttpError ? error.code : "provider_error");
-    const message = "The provider connection could not be completed. Check your workspace access and provider configuration.";
+    console.error("Social OAuth callback failed", provider, error);
+    const message = error instanceof Error ? error.message : "The provider rejected the connection request.";
     return Response.redirect(socialResultUrl(session.returnUrl, "connection_failed", message), 303);
   }
 }

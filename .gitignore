@@ -7,7 +7,3 @@ node_modules/
 *.log
 supabase/.temp/
 test-results/
-
-# Print-agent pairing credentials and crash journals belong outside the website.
-**/akihq-printer.local.json*
-**/*.printer-secret.json*

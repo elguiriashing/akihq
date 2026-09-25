@@ -1,5 +1,3 @@
-> Historical alpha report. Current release evidence and limits are in [VALIDATION-2026-09-23.md](VALIDATION-2026-09-23.md).
-
 # Test report
 
 Date: 2026-08-04  
