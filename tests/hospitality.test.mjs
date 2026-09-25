@@ -5,7 +5,7 @@ import { securityFixture } from './security-fixture.mjs';
 const { PGlite }=await import(process.env.PGLITE_MODULE || '../cloudflare/node_modules/@electric-sql/pglite/dist/index.js');
 const ids={owner:'00000000-0000-0000-0000-000000000001',staff:'00000000-0000-0000-0000-000000000002',outsider:'00000000-0000-0000-0000-000000000003',manager:'00000000-0000-0000-0000-000000000004',admin:'00000000-0000-0000-0000-000000000005',viewer:'00000000-0000-0000-0000-000000000006'};
 const item='20000000-0000-0000-0000-000000000001';
-const migrations=['20260923001232_fiscal_document_core.sql','20260923001329_checkout_integrity.sql','20260923001331_inventory_operations.sql','20260923001337_security_workspace_access.sql','20260923001529_privacy_operations.sql','20260925131603_hospitality_pos.sql'];
+const migrations=['20260923001232_fiscal_document_core.sql','20260923001329_checkout_integrity.sql','20260923001331_inventory_operations.sql','20260923001337_security_workspace_access.sql','20260923001529_privacy_operations.sql','20260925131603_hospitality_pos.sql','20260925140340_unattended_printing.sql','20260925140358_fiscal_atomic_records.sql'];
 let db;
 test.before(async()=>{
   db=new PGlite();await db.exec(securityFixture(ids));
@@ -137,4 +137,39 @@ test('cash limit applies to the whole operation after splitting it between table
   assert.equal(dest.total_cents,50000);
   await assert.rejects(command({action:'payment',order_id:dest.id,version:dest.version,method:'cash',amount_cents:1}),/EUR 1000/);
  } finally {await db.query('update public.crm_inventory_items set sale_price_cents=121 where id=$1',[item]);}
+});
+async function asPrinter(name,args){await db.exec("reset role;select set_config('test.user_id','',false);set role anon");try{return (await db.query(`select public.${name}(${args.map((_,i)=>`$${i+1}`).join(',')}) value`,args)).rows[0].value}finally{await db.exec('reset role')}}
+test('paired printer is station-scoped, cannot repeat an attempt, and is immediately revocable',async()=>{
+ await assert.rejects(rpc('staff','crm_printer_manage',['tenant-a','pair',{name:'Forbidden',stations:['bar']}]),/access required/i);
+ const device=await rpc('owner','crm_printer_manage',['tenant-a','pair',{name:'Test bar agent',stations:['bar']}]);
+ assert.equal(device.token.length,64);
+ const listed=await rpc('owner','crm_printer_manage',['tenant-a','list',{}]);assert.equal(listed[0].token_hash,undefined);assert.equal(listed[0].token,undefined);
+ const job=await asPrinter('crm_printer_next',[device.device_id,device.token]);assert.equal(job.station,'bar');assert.equal(job.workspace_id,'tenant-a');
+ await asPrinter('crm_printer_report',[device.device_id,device.token,job.id,'begin']);
+ await assert.rejects(asPrinter('crm_printer_report',[device.device_id,device.token,job.id,'begin']),/already attempted/);
+ await asPrinter('crm_printer_report',[device.device_id,device.token,job.id,'spooled']);
+ assert.equal((await asPrinter('crm_printer_report',[device.device_id,device.token,job.id,'spooled'])).status,'spooled');
+ await rpc('owner','crm_printer_manage',['tenant-a','revoke',{id:device.device_id}]);
+ await assert.rejects(asPrinter('crm_printer_next',[device.device_id,device.token]),/expired or revoked/);
+});
+test('atomic fiscal checkout rolls back all ledgers on missing IVA then posts exactly once in isolated fixture',async()=>{
+ const profile={legal_name:'TEST ONLY Cafe',tax_id:'B12345674',address:'Test street 1',postal_code:'29640',city:'Fuengirola',country:'ES',jurisdiction:'common_territory',tax_regime:'general',currency:'EUR',sii:false};
+ await rpc('owner','crm_fiscal_save_profile',['tenant-a',profile]);
+ const c={document_type:'F2',lines:[{item_id:item,quantity:'1'}],expected_total_cents:121,payment:{method:'cash',amount_cents:121}};
+ await assert.rejects(rpc('owner','crm_fiscal_checkout',['tenant-a',crypto.randomUUID(),c]),/disabled/);
+ // Only the disposable local database opens this gate, never the migration/live project.
+ await db.exec(`create or replace function fiscal_private.assert_release(w text) returns public.crm_fiscal_profiles language plpgsql security definer set search_path='' as $$declare p public.crm_fiscal_profiles;begin select * into strict p from public.crm_fiscal_profiles where workspace_id=w;return p;end$$;`);
+ const system={producer_name:'TEST ONLY',producer_nif:'B12345674',name:'AkiHQ',id:'AH',version:'akihq-fiscal-0.1',installation:'disposable-test',verifactu_only:true,multi_taxpayer:true,has_multiple_taxpayers:false};
+ await db.query("insert into fiscal_private.installations(workspace_id,environment,system) values('tenant-a','test',$1)",[system]);
+ const before=Number((await db.query('select on_hand from public.crm_inventory_items where id=$1',[item])).rows[0].on_hand);
+ await assert.rejects(rpc('owner','crm_fiscal_checkout',['tenant-a',crypto.randomUUID(),c]),/IVA treatment/);
+ assert.equal(Number((await db.query('select on_hand from public.crm_inventory_items where id=$1',[item])).rows[0].on_hand),before);
+ await rpc('owner','crm_fiscal_assign_tax',['tenant-a',item,2100,'taxable','']);
+ const key=crypto.randomUUID(),result=await rpc('owner','crm_fiscal_checkout',['tenant-a',key,c]);
+ assert.deepEqual(await rpc('owner','crm_fiscal_checkout',['tenant-a',key,c]),result);
+ assert.equal(Number((await db.query('select on_hand from public.crm_inventory_items where id=$1',[item])).rows[0].on_hand),before-1);
+ const doc=(await db.query('select * from public.crm_fiscal_documents where id=$1',[result.document_id])).rows[0];
+ assert.equal(doc.source_sale_id,result.sale_id);assert.equal(Number(doc.tax_cents),21);
+ assert.equal((await db.query('select count(*)::int n from fiscal_private.registrations where document_id=$1',[result.document_id])).rows[0].n,1);
+ await assert.rejects(rpc('owner','crm_fiscal_checkout',['tenant-a',key,{...c,expected_total_cents:1}]),/different details/);
 });

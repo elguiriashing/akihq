@@ -1,6 +1,6 @@
 # Fiscal core implementation and release boundary
 
-23 September 2026. This implementation is a tested accounting foundation and fiscal configuration workflow. It does **not** establish a legally compliant SIF release. Production fiscal issuance is deliberately disabled by an unconditional database gate. Changing the release registry to `approved` cannot bypass it.
+Updated 25 September 2026. This implementation is a tested accounting foundation and fiscal configuration workflow. It does **not** establish a legally compliant SIF release. Production fiscal issuance is deliberately disabled by an unconditional database gate. Changing the release registry to `approved` cannot bypass it.
 
 ## What is implemented
 
@@ -39,9 +39,9 @@ First export request passes `p_as_of: null`; subsequent requests pass the exact 
 
 ## What must precede activation
 
-1. Integrate AEAT registration generation **atomically with issuance**, including required hash/chain inputs, the issuer/system-installation-wide chain across series, actual system version/installation metadata, XML, QR content and durable submission record. `cloudflare/verifactu.js` supplies independently tested serialization primitives; they are not yet connected to this issuance transaction. A later asynchronous outbox processor cannot retroactively supply missing simultaneous fiscal records.
-2. Connect one atomic checkout transaction to fiscal document, stock ledger and payment ledger. Source operational sale linking is explicitly rejected now: historical IVA must not be inferred from today's product tax settings. Corrections currently model fiscal amounts only; they neither refund a payment terminal nor restock goods nor recreate historical COGS.
-3. Implement certificate/representation setup, mTLS transport, acknowledgement/rejection processing, retries, duplicate response reconciliation and outage procedures. There is no transport credential in the browser and no simulated AEAT success.
+1. Verify the new atomic registration adapter against AEAT acceptance and actual installation metadata. Migration `20260925140358_fiscal_atomic_records.sql` captures immutable XML, QR URL, prescribed hash inputs, issuer/installation chain and pending outbox in the issuance transaction. Numbering is shared across workspaces for the same issuer/series. SQL output is tested against the independent JavaScript serializer. This is connected transactionally, but remains behind the unconditional production release gate.
+2. Connect the new gated `crm_fiscal_checkout(p_workspace,p_request_id,p_checkout)` RPC to the final customer-facing checkout. The RPC combines one complete externally recorded payment, operational sale, stock deduction, fiscal document and registration atomically; exact retries return the original result and failures roll back stock. Hospitality split/final payments and customer invoice selection are not wired to it yet. Arbitrary historical sale linking stays rejected: historical IVA must not be inferred from today's product tax settings. Corrections currently model fiscal amounts only; they neither refund a payment terminal nor restock goods nor recreate historical COGS.
+3. Deploy a protected outbox dispatcher, certificate/representation setup, acknowledgement persistence, retries, duplicate reconciliation and outage procedures. `cloudflare/aeat-transport.js` now provides Node-only mTLS submission primitives with fixed official hosts, TLS verification, response limits, exact identity checks, retained raw response/CSV and response-controlled send delay. Accepted-with-errors and duplicates stay distinct from clean acceptance. These primitives are not connected to a deployed dispatcher; they have no real AEAT acceptance result. There is no transport credential in the browser and no simulated AEAT success.
 4. Render and verify full/simplified/corrective documents with the required fields and working QR. Complete customer identity/invoice-request cases, supported 400/3,000-euro simplified eligibility, original document references and rounding review. The €3,000 flag requires documented eligible activity; it is not a universal simplified-invoice limit.
 5. Add legal exemption/operation codes, special regimes and territory adapters before broadening the current scope. Add separate received-invoice books and deductibility decisions before claiming complete IVA accounting. Structured B2B exchange is a separate integration.
 6. Run independent real PostgreSQL-session concurrency tests, backup/restore tests, accountant imports and AEAT test-environment acceptance cases. Review full-invoice returns and awkward sub-cent partial-return examples with the Spanish fiscal reviewer.
@@ -49,7 +49,7 @@ First export request passes `p_as_of: null`; subsequent requests pass the exact 
 
 ## Verification
 
-Run `node --test cloudflare/fiscal-core.test.js cloudflare/fiscal-db.test.js` from the repository root.
+Run `npm run check --prefix cloudflare` from the repository root.
 
 Tests execute the migration in disposable PGlite PostgreSQL and cover issuer/tax validation, scope rejection, hard activation gate (including registry-approval bypass attempt), authoritative price/total calculation, tenant isolation, anon denial, discount permissions, immutability, idempotency mismatch, numbering without failed-transaction gaps, mixed IVA, fractional quantities, partial corrections/over-returns, period locks and ledger pagination. Browser-helper tests cover exact arithmetic and real XLSX write/read text safety.
 
