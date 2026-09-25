@@ -36,7 +36,7 @@ const seam=`
       downloadBlob=(name,blob)=>window.__effects.downloads.push({name,size:blob.size});
       loadLiveData=async()=>{window.__effects.loads++; if(window.__loadHook) await window.__loadHook();};
     },
-    complete:completePOSSale, pending:pendingPOSSale, paintPOS:renderPOS,
+    complete:completePOSSale, pending:pendingPOSSale, paintPOS:renderPOS, paintInventory:renderInventory,
     accessible:loadAccessibleWorkspaces, bootSession:bootWithSession,
     pullDurable:syncDurableRecordsPull,
     pushSnapshot:version=>pushWorkspaceSnapshot(version),
@@ -414,4 +414,12 @@ test('missing access RPC is a backend failure, never an empty authorized-workspa
  await assert.rejects(x.api.accessible(client,user,'administrator'),/backend is unavailable/);
  client.rpc=async()=>({error:{code:'42501'}});
  assert.equal((await x.api.accessible(client,user,'administrator')).length,0);
+});
+
+test('inventory renders its real module and shows recovery instead of throwing when the module is unavailable',async t=>{
+ const ui=setup(t,async()=>({data:null}));
+ assert.match(ui.api.paintInventory(),/Inventory could not finish loading/);
+ ui.window.eval(await readFile(new URL('../assets/inventory-ops.js',import.meta.url),'utf8'));
+ const html=ui.api.paintInventory();
+ assert.match(html,/Stock operations/);assert.doesNotMatch(html,/Inventory could not finish loading/);
 });

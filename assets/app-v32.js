@@ -3055,6 +3055,7 @@
   }
 
   function renderInventory() {
+    if (!window.AkiHQInventoryOps?.renderPanel) return `<section class="panel"><div class="panel-header"><h2>Inventory</h2></div><p role="status">Inventory could not finish loading. Reload this page to retry. No stock changes have been made.</p><button class="action-btn" data-action="reload-inventory-page">Reload inventory</button></section>`;
     let pendingStock=null,pendingStockError="";
     try { pendingStock=pendingInventoryOperation(); } catch(error) { pendingStockError=error.message; }
     const lowStock = state.products.filter(product => Number(product.stock) <= Number(product.reorderAt) && product.warehouse !== "Digital");
@@ -5159,6 +5160,7 @@
       toast("Pending sale", "Retry the pending sale before changing the order.", "warning"); return;
     }
     const action = target.dataset.action;
+    if (action === "reload-inventory-page") { window.location.reload(); return; }
     switch (action) {
       case "workspace-retry":
         await pushWorkspaceSnapshot(workspaceMutationVersion); render(); break;
