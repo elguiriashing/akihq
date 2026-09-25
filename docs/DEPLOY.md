@@ -1,3 +1,5 @@
+> The September 2026 security/commerce release must be deployed as a coordinated database, Worker and frontend change. Read [the release guide](RELEASE-2026-09-23.md) first.
+
 # Deployment guide
 
 ## 1. Local-only operation
@@ -22,7 +24,7 @@ Before publishing, edit `ALLOWED_ORIGINS` in the Worker configuration to include
 ## 3. Supabase snapshot sync
 
 1. Create a Supabase project.
-2. Open SQL Editor and run `supabase/schema.sql`.
+2. Follow `docs/RELEASE-2026-09-23.md` for the prerequisite schema and ordered migrations. Never run the retired `supabase/schema.sql` bootstrap.
 3. In Authentication settings, enable Email/Password.
 4. Add the deployed AkiHQ URL to allowed redirect/site URLs as appropriate.
 5. Edit `config.js`:

@@ -1,9 +1,17 @@
-const CACHE = "akihq-v89";
+const CACHE = "akihq-v93";
 const ASSETS = [
+  "./assets/floor-editor.js?v=1",
+  "./assets/hospitality-pos.js?v=2",
+  "./assets/hospitality-pos.css?v=2",
   "./",
   "./index.html",
   "./assets/styles.css?v=57",
-  "./assets/app-v32.js?v=23",
+  "./assets/app-v32.js?v=26",
+  "./assets/commerce-export.js?v=2",
+  "./assets/checkout-session.js?v=1",
+  "./assets/fiscal-core.js?v=1",
+  "./assets/inventory-ops.js?v=1",
+  "./assets/suite-controls.js?v=1",
   "./assets/company-manager.js?v=11",
   "./assets/company-manager.css?v=2",
   "./assets/company-import-worker.js?v=1",
