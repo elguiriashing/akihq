@@ -47,6 +47,7 @@ test("ambiguous transport failure is recorded as uncertain and not retried", asy
   const outcomes = []; let sends = 0;
   t.mock.method(globalThis, "fetch", async (url, options) => {
     if (url.endsWith("claim_delivery")) return Response.json(sends ? null : { from: "support@akipasa.com", to: "customer@example.com", subject: "Ticket", text: "Answer" });
+    if (url.includes("crm_support_messages?")) return Response.json([{ author_kind: "human" }]);
     outcomes.push(JSON.parse(options.body)); return Response.json(null);
   });
   const sending = { ...env, EMAIL: { send: async () => { sends++; throw new Error("timeout"); } } };
@@ -68,6 +69,7 @@ test("provider IDs are normalized for inbound References threading", async t => 
   let result;
   t.mock.method(globalThis, "fetch", async (url, options) => {
     if (url.endsWith("claim_delivery")) return Response.json({ from: "support@akipasa.com", to: "customer@example.com", subject: "Ticket", text: "Answer", in_reply_to: "<original@example.com>" });
+    if (url.includes("crm_support_messages?")) return Response.json([{ author_kind: "human" }]);
     result = JSON.parse(options.body); return Response.json(null);
   });
   await deliverSupportMessage({ ...env, EMAIL: { send: async value => { assert.equal(value.headers["In-Reply-To"], "<original@example.com>"); return { messageId: "provider@example.com" }; } } }, "tenant-a", actor);

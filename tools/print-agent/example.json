@@ -1,0 +1,11 @@
+{
+  "supabase_url": "https://YOURPROJECT.supabase.co",
+  "publishable_key": "sb_publishable_REPLACE_WITH_PUBLIC_KEY",
+  "device_id": "REPLACE_FROM_PAIRING",
+  "token": "REPLACE_FROM_PAIRING",
+  "routes": {
+    "kitchen": {"type":"tcp","host":"192.168.1.50","port":9100,"columns":42,"cut":true},
+    "bar": {"type":"tcp","host":"192.168.1.51","port":9100,"columns":42,"cut":true},
+    "receipt": {"type":"cups","queue":"receipt_printer","columns":32,"cut":true}
+  }
+}

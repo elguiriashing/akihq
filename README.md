@@ -1,3 +1,5 @@
+> Release status (23 September 2026): see [suite compliance](docs/SUITE-COMPLIANCE.md) and [deployment gates](docs/RELEASE-2026-09-23.md). This branch is not a legally certified invoicing or payroll product; fiscal issuance is blocked.
+
 # AkiHQ
 
 **AkiHQ is an original, database-backed business operating system.** It combines CRM, projects, inbox, calendar, stock, invoicing, marketing, internal collaboration, reporting and integration management in one browser app.
@@ -85,7 +87,7 @@ The included `_headers` file adds sensible browser security headers.
 ### Required Supabase database
 
 1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the SQL editor.
+2. Use the ordered migrations and prerequisite checks in `docs/RELEASE-2026-09-23.md`. The old `supabase/schema.sql` bootstrap is deliberately disabled.
 3. Enable Email/Password authentication.
 4. Put the project URL and anon key in `config.js`.
 5. Sign in with a moderator or administrator account.
@@ -117,7 +119,7 @@ The browser app, import/export flows, database-backed modules, Supabase realtime
 ```text
 assets/                 App JavaScript, CSS and logo
 cloudflare/             Optional secret-holding integration Worker
-supabase/schema.sql     Shared workspace and webhook-event schema
+supabase/migrations/    Versioned database changes
 docs/                   Architecture, features, deployment and test notes
 config.js               Public Supabase and gateway configuration
 index.html              App entry point

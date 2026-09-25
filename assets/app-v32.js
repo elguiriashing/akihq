@@ -187,6 +187,25 @@
     return Array.isArray(tools) && tools.includes(toolKey);
   }
 
+  const collectionTools = { tasks:"tasks", projects:"tasks", contacts:"crm", companies:"crm", deals:"crm", leads:"crm", pipelines:"crm", products:"inventory", warehouses:"inventory", invoices:"sales", campaigns:"marketing", pages:"sites", forms:"sites", automations:"automation", conversations:"inbox", feed:"collaboration", events:"calendar", knowledge:"knowledge", employees:"employees" };
+
+  function clearDeniedCollections() {
+    for (const [collection, tool] of Object.entries(collectionTools)) {
+      if (!canUseTool(tool) && !(collection === "products" && canUseTool("pos"))) state[collection] = [];
+    }
+    if (!canUseTool("collaboration")) state.teamChat = { channels: [], messages: {} };
+    if (!state.workspace.canAdminister) { state.audit = []; state.activities = []; state.integrations = {}; }
+    else for (const connection of Object.values(state.integrations || {})) {
+      const config = connection.config || {};
+      connection.config = { senderEmail: config.senderEmail || "", pubKey: config.pubKey || "", notes: config.notes || "" };
+      if (connection.status === "connected") connection.status = "configured";
+    }
+  }
+
+  function requireExport(tool) {
+    if (!state.workspace.canExport || !state.workspace.exportToolKeys?.includes(tool)) throw new Error("Your workspace role cannot export this module.");
+  }
+
   function canUseRoute(route) {
     return route === "settings" || canUseTool(routeToolMap[route] || route);
   }
@@ -427,6 +446,7 @@
   let workspaceMutationVersion = 0;
   let workspaceCommittedVersion = 0;
   let workspacePushInFlight = null;
+  let workspaceSaveError = "";
   let durableRecordMutationVersion = 0;
   let durableRecordCommittedVersion = 0;
   const durableRecordCollections = { event: "events", article: "knowledge" };
@@ -462,13 +482,14 @@
     const sbClient = getSupabaseClient();
     if (!sbClient || !authUser) return;
     const versionAtStart = durableRecordMutationVersion;
-    const wsId = state.workspace?.id || "ws_akipasa";
+    const wsId = state.workspace?.id || "ws_akipasa",actor=authUser.id,originalState=state,tools=JSON.stringify(state.workspace.toolKeys);
     const { data: rows, error } = await sbClient
       .from("crm_workspace_records")
       .select("record_type, record_id, data, updated_at")
       .eq("workspace_id", wsId)
       .in("record_type", ["event", "article"])
       .order("updated_at", { ascending: false });
+    if (state!==originalState || state.workspace.id!==wsId || authUser?.id!==actor || JSON.stringify(state.workspace.toolKeys)!==tools) return;
     if (error) throw error;
     if (versionAtStart !== durableRecordMutationVersion) return;
     state.events = (rows || []).filter(row => row.record_type === "event").map(row => ({ ...row.data, id: row.record_id }));
@@ -480,7 +501,7 @@
   async function upsertDurableRecord(type, entity, version) {
     const sbClient = getSupabaseClient();
     if (!sbClient || !authUser) throw new Error("Database authentication is unavailable.");
-    const wsId = state.workspace?.id || "ws_akipasa";
+    const wsId = state.workspace?.id || "ws_akipasa",actor=authUser.id,originalState=state,tools=JSON.stringify(state.workspace.toolKeys);
     const { error } = await sbClient.from("crm_workspace_records").upsert({
       workspace_id: wsId,
       record_type: type,
@@ -488,6 +509,7 @@
       data: JSON.parse(JSON.stringify(entity)),
       updated_by: authUser.id
     }, { onConflict: "workspace_id,record_type,record_id" }).select("record_id").single();
+    if (state!==originalState || state.workspace.id!==wsId || authUser?.id!==actor || JSON.stringify(state.workspace.toolKeys)!==tools) return;
     if (error) throw error;
     durableRecordCommittedVersion = Math.max(durableRecordCommittedVersion, version);
   }
@@ -495,12 +517,13 @@
   async function deleteDurableRecord(type, recordId, version) {
     const sbClient = getSupabaseClient();
     if (!sbClient || !authUser) throw new Error("Database authentication is unavailable.");
-    const wsId = state.workspace?.id || "ws_akipasa";
+    const wsId = state.workspace?.id || "ws_akipasa",actor=authUser.id,originalState=state,tools=JSON.stringify(state.workspace.toolKeys);
     const { error } = await sbClient.from("crm_workspace_records")
       .delete()
       .eq("workspace_id", wsId)
       .eq("record_type", type)
       .eq("record_id", recordId);
+    if (state!==originalState || state.workspace.id!==wsId || authUser?.id!==actor || JSON.stringify(state.workspace.toolKeys)!==tools) return;
     if (error) throw error;
     durableRecordCommittedVersion = Math.max(durableRecordCommittedVersion, version);
   }
@@ -542,7 +565,7 @@
         : [];
       const nextWorkspace = {
         ...state.workspace,
-        ...remote.workspace,
+        name: remote.workspace.name,
         toolKeys: authoritativeToolKeys
       };
       if (JSON.stringify(state.workspace || {}) !== JSON.stringify(nextWorkspace)) {
@@ -551,37 +574,60 @@
       }
     }
 
+    clearDeniedCollections();
     if (stateChanged) {
       store.save(state);
       requestBackgroundRender();
     }
   }
 
+  function clearRevokedWorkspace(workspaceId) {
+    if (state.workspace.id!==workspaceId) return;
+    store.clear(); suiteControls?.dispose(); suiteControls=null; hospitality?.dispose(); hospitality=null;
+    state.workspace.toolKeys=[]; state.workspace.canOperate=false; state.workspace.canAdminister=false;
+    state.workspace.canExport=false; state.workspace.exportToolKeys=[];
+    clearDeniedCollections(); posSales=[]; tipAdjustments=[]; inventoryMovements=[];
+    ui.modal=null; ui.drawer=null; ui.searchQuery=""; ui.route="settings";
+    workspaceSaveError="This workspace access was revoked. Sign out and sign in to refresh your available workspaces.";
+    workspaceMutationVersion=workspaceCommittedVersion;
+    render();
+  }
+
   async function syncCloudWorkspacePull() {
     const sbClient = getSupabaseClient();
     if (!sbClient || !authUser || isSyncingWorkspace || !hasWorkspaceSnapshotsTable) return;
-    if (workspaceMutationVersion !== workspaceCommittedVersion) return;
-    const mutationVersionAtStart = workspaceMutationVersion;
+    const mutationVersionAtStart = workspaceMutationVersion,userAtStart=authUser.id,stateAtStart=state;
     isSyncingWorkspace = true;
     try {
       const wsId = state.workspace?.id || "ws_akipasa";
-      const { data: snapshot, error } = await sbClient
-        .from("workspace_snapshots")
-        .select("data, updated_at, updated_by")
-        .eq("workspace_id", wsId)
-        .maybeSingle();
+      const { data: snapshot, error } = await sbClient.rpc("crm_read_workspace_snapshot", { p_workspace: wsId });
+      if (state.workspace.id !== wsId || authUser?.id!==userAtStart || state!==stateAtStart) return;
 
       if (error) {
+        if (error.code === "42501") { clearRevokedWorkspace(wsId); return; }
+        workspaceSaveError = "Workspace access could not be refreshed: " + (error.message || "connection error");
         if (error.code === "PGRST205" || error.status === 404 || (error.message && error.message.includes("Could not find table"))) {
           if (hasWorkspaceSnapshotsTable) {
             hasWorkspaceSnapshotsTable = false;
-            console.info("AkiHQ Info: 'workspace_snapshots' table is not created in Supabase yet. Run migration 0032 in Supabase SQL editor to activate cross-device database sync.");
+            console.info("AkiHQ workspace access RPC is unavailable. Deploy the matching versioned migrations.");
           }
           return;
         }
       }
 
-      if (!error && snapshot && snapshot.data && mutationVersionAtStart === workspaceMutationVersion) {
+      if (!error && snapshot?.access) {
+        const before=JSON.stringify([state.workspace.toolKeys,state.workspace.canAdminister,state.workspace.canOperate,state.workspace.exportToolKeys]);
+        Object.assign(state.workspace,{toolKeys:snapshot.access.tool_keys || [],canAdminister:snapshot.access.can_administer===true,canOperate:snapshot.access.can_operate===true,canExport:snapshot.access.can_export===true,exportToolKeys:snapshot.access.export_tool_keys || []});
+        if(before!==JSON.stringify([state.workspace.toolKeys,state.workspace.canAdminister,state.workspace.canOperate,state.workspace.exportToolKeys])) {
+          clearDeniedCollections();
+          if(!canUseTool("inventory")) { state.products=[]; inventoryMovements=[]; inventoryRecommendations=[]; }
+          suiteControls?.dispose(); suiteControls=null; hospitality?.dispose(); hospitality=null;
+          if (!canUseRoute(ui.route)) { ui.route="settings"; ui.modal=null; ui.drawer=null; }
+          store.save(state); requestBackgroundRender();
+        }
+      }
+      if (!error && snapshot?.data && mutationVersionAtStart === workspaceMutationVersion) {
+        if (workspaceMutationVersion===workspaceCommittedVersion) workspaceSaveError = "";
         hasWorkspaceSnapshotsTable = true;
         applyRemoteStateSnapshot(snapshot.data, snapshot.updated_at);
       }
@@ -601,33 +647,39 @@
   async function pushWorkspaceSnapshot(version = workspaceMutationVersion) {
     const sbClient = getSupabaseClient();
     if (!sbClient || !authUser) throw new Error("Database authentication is unavailable.");
+    const originalState=state,actor=authUser.id,wsId=state.workspace.id;
+    const active=()=>state===originalState && authUser?.id===actor && state.workspace.id===wsId;
     if (workspacePushInFlight) await workspacePushInFlight;
-    const wsId = state.workspace?.id || "ws_akipasa";
+    if (!active()) return;
     const cleanState = JSON.parse(JSON.stringify(state));
-    const nowStr = isoNow();
-    workspacePushInFlight = sbClient.from("workspace_snapshots").upsert({
-      workspace_id: wsId,
-      updated_by: authUser.id,
-      data: cleanState,
-      updated_at: nowStr
-    }, { onConflict: "workspace_id" }).then(({ data, error }) => {
-      if (error) throw error;
+    const operation=sbClient.rpc("crm_write_workspace_snapshot", {
+      p_workspace: wsId, p_data: cleanState, p_expected_updated_at: lastRemoteWorkspaceUpdate
+    }).then(({ data, error }) => {
+      if (!active()) return;
+      if (error) { workspaceSaveError = error.code === "40001" ? "Another device saved newer changes. Download your pending edits if permitted, then reload and reapply them." : (error.message || "Workspace changes are not saved."); requestBackgroundRender(); throw error; }
+      if(!data?.updated_at) throw new Error("No workspace save confirmation received. Retry without changing the previous version.");
+      workspaceSaveError = "";
       hasWorkspaceSnapshotsTable = true;
       workspaceCommittedVersion = Math.max(workspaceCommittedVersion, version);
-      lastRemoteWorkspaceUpdate = data?.updated_at || nowStr;
+      lastRemoteWorkspaceUpdate = data.updated_at;
       broadcastWorkspaceState();
     }).finally(() => {
-      workspacePushInFlight = null;
+      if(workspacePushInFlight===operation) workspacePushInFlight = null;
     });
-    return workspacePushInFlight;
+    workspacePushInFlight=operation;
+    return operation;
   }
 
   function syncCloudWorkspacePush() {
     if (pushWorkspaceTimer) clearTimeout(pushWorkspaceTimer);
-    const version = workspaceMutationVersion;
+    if (workspaceSaveError || !authUser) return;
+    const version = workspaceMutationVersion,originalState=state,actor=authUser.id,workspaceId=state.workspace.id;
+    const active=()=>state===originalState && authUser?.id===actor && state.workspace.id===workspaceId;
     pushWorkspaceTimer = setTimeout(() => {
       pushWorkspaceTimer = null;
+      if(!active()) return;
       pushWorkspaceSnapshot(version).catch(error => {
+        if(!active()) return;
         console.error("Workspace database save failed:", error);
         toast("Database save failed", "Your change is still visible, but it has not been committed. Check the connection and retry.", "danger");
       });
@@ -635,122 +687,58 @@
   }
 
   function broadcastWorkspaceState() {
-    if (window._workspaceSyncSub && authUser) {
-      try {
-        window._workspaceSyncSub.send({
-          type: "broadcast",
-          event: "state_change",
-          payload: {
-            data: JSON.parse(JSON.stringify(state)),
-            workspaceId: state.workspace?.id,
-            updatedAt: isoNow(),
-            senderId: authUser.id
-          }
-        });
-      } catch (e) {}
-    }
+    // Never broadcast business records over a client-created realtime channel.
+    // Realtime events below are invalidations; data is always fetched via RLS/RPC.
   }
 
   function setupRealtimeWorkspaceSync() {
     const sbClient = getSupabaseClient();
     if (!sbClient || window._workspaceSyncSub) return;
-    try {
-      const channel = sbClient.channel(`workspace-live-sync:${state.workspace?.id || "none"}`);
-      window._workspaceSyncSub = channel;
-
-      channel
-        .on("broadcast", { event: "state_change" }, payload => {
-          if (payload && payload.payload && payload.payload.workspaceId === state.workspace?.id && payload.payload.senderId !== authUser?.id) {
-            applyRemoteStateSnapshot(payload.payload.data, payload.payload.updatedAt);
-          }
-        })
-        .on("postgres_changes", { event: "*", schema: "public", table: "workspace_snapshots" }, payload => {
-          if (payload?.new?.data && payload.new.updated_by !== authUser?.id) {
-            applyRemoteStateSnapshot(payload.new.data, payload.new.updated_at);
-          } else {
-            syncCloudWorkspacePull();
-          }
-        })
-        .on("postgres_changes", { event: "*", schema: "public", table: "crm_workspace_records" }, applyDurableRecordChange)
-        .subscribe();
-    } catch (e) {
-      console.warn("Realtime workspace sync error:", e);
-    }
+    const workspaceId = state.workspace.id;
+    const channel = sbClient.channel(`workspace-live-sync:${workspaceId}`);
+    window._workspaceSyncSub = channel;
+    channel
+      .on("postgres_changes", { event: "*", schema: "public", table: "workspace_snapshots", filter: `workspace_id=eq.${workspaceId}` }, () => syncCloudWorkspacePull())
+      .on("postgres_changes", { event: "*", schema: "public", table: "crm_workspace_records", filter: `workspace_id=eq.${workspaceId}` }, () => syncDurableRecordsPull().catch(() => {}))
+      .subscribe();
   }
 
   // ── Live data loader ───────────────────────────────────────────────────────
-  async function loadLiveData() {
-    const sbClient = getSupabaseClient();
-    if (!sbClient || !authUser) return;
-    if (canUseTool("support")) void supportDesk.refresh();
+  async function loadCommerceData(sbClient) {
+    const workspaceId=state.workspace.id,userId=authUser?.id,stateAtStart=state,toolsAtStart=JSON.stringify(state.workspace.toolKeys);
     try {
-      await syncCloudWorkspacePull();
-      if (isPlatformWorkspace()) {
-        state.products = [];
-        inventoryRecommendations = [];
-        inventoryMovements = [];
-        posSales = [];
-        tipAdjustments = [];
-        inventoryError = "";
-      }
-      if (!isPlatformWorkspace()) {
-        const [{ data: memberships }, { data: venueLinks }] = await Promise.all([
-          sbClient.from("crm_workspace_members")
-            .select("profile_id,role,profiles(id,display_name,app_role,created_at,updated_at)")
-            .eq("workspace_id", state.workspace.id)
-            .eq("status", "active"),
-          sbClient.from("crm_workspace_venues")
-            .select("venue_id")
-            .eq("workspace_id", state.workspace.id)
-        ]);
-        const venueIds = (venueLinks || []).map(link => link.venue_id).filter(Boolean);
-        const { data: venueRows } = venueIds.length
-          ? await sbClient.from("venues").select("id,name,address,created_at").in("id", venueIds)
-          : { data: [] };
-        state.companies = (venueRows || []).map(row => ({
-          id: row.id, catalogueVenueId: row.id, name: row.name || "Venue", email: "", website: "",
-          type: "Venue", city: "", address: row.address || "", status: "Customer", employees: 1,
-          ownerId: state.currentUserId, source: "AkiPasa", createdAt: row.created_at || isoNow()
-        }));
-        state.employees = (memberships || []).map(member => {
-          const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
-          return {
-            id: member.profile_id,
-            name: profile?.display_name || (member.profile_id === authUser.id ? authUser.email?.split("@")[0] : "Team member"),
-            email: member.profile_id === authUser.id ? authUser.email || "" : "",
-            role: capitalize(member.role || "staff"), department: "Business", status: member.profile_id === authUser.id ? "Online" : "Offline",
-            location: "Spain", phone: "", joinedAt: profile?.created_at || isoNow(),
-            lastActiveAt: profile?.updated_at || null, leaveBalance: 0
-          };
-        });
-        try {
           const [
             { data: inventoryItems, error: inventoryItemsError },
             { data: recommendations, error: recommendationsError },
             { data: movements, error: movementsError },
             { data: salesRows, error: salesError },
-            { data: tipRows, error: tipError }
+            { data: tipRows, error: tipError },
+            { data: catalogueRows, error: catalogueError }
           ] = await Promise.all([
-            sbClient.from("crm_inventory_items")
+            canUseTool("inventory") ? sbClient.from("crm_inventory_items")
               .select("id,sku,name,unit,on_hand,reorder_point,safety_stock,lead_time_days,category,cost_cents,sale_price_cents,active,updated_at")
-              .eq("workspace_id", state.workspace.id)
-              .order("name"),
-            sbClient.rpc("crm_inventory_recommendations", { p_workspace: state.workspace.id }),
-            sbClient.from("crm_inventory_movements")
+              .eq("workspace_id", workspaceId)
+              .order("name") : canUseTool("pos") ? sbClient.rpc("crm_pos_catalogue", {p_workspace:workspaceId}) : Promise.resolve({data:[]}),
+            canUseTool("inventory") ? sbClient.rpc("crm_inventory_recommendations", { p_workspace: workspaceId }) : Promise.resolve({data:[]}),
+            canUseTool("inventory") ? sbClient.from("crm_inventory_movements")
               .select("id,item_id,quantity_delta,movement_type,source_type,source_id,notes,occurred_at,employee_profile_id")
-              .eq("workspace_id", state.workspace.id).order("occurred_at", { ascending: false }).limit(100),
-            sbClient.from("crm_pos_sales")
+              .eq("workspace_id", workspaceId).order("occurred_at", { ascending: false }).limit(100) : Promise.resolve({data:[]}),
+            canUseTool("pos") ? sbClient.from("crm_pos_sales")
               .select("id,provider,external_id,status,total_cents,currency,sold_at,employee_profile_id,tip_cents,tipped_profile_id,crm_pos_sale_lines(item_id,quantity,unit_price_cents)")
-              .eq("workspace_id", state.workspace.id).order("sold_at", { ascending: false }).limit(50),
-            sbClient.from("crm_tip_adjustments")
+              .eq("workspace_id", workspaceId).order("sold_at", { ascending: false }).limit(50) : Promise.resolve({data:[]}),
+            canUseTool("pos") ? sbClient.from("crm_tip_adjustments")
               .select("id,profile_id,sale_id,amount_cents,adjustment_type,note,created_at,created_by")
-              .eq("workspace_id", state.workspace.id).order("created_at", { ascending: false }).limit(250)
+              .eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(250) : Promise.resolve({data:[]}),
+            canUseTool("pos") ? sbClient.rpc("crm_pos_catalogue",{p_workspace:workspaceId}) : Promise.resolve({data:[]})
           ]);
+          if (state.workspace.id !== workspaceId || authUser?.id !== userId || state!==stateAtStart || JSON.stringify(state.workspace.toolKeys)!==toolsAtStart) return;
           if (inventoryItemsError) throw inventoryItemsError;
           if (recommendationsError) throw recommendationsError;
           if (movementsError) throw movementsError;
           if (salesError && canUseTool("pos")) throw salesError;
           if (tipError && canUseTool("pos")) throw tipError;
+          if (catalogueError) throw catalogueError;
+          const posStockByItem=new Map((catalogueRows || []).map(item=>[item.id,Number(item.on_hand || 0)]));
           const cachedBySku = new Map((state.products || []).map(product => [String(product.sku || "").toLowerCase(), product]));
           const recommendationByItem = new Map((recommendations || []).map(item => [item.item_id, item]));
           state.products = (inventoryItems || []).map(item => {
@@ -763,6 +751,7 @@
               name: item.name,
               sku: item.sku,
               stock: Number(item.on_hand || 0),
+              posStock: posStockByItem.get(item.id) ?? 0,
               reorderAt: Number(item.reorder_point || 0),
               safetyStock: Number(item.safety_stock || 0),
               leadTimeDays: Number(item.lead_time_days || 0),
@@ -784,21 +773,77 @@
           tipAdjustments = tipRows || [];
           inventoryError = "";
         } catch (inventoryLoadError) {
+          if (state.workspace.id !== workspaceId || authUser?.id !== userId || state!==stateAtStart || JSON.stringify(state.workspace.toolKeys)!==toolsAtStart) return;
+          state.products = [];
           inventoryRecommendations = [];
           inventoryMovements = [];
           posSales = [];
           tipAdjustments = [];
           inventoryError = inventoryLoadError?.message || "Smart inventory is unavailable.";
         }
+  }
+
+  async function loadLiveData() {
+    const sbClient = getSupabaseClient();
+    if (!sbClient || !authUser) return;
+    const requestedWorkspace=state.workspace.id,requestedUser=authUser.id,requestedState=state;
+    const stillActive=()=>state===requestedState && state.workspace.id===requestedWorkspace && authUser?.id===requestedUser;
+    if (canUseTool("support")) void supportDesk.refresh();
+    try {
+      await syncCloudWorkspacePull();
+      if (!stillActive()) return;
+      if (isPlatformWorkspace()) {
+        state.products = [];
+        inventoryRecommendations = [];
+        inventoryMovements = [];
+        posSales = [];
+        tipAdjustments = [];
+        inventoryError = "";
+      }
+      if (!isPlatformWorkspace()) {
+        const [{ data: memberships }, { data: venueLinks }] = await Promise.all([
+          sbClient.rpc("crm_workspace_directory", { p_workspace: state.workspace.id }),
+          sbClient.from("crm_workspace_venues")
+            .select("venue_id")
+            .eq("workspace_id", state.workspace.id)
+        ]);
+        if (!stillActive()) return;
+        const venueIds = (venueLinks || []).map(link => link.venue_id).filter(Boolean);
+        const { data: venueRows } = venueIds.length
+          ? await sbClient.from("venues").select("id,name,address,created_at").in("id", venueIds)
+          : { data: [] };
+        if (!stillActive()) return;
+        state.companies = (venueRows || []).map(row => ({
+          id: row.id, catalogueVenueId: row.id, name: row.name || "Venue", email: "", website: "",
+          type: "Venue", city: "", address: row.address || "", status: "Customer", employees: 1,
+          ownerId: state.currentUserId, source: "AkiPasa", createdAt: row.created_at || isoNow()
+        }));
+        state.employees = (memberships || []).map(member => {
+          const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
+          return {
+            id: member.profile_id,
+            name: profile?.display_name || (member.profile_id === authUser.id ? authUser.email?.split("@")[0] : "Team member"),
+            email: member.profile_id === authUser.id ? authUser.email || "" : "",
+            role: capitalize(member.role || "staff"), department: "Business", status: member.profile_id === authUser.id ? "Online" : "Offline",
+            location: "Spain", phone: "", joinedAt: profile?.created_at || isoNow(),
+            lastActiveAt: profile?.updated_at || null, leaveBalance: 0
+          };
+        });
+        await loadCommerceData(sbClient);
+      if (!stillActive()) return;
+        if (!stillActive()) return;
+        clearDeniedCollections();
         store.save(state);
         requestBackgroundRender();
         return;
       }
+      await loadCommerceData(sbClient);
       // Contacts — all staff & profiles directly from Supabase profiles table
       const { data: profiles } = await sbClient.from("profiles")
         .select("id, display_name, app_role, created_at")
         .limit(500);
 
+      if (!stillActive()) return;
       if (profiles?.length) {
         const importedContacts = state.contacts.filter(contact => contact.source === "Excel prospect import");
         const liveContacts = profiles.map(p => ({
@@ -819,6 +864,7 @@
       // Companies — venues directly from Supabase venues table
       try {
         const { data: venueRows } = await sbClient.from("venues").select("*").limit(500);
+        if (!stillActive()) return;
         if (venueRows?.length) {
           const importedCompanies = state.companies.filter(company => company.source === "Excel prospect import");
           const liveCompanies = venueRows.map(row => ({
@@ -877,7 +923,7 @@
               location: "Spain",
               phone: "",
               joinedAt: c.createdAt,
-              leaveBalance: 20
+              leaveBalance: 0
             });
           }
         });
@@ -886,7 +932,9 @@
 
       // Live multi-user chat & DM sync
       await syncTeamMessages();
+      if (!stillActive()) return;
 
+      clearDeniedCollections();
       store.save(state);
       requestBackgroundRender();
     } catch (err) {
@@ -917,13 +965,14 @@
 
   async function syncTeamMessages() {
     const sbClient = getSupabaseClient();
-    const workspaceId = state.workspace?.id;
+    const workspaceId = state.workspace?.id,userId=authUser?.id;
     if (!sbClient || !authUser || !workspaceId || !canUseTool("collaboration")) return;
     try {
       const [{ data: remoteChannels, error: channelError }, { data: remoteMsgs, error: messageError }] = await Promise.all([
         sbClient.from("crm_team_channels").select("id,name,description,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: true }),
         sbClient.from("crm_team_messages").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: true }).limit(1000)
       ]);
+      if (state.workspace.id!==workspaceId || authUser?.id!==userId) return;
       if (channelError || messageError || !Array.isArray(remoteChannels) || !Array.isArray(remoteMsgs)) return;
 
       state.teamChat ||= { channels: [], messages: {} };
@@ -1107,17 +1156,18 @@
   }
 
   function formDraftKey(form) {
-    if (!form?.dataset?.form) return "";
+    if (!form?.dataset?.form || /^(suite-|inventory-operation|social-credentials|cloud-auth)/.test(form.dataset.form)) return "";
     const modalContext = ui.modal ? [ui.modal.kind, ui.modal.entity, ui.modal.id, ui.modal.conversationId].filter(Boolean).join(":") : "page";
-    return `akihq:form-draft:v2:${authUser?.id || "anonymous"}:${ui.route}:${modalContext}:${form.dataset.form}:${form.dataset.entity || ""}:${form.dataset.id || "new"}`;
+    return `akihq:form-draft:v2:${authUser?.id || "anonymous"}:${state.workspace.id}:${ui.route}:${modalContext}:${form.dataset.form}:${form.dataset.entity || ""}:${form.dataset.id || "new"}`;
   }
 
   function saveFormDraft(form) {
+    if (!authUser) return;
     const key = formDraftKey(form);
     if (!key) return;
     const values = {};
     form.querySelectorAll("[name]").forEach(field => {
-      if (field.disabled || field.type === "password" || field.type === "file") return;
+      if (field.disabled || field.type === "password" || field.type === "file" || /secret|token|password|api.?key/i.test(field.name)) return;
       values[field.name] = field.type === "checkbox" || field.type === "radio" ? Boolean(field.checked) : field.value;
     });
     try { localStorage.setItem(key, JSON.stringify({ values, savedAt: Date.now() })); } catch (error) {}
@@ -1138,7 +1188,7 @@
         if (!draft?.values || Date.now() - Number(draft.savedAt || 0) > 14 * 86400000) return;
         Object.entries(draft.values).forEach(([name, value]) => {
           const field = [...form.querySelectorAll("[name]")].find(item => item.name === name);
-          if (!field || field.type === "file") return;
+          if (!field || field.type === "file" || field.type === "password" || /secret|token|password|api.?key/i.test(field.name)) return;
           if (field.type === "checkbox" || field.type === "radio") field.checked = Boolean(value);
           else field.value = String(value ?? "");
         });
@@ -1147,6 +1197,7 @@
   }
 
   function saveVisibleDrafts() {
+    if (!authUser) return;
     document.querySelectorAll("form[data-form]").forEach(saveFormDraft);
     store.save(state);
   }
@@ -1158,7 +1209,7 @@
       if (!key) return;
       const fields = {};
       form.querySelectorAll("[name]").forEach(field => {
-        if (field.disabled || field.type === "password" || field.type === "file") return;
+        if (field.disabled || field.type === "password" || field.type === "file" || /secret|token|password|api.?key/i.test(field.name)) return;
         fields[field.name] = field.type === "checkbox" || field.type === "radio" ? Boolean(field.checked) : field.value;
       });
       values.set(key, fields);
@@ -1173,7 +1224,7 @@
       if (!fields) return;
       Object.entries(fields).forEach(([name, value]) => {
         const field = [...form.querySelectorAll("[name]")].find(item => item.name === name);
-        if (!field || field.type === "file") return;
+        if (!field || field.type === "file" || field.type === "password" || /secret|token|password|api.?key/i.test(field.name)) return;
         if (field.type === "checkbox" || field.type === "radio") field.checked = Boolean(value);
         else field.value = String(value ?? "");
       });
@@ -1233,7 +1284,7 @@
         location: "Spain",
         phone: "",
         joinedAt: isoNow(),
-        leaveBalance: 20
+        leaveBalance: 0
       };
     }
     return state.employees.find(person => person.id === state.currentUserId) || state.employees[0] || { name: "Staff Member", role: "Staff" };
@@ -1401,29 +1452,37 @@
   }
 
   function socialGatewayUrl(path = "") {
+    if (path.startsWith("/api/privacy/") && window.AKIHQ_CONFIG?.PRIVACY_GATEWAY_URL) {
+      return String(window.AKIHQ_CONFIG.PRIVACY_GATEWAY_URL).replace(/\/$/, "") + path.slice("/api/privacy".length);
+    }
     const base = String(window.AKIHQ_CONFIG?.SOCIAL_GATEWAY_URL || "").replace(/\/$/, "");
     if (!base) throw new Error("The social integration gateway is not configured.");
     return `${base}${path}`;
   }
 
   async function socialGatewayRequest(path, options = {}) {
+    const originalState=state,actor=authUser?.id,workspaceId=state.workspace.id;
+    const active=()=>actor && state===originalState && authUser?.id===actor && state.workspace.id===workspaceId;
     const client = getSupabaseClient();
     if (!client) throw new Error("Supabase authentication is unavailable.");
     const { data, error } = await client.auth.getSession();
+    if(!active() || (data?.session?.user?.id && data.session.user.id!==actor)) throw new Error("Workspace or account changed. Start the request again.");
     if (error || !data?.session?.access_token) throw new Error("Your session expired. Sign in again.");
+    const boundHeaders=new Headers(options.headers || {});
+    boundHeaders.set("Authorization", `Bearer ${data.session.access_token}`);
+    boundHeaders.set("Content-Type", "application/json");
+    boundHeaders.set("X-Workspace-Id", workspaceId);
     const response = await fetch(socialGatewayUrl(path), {
       method: options.method || "GET",
-      headers: {
-        Authorization: `Bearer ${data.session.access_token}`,
-        "Content-Type": "application/json",
-        ...(options.headers || {})
-      },
+      headers: boundHeaders,
       body: options.body ? JSON.stringify(options.body) : undefined,
       cache: "no-store",
       signal: options.signal
     });
-    if (response.ok && options.responseType === "blob") return response.blob();
+    if(!active()) throw new Error("Workspace or account changed. Reload before continuing.");
+    if (response.ok && options.responseType === "blob") { const blob=await response.blob(); if(!active()) throw new Error("Workspace or account changed. Start the download again."); return blob; }
     const text = await response.text();
+    if(!active()) throw new Error("Workspace or account changed. Reload before continuing.");
     let payload = null;
     try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
     if (!response.ok) {
@@ -1439,23 +1498,26 @@
   }
 
   async function socialGatewayBinaryRequest(path, file, headers = {}) {
+    const originalState=state,actor=authUser?.id,workspaceId=state.workspace.id;
+    const active=()=>actor && state===originalState && authUser?.id===actor && state.workspace.id===workspaceId;
     const client = getSupabaseClient();
     if (!client) throw new Error("Supabase authentication is unavailable.");
     const { data, error } = await client.auth.getSession();
+    if(!active() || (data?.session?.user?.id && data.session.user.id!==actor)) throw new Error("Workspace or account changed. Start the request again.");
     if (error || !data?.session?.access_token) throw new Error("Your session expired. Sign in again.");
+    const boundHeaders=new Headers(headers);
+    boundHeaders.set("Authorization", `Bearer ${data.session.access_token}`);
+    boundHeaders.set("Content-Type", file.type || "application/octet-stream");
+    boundHeaders.set("X-File-Name", encodeURIComponent(file.name || "upload"));
+    boundHeaders.set("X-Workspace-Id", workspaceId);
     const response = await fetch(socialGatewayUrl(path), {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${data.session.access_token}`,
-        "Content-Type": file.type || "application/octet-stream",
-        "X-File-Name": encodeURIComponent(file.name || "upload"),
-        "X-Workspace-Id": state.workspace?.id || "ws_akipasa",
-        ...headers
-      },
+      headers: boundHeaders,
       body: file,
       cache: "no-store"
     });
     const text = await response.text();
+    if(!active()) throw new Error("Workspace or account changed. Reload before continuing.");
     let payload = null;
     try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
     if (!response.ok) throw new Error(payload?.message || payload?.error || `Upload failed (${response.status}).`);
@@ -1926,6 +1988,7 @@
   }
 
   function render() {
+    if (!authUser) return;
     applySettings();
     const previousPage = document.getElementById("page-content");
     const scrollPositions = captureScrollPositions(document);
@@ -1949,6 +2012,7 @@
         ${renderTopbar()}
         <section class="content-shell">
           ${renderContextbar()}
+          ${workspaceSaveError ? `<section class="panel" role="alert" style="padding:16px"><strong>Workspace changes need attention</strong><p>${escapeHtml(workspaceSaveError)}</p><button class="action-btn" data-action="workspace-retry">Retry save</button> ${state.workspace.canAdminister ? '<button class="action-btn" data-action="export-data">Download pending snapshot</button>' : ''} <button class="action-btn" data-action="workspace-reload">Reload latest version…</button></section>` : ""}
           <div class="content" id="page-content">
             ${renderView()}
           </div>
@@ -2193,7 +2257,9 @@
           <span class="context-spacer"></span>
           <button class="action-btn primary" data-action="open-form" data-entity="event">${icon("plus")} Event</button>`;
       case "inventory":
-        return `<span class="context-spacer"></span><button class="action-btn" data-action="export-csv" data-entity="products">${icon("download")} CSV</button><button class="action-btn primary" data-action="open-form" data-entity="product">${icon("plus")} Product</button>`;
+        return `<span class="context-spacer"></span><button class="action-btn" data-action="commerce-export" data-mode="inventory">${icon("download")} Export records</button><button class="action-btn" data-action="export-csv" data-entity="products">${icon("download")} CSV</button><button class="action-btn primary" data-action="open-form" data-entity="product">${icon("plus")} Product</button>`;
+      case "pos":
+        return `<span class="context-spacer"></span><button class="action-btn" data-action="commerce-export" data-mode="pos">${icon("download")} Export records</button>`;
       case "sales":
         return `<span class="context-spacer"></span><button class="action-btn" data-action="open-form" data-entity="invoice" data-type="Quote">${icon("plus")} Quote</button><button class="action-btn primary" data-action="open-form" data-entity="invoice" data-type="Invoice">${icon("plus")} Invoice</button>`;
       case "marketing":
@@ -2957,7 +3023,40 @@
     </div>`;
   }
 
+  let inventoryLocations = [];
+  let suiteControls = null;
+  let suiteControlsKey = "";
+  function getSuiteControls() {
+    const key = `${authUser?.id}:${state.workspace.id}`;
+    if (!suiteControls || suiteControlsKey !== key) {
+      suiteControls?.dispose();
+      suiteControlsKey = key;
+      suiteControls = window.AkiHQSuiteControls.create({client:getSupabaseClient(),workspace:state.workspace,getProducts:()=>state.products,request:socialGatewayRequest,download:downloadBlob,refresh:render,toast,escapeHtml});
+    }
+    return suiteControls;
+  }
+
+  function pendingInventoryOperation() {
+    return authUser ? window.AkiHQInventoryOps.readPending(localStorage,authUser.id,state.workspace.id) : null;
+  }
+
+  async function retryInventoryOperation() {
+    if (!navigator.locks?.request) throw new Error("Use an up-to-date browser over HTTPS to safely record stock.");
+    const workspace=state.workspace.id,user=authUser.id;
+    return navigator.locks.request(`akihq-stock:${user}:${workspace}`, {ifAvailable:true}, async lock => {
+      if (!lock) { toast("Stock operation in progress", "Review the other tab before retrying.", "warning"); return; }
+      if (state.workspace.id !== workspace || authUser?.id !== user) return;
+      const pending=window.AkiHQInventoryOps.readPending(localStorage,user,workspace);
+      if (!pending) return;
+      await window.AkiHQInventoryOps.submitOperation(getSupabaseClient(),workspace,pending.key,pending.operation);
+      window.AkiHQInventoryOps.resolvePending(localStorage,user,workspace,pending.key);
+      if(state.workspace.id===workspace && authUser?.id===user) { ui.modal=null; await loadLiveData(); if(state.workspace.id!==workspace || authUser?.id!==user) return; render(); toast("Stock recorded", "The operation's original reference was confirmed."); }
+    });
+  }
+
   function renderInventory() {
+    let pendingStock=null,pendingStockError="";
+    try { pendingStock=pendingInventoryOperation(); } catch(error) { pendingStockError=error.message; }
     const lowStock = state.products.filter(product => Number(product.stock) <= Number(product.reorderAt) && product.warehouse !== "Digital");
     const stockValue = state.products.reduce((sum, product) => sum + Number(product.stock || 0) * Number(product.cost || 0), 0);
     const physical = state.products.filter(product => product.warehouse !== "Digital");
@@ -2978,9 +3077,11 @@
     return `<div class="page-grid">
       <div class="page-grid grid-3">
         ${renderMetric("Tracked items", String(state.products.length), `${physical.length} active stock lines`, "inventory", "#7c8cff")}
-        ${renderMetric("Stock value", formatMoney(stockValue, true), "live quantity × unit cost", "money", "#49d7a0")}
+        ${renderMetric("Catalogue cost estimate", formatMoney(stockValue, true), "not historical accounting valuation", "money", "#49d7a0")}
         ${renderMetric("Needs attention", String(reorderSuggestions.length || lowStock.length), lowStock.length ? `${lowStock.length} at or below reorder point` : "stock looks healthy", "warning", "#ffbd55")}
       </div>
+      ${pendingStock || pendingStockError ? `<section class="panel" role="alert" style="padding:16px"><h3>Stock operation awaiting confirmation</h3><p>${escapeHtml(pendingStockError || "Retry the saved operation before starting another one. The original reference prevents a duplicate receipt or movement.")}</p>${pendingStock ? `<p>${escapeHtml(pendingStock.operation.type)} · ${escapeHtml(pendingStock.operation.reason)}</p><button class="action-btn primary" data-action="inventory-retry">Retry pending operation</button> <button class="action-btn" data-action="inventory-reconcile">Check result / cancel if unrecorded</button>` : ""}</section>` : ""}
+      ${window.AkiHQInventoryOps.renderPanel({locations:inventoryLocations})}
       <section class="panel inventory-command-panel">
         <div class="panel-header"><div><h2>Smart replenishment</h2><p>Forecasts combine the stock ledger, 28-day usage, lead time, safety stock and upcoming demand.</p></div><span class="status-pill ${inventoryError ? "danger" : "success"}">${inventoryError ? "Unavailable" : "Live forecast"}</span></div>
         ${inventoryError ? `<div class="panel-empty compact"><div><strong>Forecast temporarily unavailable</strong><span>${escapeHtml(inventoryError)}</span></div></div>` : reorderSuggestions.length ? `<div class="inventory-recommendation-grid">${reorderSuggestions.slice(0, 8).map(product => `<article class="inventory-recommendation"><span class="status-pill warning">Reorder</span><strong>${escapeHtml(product.name)}</strong><span>Order ${suggestedQuantity(product).toLocaleString()} ${escapeHtml(product.unit || "units")}</span><small>${product.daysRemaining == null ? `At or below the ${Number(product.reorderAt).toLocaleString()} ${escapeHtml(product.unit || "unit")} reorder point` : `${Number(product.daysRemaining).toLocaleString()} days of stock remaining`} · ${Number(product.expectedDaily || 0).toLocaleString()} / day</small><button class="action-btn" data-action="adjust-stock" data-id="${product.id}">Receive stock</button></article>`).join("")}</div>` : `<div class="panel-empty compact"><div><strong>Stock looks healthy</strong><span>No purchase is suggested from current usage and upcoming demand.</span></div></div>`}
@@ -3010,17 +3111,35 @@
     </div>`;
   }
 
+  let hospitality = null;
+  let hospitalityKey = "";
+  function getHospitality() {
+    const key = `${authUser?.id}:${state.workspace.id}`;
+    if (!hospitality || hospitalityKey !== key) {
+      hospitality?.dispose(); hospitalityKey = key;
+      hospitality = window.AkiHospitality.create({client:getSupabaseClient(),workspace:state.workspace,actor:authUser?.id,refresh:render,toast,isActive:()=>ui.route === "pos" && `${authUser?.id}:${state.workspace.id}` === key});
+    }
+    return hospitality;
+  }
   function renderPOS() {
-    const products = state.products.filter(product => product.status === "Active" && product.inventoryItemId && Number(product.price || 0) >= 0);
+    if (window.AkiHospitality && authUser) {
+      let unresolvedLegacyCheckout = true;
+      try { unresolvedLegacyCheckout = !!pendingPOSSale(); } catch {}
+      if (!unresolvedLegacyCheckout) return getHospitality().render();
+    }
+    const products = state.products.filter(product => product.status === "Active" && product.inventoryItemId && Number(product.price || 0) >= 0).map(product=>({...product,stock:product.posStock ?? product.stock}));
     const categories = ["All", ...new Set(products.map(product => product.category || "General"))];
     const query = ui.posSearch.trim().toLowerCase();
     const visible = products.filter(product => (!query || `${product.name} ${product.sku}`.toLowerCase().includes(query)) && (ui.posCategory === "All" || product.category === ui.posCategory));
     const cartLines = Object.entries(ui.posCart).map(([id, quantity]) => ({ product: products.find(item => item.id === id), quantity: Number(quantity) })).filter(line => line.product && line.quantity > 0);
-    const subtotal = cartLines.reduce((sum, line) => sum + Number(line.product.price || 0) * line.quantity, 0);
+    const subtotal = cartLines.length ? window.AkiCheckoutSession.total(cartLines.map(({product,quantity}) => ({item_id:product.inventoryItemId,quantity,unit_price_cents:Math.round(Number(product.price)*100)}))) / 100 : 0;
     const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
-    const cart = `<aside class="panel pos-cart"><div class="panel-header"><div><h2>Current sale</h2><p>${cartCount} item${cartCount === 1 ? "" : "s"}</p></div>${cartLines.length ? `<button class="mini-btn" data-action="pos-clear" title="Clear sale">${icon("trash")}</button>` : ""}</div><div class="pos-cart-lines">${cartLines.map(({ product, quantity }) => `<div class="pos-cart-line"><div><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(formatMoney(product.price))} each</span></div><div class="pos-quantity"><button data-action="pos-decrement" data-id="${product.id}" aria-label="Remove one">−</button><strong>${quantity}</strong><button data-action="pos-add" data-id="${product.id}" aria-label="Add one">+</button></div><strong>${escapeHtml(formatMoney(product.price * quantity))}</strong></div>`).join("") || `<div class="panel-empty compact"><div><strong>Ready for an order</strong><span>Tap a product to add it.</span></div></div>`}</div><div class="pos-cart-total"><span>Total</span><strong>${escapeHtml(formatMoney(subtotal))}</strong></div><div class="pos-tenders"><button class="${ui.posTender === "card" ? "active" : ""}" data-action="pos-tender" data-value="card">Card</button><button class="${ui.posTender === "cash" ? "active" : ""}" data-action="pos-tender" data-value="cash">Cash</button><button class="${ui.posTender === "other" ? "active" : ""}" data-action="pos-tender" data-value="other">Other</button></div><button class="action-btn primary pos-checkout" data-action="pos-checkout" ${!cartLines.length || ui.posBusy ? "disabled" : ""}>${ui.posBusy ? "Processing…" : `Charge ${escapeHtml(formatMoney(subtotal))}`}</button></aside>`;
+    const cart = `<aside class="panel pos-cart"><div class="panel-header"><div><h2>Current sale</h2><p>${cartCount} item${cartCount === 1 ? "" : "s"}</p></div>${cartLines.length ? `<button class="mini-btn" data-action="pos-clear" title="Clear sale">${icon("trash")}</button>` : ""}</div><div class="pos-cart-lines">${cartLines.map(({ product, quantity }) => `<div class="pos-cart-line"><div><strong>${escapeHtml(product.name)}</strong><span>${escapeHtml(formatMoney(product.price))} each</span></div><div class="pos-quantity"><button data-action="pos-decrement" data-id="${product.id}" aria-label="Remove one">−</button><input data-pos-quantity="${product.id}" type="number" min="0.001" step="0.001" max="${Number(product.stock)}" value="${quantity}" aria-label="Quantity" style="width:68px"><button data-action="pos-add" data-id="${product.id}" aria-label="Add one">+</button></div><strong>${escapeHtml(formatMoney(window.AkiCheckoutSession.total([{item_id:product.inventoryItemId,quantity,unit_price_cents:Math.round(Number(product.price)*100)}])/100))}</strong></div>`).join("") || `<div class="panel-empty compact"><div><strong>Ready for an order</strong><span>Tap a product to add it.</span></div></div>`}</div><div class="pos-cart-total"><span>Total</span><strong>${escapeHtml(formatMoney(subtotal))}</strong></div><div class="pos-tenders"><button class="${ui.posTender === "card" ? "active" : ""}" data-action="pos-tender" data-value="card">Card</button><button class="${ui.posTender === "cash" ? "active" : ""}" data-action="pos-tender" data-value="cash">Cash</button><button class="${ui.posTender === "other" ? "active" : ""}" data-action="pos-tender" data-value="other">Other</button></div><button class="action-btn primary pos-checkout" data-action="pos-checkout" ${!cartLines.length || ui.posBusy ? "disabled" : ""}>${ui.posBusy ? "Processing…" : `Record ${escapeHtml(formatMoney(subtotal))}`}</button></aside>`;
+    let pending = null, pendingError = "";
+    try { pending = pendingPOSSale(); } catch (error) { pendingError = error.message; }
+    const recovery = pending || pendingError ? `<section class="panel" style="padding:16px;grid-column:1/-1"><h3>Sale awaiting confirmation</h3><p>${escapeHtml(pendingError || "Retry the saved request to confirm whether it was recorded. Its original reference prevents duplicate sales.")}</p>${pending ? `<button class="action-btn primary" data-action="pos-checkout" ${ui.posBusy ? "disabled" : ""}>Retry pending sale · ${escapeHtml(formatMoney(pending.p_total_cents / 100))}</button>` : ""}</section>` : "";
     const history = `<section class="panel pos-history"><div class="panel-header"><div><h2>Recent sales</h2><p>Completed transactions in this workspace. Open one for its operator and contents.</p></div></div>${posSales.slice(0, 8).map(sale => `<button class="pos-sale-row" data-action="view-pos-sale" data-id="${sale.id}"><span>${escapeHtml(String(sale.external_id || "").slice(-8))}</span><strong>${escapeHtml(formatMoney(Number(sale.total_cents || 0) / 100))}</strong><small>${escapeHtml(employeeName(sale.employee_profile_id))} · ${escapeHtml(capitalize(sale.provider))} · ${escapeHtml(relativeTime(sale.sold_at))}</small></button>`).join("") || `<div class="panel-empty compact"><div><strong>No sales yet</strong><span>Your first completed sale will appear here.</span></div></div>`}</section>`;
-    return `<div class="pos-shell"><section class="pos-catalogue"><div class="pos-head"><div><span class="status-pill success">Till online</span><h2>Point of Sale</h2><p>Every completed sale reduces this workspace's inventory immediately.</p></div><div class="pos-shift"><span>Operator</span><strong>${escapeHtml(employeeName(state.currentUserId))}</strong></div></div><div class="pos-tools"><label class="search-box">${icon("search")}<input data-pos-search value="${escapeHtml(ui.posSearch)}" placeholder="Search products or SKU"></label><div class="pos-categories">${categories.map(category => `<button class="${ui.posCategory === category ? "active" : ""}" data-action="pos-category" data-value="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div><div class="pos-product-grid">${visible.map(product => `<button class="pos-product ${Number(product.stock) <= 0 ? "sold-out" : ""}" data-action="pos-add" data-id="${product.id}" ${Number(product.stock) <= 0 ? "disabled" : ""}><span class="pos-product-mark">${initials(product.name)}</span><span><strong>${escapeHtml(product.name)}</strong><small>${Number(product.stock).toLocaleString()} ${escapeHtml(product.unit || "")} available</small></span><b>${escapeHtml(formatMoney(product.price))}</b></button>`).join("") || `<div class="panel-empty"><div><strong>No sellable products</strong><span>Add prices and stock in Inventory first.</span></div></div>`}</div></section>${cart}${history}<button class="pos-mobile-cart ${cartCount ? "has-items" : ""}" data-action="pos-toggle-cart"><span>${cartCount} items</span><strong>${escapeHtml(formatMoney(subtotal))}</strong><b>${ui.posCartOpen ? "Close" : "View order"}</b></button></div>`;
+    return `<div class="pos-shell">${recovery}<section class="pos-catalogue"><div class="pos-head"><div><span class="status-pill success">Till online</span><h2>Point of Sale</h2><p>Every completed sale reduces this workspace's inventory immediately.</p></div><div class="pos-shift"><span>Operator</span><strong>${escapeHtml(employeeName(state.currentUserId))}</strong></div></div><div class="pos-tools"><label class="search-box">${icon("search")}<input data-pos-search value="${escapeHtml(ui.posSearch)}" placeholder="Search products or SKU"></label><div class="pos-categories">${categories.map(category => `<button class="${ui.posCategory === category ? "active" : ""}" data-action="pos-category" data-value="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div><div class="pos-product-grid">${visible.map(product => `<button class="pos-product ${Number(product.stock) <= 0 ? "sold-out" : ""}" data-action="pos-add" data-id="${product.id}" ${Number(product.stock) <= 0 ? "disabled" : ""}><span class="pos-product-mark">${initials(product.name)}</span><span><strong>${escapeHtml(product.name)}</strong><small>${Number(product.stock).toLocaleString()} ${escapeHtml(product.unit || "")} available</small></span><b>${escapeHtml(formatMoney(product.price))}</b></button>`).join("") || `<div class="panel-empty"><div><strong>No sellable products</strong><span>Add prices and stock in Inventory first.</span></div></div>`}</div></section>${cart}${history}<button class="pos-mobile-cart ${cartCount ? "has-items" : ""}" data-action="pos-toggle-cart"><span>${cartCount} items</span><strong>${escapeHtml(formatMoney(subtotal))}</strong><b>${ui.posCartOpen ? "Close" : "View order"}</b></button></div>`;
   }
 
   function renderSales() {
@@ -3034,7 +3153,7 @@
         ${renderMetric("Overdue", String(overdue), overdue ? "follow-up required" : "nothing overdue", "warning", "#ff6f85")}
       </div>
       <section class="panel table-panel">
-        <div class="panel-header"><div><h2>Quotes and invoices</h2><p>Open any record to edit, print or change status</p></div></div>
+        <div class="panel-header"><div><h2>Legacy documents and quotes</h2><p>Operational documents. Fiscal issuance is currently disabled.</p><button class="action-btn" data-action="open-business-controls">Fiscal setup and records</button></div></div>
         <div class="table-scroll"><table class="data-table">
           <thead><tr><th>Document</th><th>Customer</th><th>Type</th><th>Issue date</th><th>Due</th><th>Total</th><th>Status</th><th></th></tr></thead>
           <tbody>${state.invoices.map(invoice => `<tr class="clickable" data-action="view-entity" data-entity="invoice" data-id="${invoice.id}">
@@ -3145,7 +3264,7 @@
   }
 
   function renderSites() {
-    return `<div class="page-grid">
+    return `<div class="page-grid"><section class="panel" style="padding:16px"><h3>Site and form planning</h3><p>These records describe planned pages and forms. Publishing, live collection, privacy notices and consent handling require a configured publishing service.</p></section>
       <section class="panel"><div class="panel-header"><div><h2>Landing pages</h2><p>Original, lightweight pages for campaigns and onboarding</p></div></div><div class="panel-body cards-grid">
         ${state.pages.map(page => `<article class="entity-card" data-action="view-entity" data-entity="page" data-id="${page.id}" role="button" tabindex="0">
           <div class="entity-card-top"><div class="entity-logo">${icon("sites")}</div><div class="entity-card-copy"><h3>${escapeHtml(page.name)}</h3><p>/${escapeHtml(page.slug)} · updated ${escapeHtml(relativeTime(page.updatedAt))}</p></div><span class="status-pill ${page.status === "Published" ? "success" : "warning"}">${escapeHtml(page.status)}</span></div>
@@ -3162,13 +3281,13 @@
   }
 
   function renderAutomation() {
-    return `<div class="page-grid">
+    return `<div class="page-grid"><section class="panel" style="padding:16px"><h3>Workflow planning</h3><p>These definitions are planning records. Saving or toggling one does not run an external action or send a message.</p></section>
       ${state.automations.map(automation => `<section class="panel">
         <div class="panel-header"><div><h2>${escapeHtml(automation.name)}</h2><p>${Number(automation.runs || 0)} runs · ${Number(automation.failures || 0)} failures · updated ${escapeHtml(relativeTime(automation.updatedAt))}</p></div><div class="panel-actions"><span class="status-pill ${automation.status === "Active" ? "success" : "warning"}">${escapeHtml(automation.status)}</span><button class="mini-btn" data-action="toggle-automation" data-id="${automation.id}" title="Toggle">${automation.status === "Active" ? icon("timer") : icon("check")}</button><button class="mini-btn" data-action="edit-entity" data-entity="automation" data-id="${automation.id}">${icon("edit")}</button></div></div>
         <div class="panel-body"><div class="automation-flow">
-          <div class="flow-node"><div class="flow-node-type">Trigger</div><strong>${escapeHtml(automation.trigger)}</strong><p>Starts a new workflow run.</p></div>
+          <div class="flow-node"><div class="flow-node-type">Trigger</div><strong>${escapeHtml(automation.trigger)}</strong><p>Planned trigger.</p></div>
           ${automation.conditions.map(condition => `<div class="flow-node"><div class="flow-node-type">Condition</div><strong>${escapeHtml(condition)}</strong><p>Continue only when the rule matches.</p></div>`).join("")}
-          ${automation.actions.map(action => `<div class="flow-node"><div class="flow-node-type">Action</div><strong>${escapeHtml(action)}</strong><p>Executed in sequence with an audit log.</p></div>`).join("")}
+          ${automation.actions.map(action => `<div class="flow-node"><div class="flow-node-type">Action</div><strong>${escapeHtml(action)}</strong><p>Planned action; no automatic execution.</p></div>`).join("")}
         </div></div>
       </section>`).join("")}
       <section class="panel"><div class="panel-header"><div><h2>Execution log</h2><p>Latest workflow runs</p></div></div><div class="panel-body activity-list">
@@ -3922,7 +4041,7 @@
 
   function renderSettings() {
     const tabs = [
-      ["appearance", "Appearance"], ["workspace", "Workspace"], ["data", "Data & backup"], ["cloud", "Cloud sync"], ["security", "Security"], ["about", "About"]
+      ["appearance", "Appearance"], ["controls", "Business controls"], ["workspace", "Workspace"], ["data", "Data & backup"], ["cloud", "Cloud sync"], ["security", "Security"], ["about", "About"]
     ];
     return `<div class="settings-layout">
       <aside class="panel settings-nav">${tabs.map(([id, label]) => `<button class="${ui.settingsTab === id ? "active" : ""}" data-action="settings-tab" data-tab="${id}">${escapeHtml(label)}</button>`).join("")}</aside>
@@ -3931,6 +4050,7 @@
   }
 
   function renderSettingsPanel() {
+    if (ui.settingsTab === "controls") return getSuiteControls().render();
     if (ui.settingsTab === "workspace") {
       return `<section class="panel settings-section"><h2>Workspace profile</h2><p>Defaults used across AkiHQ records, dates and documents.</p>
         <form class="form-grid" data-form="workspace">
@@ -3952,11 +4072,11 @@
     }
     if (ui.settingsTab === "data") {
       return `<section class="panel settings-section"><h2>Data and backup</h2><p>Supabase is the authoritative workspace. Exports are portable backups, not the primary data store.</p>
-        <div class="setting-row"><div class="setting-copy"><strong>Export complete workspace</strong><span>Downloads CRM, tasks, messages, settings and every other database-backed record.</span></div><button class="action-btn" data-action="export-data">${icon("download")} Export JSON</button></div>
-        <div class="setting-row"><div class="setting-copy"><strong>Import workspace backup</strong><span>Replaces the current workspace after validating the file.</span></div><button class="action-btn" data-action="import-data">${icon("upload")} Import JSON</button></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Export workspace snapshot</strong><span>Downloads authorised snapshot records. Fiscal documents, stock ledgers, support and other relational data require their module exports.</span></div><button class="action-btn" data-action="export-data">${icon("download")} Export JSON</button></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Import workspace snapshot</strong><span>Restores operational snapshot records only. Fiscal records and immutable ledgers cannot be overwritten by an import.</span></div><button class="action-btn" data-action="import-data">${icon("upload")} Import JSON</button></div>
         <div class="setting-row"><div class="setting-copy"><strong>Export CRM CSV</strong><span>Creates separate CSV downloads for deals, contacts and companies.</span></div><button class="action-btn" data-action="export-crm-bundle">${icon("download")} Export CSVs</button></div>
       </section>
-      <section class="panel settings-section"><h2>Storage</h2><p>Business data is committed to the shared RLS-protected Supabase row; browser memory is only a render cache.</p>
+      <section class="panel settings-section"><h2>Storage</h2><p>Supabase holds committed records. This browser also caches workspace data and drafts for recovery; sign out on shared devices.</p>
         <div class="detail-grid"><div class="detail-block"><div class="detail-label">Snapshot size</div><div class="detail-value">${(new Blob([JSON.stringify(state)]).size / 1024).toFixed(1)} KB</div></div><div class="detail-block"><div class="detail-label">Database table</div><div class="detail-value"><code>workspace_snapshots</code></div></div></div>
       </section>`;
     }
@@ -3965,18 +4085,18 @@
       return `<section class="panel settings-section"><h2>Supabase database</h2><p>The authenticated Supabase session is the only workspace connection; there is no separate browser-local mode.</p>
         ${!configured ? `<div class="detail-block full" style="border-color:rgba(255,189,85,.4)"><div class="detail-label text-warning">Configuration needed</div><div class="detail-value">Add the Supabase URL and publishable key to <code>config.js</code>.</div></div>` : `
           <div class="setting-row"><div class="setting-copy"><strong>Connected as ${escapeHtml(authUser?.email || "staff user")}</strong><span>Reads, writes and realtime updates use the signed-in staff session and database RLS.</span></div><span class="status-pill success">Live</span></div>
-          <div class="setting-row"><div class="setting-copy"><strong>Automatic persistence</strong><span>Every CRM mutation is committed to Supabase before it is reported as saved.</span></div><span class="status-pill success">Enabled</span></div>`}
+          <div class="setting-row"><div class="setting-copy"><strong>Automatic persistence</strong><span>Changes are saved to Supabase. Failed or conflicting saves are reported and must be resolved.</span></div><span class="status-pill success">Enabled</span></div>`}
       </section>
       <section class="panel settings-section"><h2>Persistence scope</h2><p>The shared snapshot is synchronized across authenticated staff devices.</p>
-        <div class="page-grid grid-3"><div class="detail-block"><div class="detail-label">Included</div><div class="detail-value">CRM, Calendar, Knowledge, tasks, operations, UI settings and audit state.</div></div><div class="detail-block"><div class="detail-label">Realtime</div><div class="detail-value">Database changes and workspace broadcasts update active staff sessions.</div></div><div class="detail-block"><div class="detail-label">Protected elsewhere</div><div class="detail-value">Provider credentials remain encrypted in the server-side integration vault.</div></div></div>
+        <div class="page-grid grid-3"><div class="detail-block"><div class="detail-label">Included</div><div class="detail-value">CRM, Calendar, Knowledge, tasks, operations, UI settings and audit state.</div></div><div class="detail-block"><div class="detail-label">Realtime</div><div class="detail-value">Database events trigger authorised refreshes; business records are never broadcast between browsers.</div></div><div class="detail-block"><div class="detail-label">Protected elsewhere</div><div class="detail-value">Supported provider credentials use the server vault. Generic integration notes do not activate a connection.</div></div></div>
       </section>`;
     }
     if (ui.settingsTab === "security") {
       return `<section class="panel settings-section"><h2>Security model</h2><p>The downloadable build deliberately avoids pretending browser storage is a secure place for provider credentials.</p>
         <div class="setting-row"><div class="setting-copy"><strong>Integration secrets</strong><span>Store OAuth client secrets, API secrets and webhook signing keys in Cloudflare Worker secrets.</span></div><span class="status-pill success">Protected design</span></div>
-        <div class="setting-row"><div class="setting-copy"><strong>Cloud data access</strong><span>The included Supabase schema enables Row Level Security so each user can access only their own snapshot.</span></div><span class="status-pill success">RLS included</span></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Cloud data access</strong><span>Workspace membership, module permissions and server-side checks restrict access to business data.</span></div><span class="status-pill success">RLS included</span></div>
         <div class="setting-row"><div class="setting-copy"><strong>Local device access</strong><span>Anyone with access to this browser profile can read local AkiHQ data. Use OS account security.</span></div><span class="status-pill warning">Device-controlled</span></div>
-        <div class="setting-row"><div class="setting-copy"><strong>Audit log</strong><span>${state.audit.length} local actions recorded. Exported with workspace backups.</span></div><button class="action-btn" data-action="export-audit">Export log</button></div>
+        <div class="setting-row"><div class="setting-copy"><strong>Audit log</strong><span>Browser activity is informational. Security-sensitive database changes have a separate protected audit trail.</span></div><button class="action-btn" data-action="export-audit">Export log</button></div>
       </section>
       <section class="panel settings-section"><h2>Privacy switches</h2><p>Local preferences for notification and motion behaviour.</p>
         <div class="setting-row"><div class="setting-copy"><strong>In-app notifications</strong><span>Show reminders and workflow updates.</span></div><button class="switch ${state.settings.notifications ? "on" : ""}" data-action="toggle-setting" data-key="notifications"></button></div>
@@ -4139,8 +4259,8 @@
           { name: "name", label: "Product name", required: true, full: true },
           { name: "sku", label: "SKU", required: true }, { name: "category", label: "Category", value: "General" },
           { name: "price", label: "Sale price", type: "number", step: "0.01", min: 0, value: 0 },
-          { name: "cost", label: "Unit cost", type: "number", step: "0.01", min: 0, value: 0 },
-          { name: "stock", label: "Stock", type: "number", min: 0, value: 0 }, { name: "reorderAt", label: "Reorder at", type: "number", min: 0, value: 0 },
+          { name: "cost", label: "Indicative catalogue cost", type: "number", step: "0.01", min: 0, value: 0 },
+          { name: "reorderAt", label: "Reorder at", type: "number", min: 0, value: 0 },
           { name: "safetyStock", label: "Safety stock", type: "number", min: 0, value: 0 },
           { name: "leadTimeDays", label: "Supplier lead time (days)", type: "number", min: 0, max: 365, value: 3 },
           { name: "unit", label: "Unit", value: "unit" },
@@ -4572,6 +4692,9 @@
   }
 
   function renderModal() {
+    if (ui.modal.kind === "inventory-operation") return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true" aria-label="Stock operation">${window.AkiHQInventoryOps.renderForm({type:ui.modal.type,products:state.products,locations:inventoryLocations,balances:ui.modal.balances || [],itemId:ui.modal.itemId,key:ui.modal.key})}</section>`;
+    if (ui.modal.kind === "inventory-location") return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true" aria-label="New stock location"><form data-form="inventory-location"><div class="modal-body"><h2>Add stock location</h2><div class="form-field"><label>Name<input name="name" maxlength="120" required></label></div><div class="form-field"><label>Unique code<input name="code" pattern="[A-Za-z0-9_-]{1,32}" required></label></div></div><footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button class="action-btn primary">Create location</button></footer></form></section>`;
+    if (ui.modal.kind === "commerce-export") return renderCommerceExportModal();
     if (ui.modal.kind === "quick") return renderQuickCreateModal();
     if (ui.modal.kind === "mail-compose") return renderMailComposeModal();
     if (ui.modal.kind === "media-folder") return renderMediaFolderModal();
@@ -4835,71 +4958,7 @@
     const connection = state.integrations[integration.id] || {};
     const isConnected = connection.status === "connected";
 
-    let fieldsHtml = "";
-    if (integration.id === "akipasa") {
-      fieldsHtml = `
-        <div style="background:rgba(73,215,160,.12);border:1px solid rgba(73,215,160,.3);border-radius:12px;padding:14px;margin-bottom:16px">
-          <div style="display:flex;align-items:center;gap:8px;color:var(--success);font-weight:700;font-size:13px">
-            ${icon("check")} Live AkiPasa Supabase Database Active
-          </div>
-          <p style="font-size:11px;color:var(--muted);margin:6px 0 0;line-height:1.5">
-            Synchronized with shared database (<code>vhpbvcfkcteswlsdjrfl.supabase.co</code>). Real-time contacts, venue claims, and stats are live.
-          </p>
-        </div>
-      `;
-    } else if (["resend", "mailchimp", "openai"].includes(integration.id)) {
-      fieldsHtml = `
-        <div class="form-grid">
-          <div class="form-field full">
-            <label>${escapeHtml(integration.name)} API Key</label>
-            <input name="apiKey" type="password" placeholder="Paste ${escapeHtml(integration.name)} secret key (e.g. ${integration.id === "resend" ? "re_1234..." : "sk-..."})" value="${escapeHtml(connection.config?.apiKey || "")}" required />
-            <div class="form-help">Configuration is saved to the shared workspace. Keep true provider secrets in the server-side vault.</div>
-          </div>
-          ${integration.id === "resend" ? `
-            <div class="form-field full">
-              <label>Default Sender Email</label>
-              <input name="senderEmail" type="email" placeholder="noreply@akipasa.com" value="${escapeHtml(connection.config?.senderEmail || "noreply@akipasa.com")}" />
-            </div>
-          ` : ""}
-        </div>
-      `;
-    } else if (["stripe", "paypal"].includes(integration.id)) {
-      fieldsHtml = `
-        <div class="form-grid">
-          <div class="form-field full">
-            <label>Secret API Key / Token</label>
-            <input name="apiKey" type="password" placeholder="sk_live_... or sk_test_..." value="${escapeHtml(connection.config?.apiKey || "")}" required />
-          </div>
-          <div class="form-field full">
-            <label>Publishable Key</label>
-            <input name="pubKey" type="text" placeholder="pk_live_... or pk_test_..." value="${escapeHtml(connection.config?.pubKey || "")}" />
-          </div>
-        </div>
-      `;
-    } else if (["slack", "telegram", "discord", "whatsapp"].includes(integration.id)) {
-      fieldsHtml = `
-        <div class="form-grid">
-          <div class="form-field full">
-            <label>Webhook URL or Bot Token</label>
-            <input name="endpoint" type="text" placeholder="https://hooks.slack.com/... or bot token" value="${escapeHtml(connection.config?.endpoint || "")}" required />
-            <div class="form-help">Enter your webhook URL or bot token to enable notifications.</div>
-          </div>
-        </div>
-      `;
-    } else {
-      fieldsHtml = `
-        <div class="form-grid">
-          <div class="form-field full">
-            <label>API Key / Token Secret</label>
-            <input name="apiKey" type="password" placeholder="Enter API secret or token" value="${escapeHtml(connection.config?.apiKey || "")}" />
-          </div>
-          <div class="form-field full">
-            <label>Endpoint / Webhook URL (Optional)</label>
-            <input name="endpoint" type="url" placeholder="https://…" value="${escapeHtml(connection.config?.endpoint || "")}" />
-          </div>
-        </div>
-      `;
-    }
+    const fieldsHtml = `<div class="detail-block"><strong>Server connection required</strong><p>Provider credentials belong in the encrypted server vault. Saving these notes does not activate a connection or process payments.</p></div>`;
 
     return `
       <div class="modal-backdrop" data-action="close-modal"></div>
@@ -4908,7 +4967,7 @@
           <div class="integration-logo" style="--integration-bg:${integration.color};width:39px;height:39px">${escapeHtml(integration.mark)}</div>
           <div>
             <h2>${escapeHtml(integration.name)}</h2>
-            <p>${escapeHtml(integration.category)} connector · ${isConnected ? '<span style="color:var(--success);font-weight:700">● Connected & Active</span>' : '<span style="color:var(--muted)">Not connected</span>'}</p>
+            <p>${escapeHtml(integration.category)} connector · <span class="muted">Configuration notes</span></p>
           </div>
           <button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button>
         </header>
@@ -5094,8 +5153,52 @@
   }
 
   async function handleAction(target, event) {
+    if (target.dataset.action?.startsWith("hp-")) return getHospitality().action(target);
+    if (target.dataset.action?.startsWith("suite-")) { await getSuiteControls().action(target); return; }
+    if (["pos-add","pos-decrement","pos-clear","pos-tender"].includes(target.dataset.action) && pendingPOSSale()) {
+      toast("Pending sale", "Retry the pending sale before changing the order.", "warning"); return;
+    }
     const action = target.dataset.action;
     switch (action) {
+      case "workspace-retry":
+        await pushWorkspaceSnapshot(workspaceMutationVersion); render(); break;
+      case "workspace-reload":
+        ui.modal={kind:"confirm",title:"Discard unsaved workspace changes?",message:"This device's unsaved snapshot edits will be replaced by the latest server version. Download the pending snapshot first if you need to reapply them. Recorded sales and stock operations are unaffected.",confirm:"workspace-reload",confirmLabel:"Discard edits and reload"}; renderPortal(); break;
+      case "open-business-controls":
+        ui.settingsTab = "controls"; setRoute("settings"); await getSuiteControls().load(); render(); break;
+      case "inventory-reconcile": {
+        const user=authUser.id,workspace=state.workspace.id,pending=pendingInventoryOperation();
+        if(!pending) break;
+        const result=await window.AkiHQInventoryOps.reconcileOperation(getSupabaseClient(),workspace,pending.key,pending.operation);
+        window.AkiHQInventoryOps.resolvePending(localStorage,user,workspace,pending.key);
+        if(state.workspace.id===workspace && authUser?.id===user) { await loadLiveData(); if(state.workspace.id!==workspace || authUser?.id!==user) return; render(); toast(result.status==="committed" ? "Stock operation confirmed" : "Unrecorded operation cancelled", "You can now start a new operation."); }
+        break;
+      }
+      case "inventory-retry":
+        await retryInventoryOperation(); break;
+      case "inventory-operation":
+      case "adjust-stock": {
+        event.preventDefault(); event.stopPropagation();
+        if (!canUseTool("inventory") || !state.workspace.canOperate) throw new Error("Stock operation permission required.");
+        if (pendingInventoryOperation()) throw new Error("Retry the pending stock operation before starting another.");
+        const originalState=state,actor=authUser.id;
+        const [locations,balances] = await Promise.all([window.AkiHQInventoryOps.loadLocations(getSupabaseClient(),state.workspace.id),window.AkiHQInventoryOps.loadBalances(getSupabaseClient(),state.workspace.id)]);
+        if(state!==originalState || authUser?.id!==actor || !canUseTool("inventory")) return;
+        inventoryLocations=locations; ui.inventoryBalances=balances;
+        const product = target.dataset.id ? getEntity("product", target.dataset.id) : null;
+        ui.modal = {kind:"inventory-operation",type:target.dataset.type || "receive",itemId:product?.inventoryItemId || "",key:crypto.randomUUID(),balances:ui.inventoryBalances}; renderPortal(); break;
+      }
+      case "inventory-location":
+        if (!state.workspace.canAdminister) throw new Error("A workspace manager must add locations.");
+        ui.modal = {kind:"inventory-location"}; renderPortal(); break;
+      case "inventory-valuation": {
+        requireExport("inventory");
+        const at = new Date().toISOString(),originalState=state,actor=authUser.id,workspace=state.workspace.id;
+        const records = await window.AkiHQInventoryOps.loadValuation(getSupabaseClient(),workspace,at);
+        if(state!==originalState || authUser?.id!==actor) return;
+        requireExport("inventory");
+        downloadBlob(`akihq-stock-valuation-${at.slice(0,10)}.json`, JSON.stringify({workspace:state.workspace.id,as_of:at,method:"recorded weighted-average; unknown historic costs remain null",summary:window.AkiHQInventoryOps.summarizeValuation(records),records},null,2), "application/json"); break;
+      }
       case "navigate":
         ui.mobileNavOpen = false;
         setRoute(target.dataset.route);
@@ -5537,14 +5640,21 @@
         importInput.click();
         break;
       case "export-csv":
+        requireExport(collectionTools[target.dataset.entity] || target.dataset.entity);
         if (isPlatformWorkspace() && target.dataset.entity === "companies") {
           companyManager.exportCSV().catch(error => toast("Export failed", error.message, "danger"));
         } else exportEntityCsv(target.dataset.entity);
+        break;
+      case "commerce-export":
+        if (!canUseTool(target.dataset.mode)) return;
+        ui.modal = { kind: "commerce-export", mode: target.dataset.mode };
+        renderPortal();
         break;
       case "export-crm-bundle":
         ["deals", "contacts", "companies"].forEach((entity, index) => setTimeout(() => exportEntityCsv(entity), index * 200));
         break;
       case "export-audit":
+        if (!state.workspace.canAdminister) throw new Error("Workspace administrator permission required.");
         downloadBlob(`akihq-audit-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state.audit, null, 2), "application/json");
         break;
       case "confirm-reset":
@@ -5568,10 +5678,7 @@
         if (isPlatformWorkspace()) companyManager.publish();
         else publishAllValidCompanies();
         break;
-      case "adjust-stock":
-        event.preventDefault(); event.stopPropagation();
-        ui.modal = { kind: "stock", id: target.dataset.id }; renderPortal();
-        break;
+
       case "pos-category":
         ui.posCategory = target.dataset.value || "All";
         render();
@@ -5580,8 +5687,8 @@
         const product = getEntity("product", target.dataset.id);
         if (!product) break;
         const next = Number(ui.posCart[product.id] || 0) + 1;
-        if (next > Number(product.stock || 0)) {
-          toast("Not enough stock", `${product.name} has ${Number(product.stock || 0).toLocaleString()} available.`, "danger");
+        if (next > Number(product.posStock ?? product.stock ?? 0)) {
+          toast("Not enough stock", `${product.name} has ${Number(product.posStock ?? product.stock ?? 0).toLocaleString()} available in Main stock / PoS.`, "danger");
           break;
         }
         ui.posCart[product.id] = next;
@@ -5638,7 +5745,7 @@
       case "test-integration": {
         const id = target.dataset.id;
         const integration = integrationCatalog.find(item => item.id === id);
-        toast("Connection Active", `Test ping to ${integration?.name || id} succeeded. Live integration is operational.`, "success");
+        toast("Verification required", `${integration?.name || id} has no connection test configured. Configuration notes do not activate a provider.`, "warning");
         break;
       }
       case "disconnect-integration":
@@ -5648,6 +5755,7 @@
         break;
       case "settings-tab":
         ui.settingsTab = target.dataset.tab; render();
+        if (ui.settingsTab === "controls") { await getSuiteControls().load(); render(); }
         break;
       case "set-theme":
         state.settings.theme = target.dataset.theme; ui.dropdown = null; persist();
@@ -5888,9 +5996,10 @@
         ui.dropdown = null;
         renderPortal();
         const client = getSupabaseClient();
-        if (client) {
-          client.auth.signOut().catch(err => console.warn("Sign out error:", err));
-        }
+        if (workspaceMutationVersion !== workspaceCommittedVersion) throw new Error("Save or resolve the pending workspace changes before signing out.");
+        const signedOutId=authUser?.id;
+        if (client) { const {error}=await client.auth.signOut(); if(error) throw error; }
+        if (signedOutId) clearSignedOutDeviceCache(signedOutId);
         authUser = null;
         authRole = null;
         renderLoginScreen();
@@ -5956,6 +6065,11 @@
   }
 
   function runConfirmedAction(modal) {
+    if (modal.confirm === "workspace-reload") {
+      if (pushWorkspaceTimer) clearTimeout(pushWorkspaceTimer);
+      workspaceMutationVersion=workspaceCommittedVersion; workspaceSaveError=""; lastRemoteWorkspaceUpdate=null;
+      ui.modal=null; syncCloudWorkspacePull().then(render); return;
+    }
     if (!modal) return;
     if (modal.confirm === "reset") {
       ui.modal = null; renderPortal(); toast("Reset unavailable", "Use a reviewed database maintenance migration for shared workspace resets.", "info");
@@ -5976,62 +6090,93 @@
     }
   }
 
+  function clearSignedOutDeviceCache(userId) {
+    for (const key of Object.keys(localStorage)) {
+      if ((key.startsWith("akihq:workspace-cache:") || key.startsWith("akihq:form-draft:") || key.startsWith("akihq:selected-workspace:")) && (key.includes(userId) || key.includes("anonymous"))) localStorage.removeItem(key);
+    }
+    // Pending stock/sale keys survive logout so uncertain commits can be reconciled.
+    store.value=null; state=seedState(); suiteControls?.dispose(); suiteControls=null; hospitality?.dispose(); hospitality=null;
+    ui.modal=null; ui.drawer=null; ui.searchQuery=""; portal.innerHTML="";
+  }
+
+  function pendingPOSSale() {
+    return authUser ? window.AkiCheckoutSession.read(localStorage, authUser.id, state.workspace.id) : null;
+  }
+
   async function completePOSSale() {
-    if (ui.posBusy) return;
-    const lines = Object.entries(ui.posCart).map(([id, quantity]) => {
-      const product = getEntity("product", id);
-      return product && Number(quantity) > 0 ? {
-        product,
-        item_id: product.inventoryItemId,
-        quantity: Number(quantity),
-        unit_price_cents: Math.max(0, Math.round(Number(product.price || 0) * 100))
-      } : null;
-    }).filter(Boolean);
-    if (!lines.length) return;
-    const insufficient = lines.find(line => line.quantity > Number(line.product.stock || 0));
-    if (insufficient) {
-      toast("Stock changed", `${insufficient.product.name} no longer has enough stock.`, "danger");
-      return;
-    }
+    if (!navigator.locks?.request) throw new Error("This browser cannot safely coordinate the till. Use an up-to-date browser over HTTPS.");
+    const workspace = state.workspace.id, user = authUser?.id;
+    return navigator.locks.request(`akihq-sale:${user}:${workspace}`, {ifAvailable:true}, async lock => {
+      if (!lock) { toast("Checkout in progress", "Another tab is using the till. Review the result before trying again.", "warning"); return; }
+      if (state.workspace.id !== workspace || authUser?.id !== user) return;
+      return completePOSSaleLocked();
+    });
+  }
+
+  async function completePOSSaleLocked() {
+    if (ui.posBusy || !canUseTool("pos") || !state.workspace.canOperate) return;
     const client = getSupabaseClient();
-    if (!client || !authUser) {
-      toast("Sale not recorded", "Database authentication is unavailable.", "danger");
-      return;
-    }
-    ui.posBusy = true;
-    render();
-    const totalCents = lines.reduce((sum, line) => sum + line.quantity * line.unit_price_cents, 0);
-    const reference = `akihq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    try {
-      const { data: saleId, error } = await client.rpc("crm_record_pos_sale", {
-        p_workspace: state.workspace.id,
-        p_provider: ui.posTender,
-        p_external_id: reference,
-        p_total_cents: totalCents,
-        p_currency: state.workspace.currency || "EUR",
-        p_employee_profile: authUser.id,
-        p_lines: lines.map(({ item_id, quantity, unit_price_cents }) => ({ item_id, quantity, unit_price_cents }))
+    if (!client || !authUser) throw new Error("Database authentication is unavailable.");
+    const workspaceId = state.workspace.id, userId = authUser.id;
+    let request = pendingPOSSale();
+    if (!request) {
+      const lines = Object.entries(ui.posCart).map(([id, quantity]) => {
+        const product = getEntity("product", id);
+        if (!product?.inventoryItemId) throw new Error("This item is not in live inventory.");
+        return { item_id: product.inventoryItemId, quantity: Number(quantity), unit_price_cents: Math.round(Number(product.price) * 100) };
       });
-      if (error) throw error;
-      lines.forEach(line => { line.product.stock = Math.max(0, Number(line.product.stock || 0) - line.quantity); });
-      posSales.unshift({ id: saleId, provider: ui.posTender, external_id: reference, status: "completed", total_cents: totalCents, currency: state.workspace.currency || "EUR", sold_at: isoNow(), employee_profile_id: authUser.id, tip_cents:0, tipped_profile_id:null, crm_pos_sale_lines:lines.map(({ item_id, quantity, unit_price_cents }) => ({ item_id, quantity, unit_price_cents })) });
-      addActivity("pos_sale", saleId, "completed a POS sale", `${formatMoney(totalCents / 100)} · ${lines.reduce((sum, line) => sum + line.quantity, 0)} items`, "sales");
-      addAudit("pos.sale_completed", { workspaceId: state.workspace.id, saleId, totalCents, tender: ui.posTender });
-      ui.posCart = {};
-      ui.posCartOpen = false;
-      persist(false);
-      toast("Sale completed", `${formatMoney(totalCents / 100)} paid by ${ui.posTender}.`, "success");
-      loadLiveData();
+      if (!lines.length) return;
+      request = window.AkiCheckoutSession.stage(localStorage, userId, workspaceId, {
+        p_workspace: workspaceId, p_provider: ui.posTender, p_external_id: `akihq-${crypto.randomUUID()}`,
+        p_total_cents: window.AkiCheckoutSession.total(lines), p_currency: state.workspace.currency || "EUR",
+        p_employee_profile: userId, p_lines: lines
+      });
+    }
+    ui.posBusy = true; render();
+    try {
+      const { data: saleId, error } = await client.rpc("crm_record_pos_sale", request);
+      if (error) {
+        // Only the dedicated post-lock no-record rejection proves safe release.
+        // Access errors and uncertain transport outcomes retain the original key.
+        if (error.code === "P0N01") {
+          window.AkiCheckoutSession.resolve(localStorage, userId, workspaceId, request.p_external_id);
+          if (state.workspace.id === workspaceId && authUser?.id === userId) await loadLiveData();
+        }
+        throw error;
+      }
+      if (!saleId) throw new Error("No sale confirmation received. Retry the pending sale.");
+      window.AkiCheckoutSession.resolve(localStorage, userId, workspaceId, request.p_external_id);
+      if (state.workspace.id === workspaceId && authUser?.id === userId) {
+        ui.posCart = {}; ui.posCartOpen = false;
+        await loadLiveData();
+        if(state.workspace.id!==workspaceId || authUser?.id!==userId) return;
+        toast("Sale recorded", "The selected tender was recorded. Payment settlement is verified separately.", "success");
+      }
     } catch (error) {
-      toast("Sale not recorded", error?.message || "The transaction was rejected.", "danger");
+      if (state.workspace.id === workspaceId && authUser?.id === userId) toast("Sale needs attention", error?.message || "Retry the pending sale to confirm its result.", "danger");
     } finally {
-      ui.posBusy = false;
-      render();
+      if (state.workspace.id === workspaceId && authUser?.id === userId) { ui.posBusy = false; render(); }
     }
   }
 
   function handleChange(target) {
     const change = target.dataset.change;
+    const stockForm=target.closest?.('form[data-form="inventory-operation"][data-type="count"]');
+    if(stockForm && ["item_id","location_id"].includes(target.name)) {
+      const values=new FormData(stockForm), itemId=values.get("item_id"), locationId=values.get("location_id") || inventoryLocations.find(location=>location.is_default)?.id;
+      const balance=(ui.modal?.balances || []).find(row=>row.item_id===itemId && row.location_id===locationId);
+      const product=state.products.find(item=>item.inventoryItemId===itemId);
+      stockForm.elements.expected_quantity.value=balance ? balance.quantity : (!values.get("location_id") ? product?.stock ?? 0 : 0);
+    }
+    if (target.matches("[data-pos-quantity]")) {
+      if (pendingPOSSale()) { toast("Pending sale", "Retry the pending sale before changing quantity.", "warning"); render(); return; }
+      const product = getEntity("product", target.dataset.posQuantity);
+      const quantity = Number(target.value);
+      if (!product || !/^\d+(\.\d{1,3})?$/.test(target.value) || quantity <= 0 || quantity > Number(product.posStock ?? product.stock)) {
+        toast("Invalid quantity", "Enter a positive quantity with at most three decimal places within available stock.", "danger"); render(); return;
+      }
+      ui.posCart[product.id] = quantity; render(); return;
+    }
     if (target.matches("[data-inventory-filter]")) {
       ui.inventoryFilter = target.value || "all";
       render();
@@ -6161,17 +6306,19 @@
   }
 
   async function saveEntityFromForm(form) {
+    const originalState=state,actor=authUser?.id,workspace=state.workspace.id,tools=JSON.stringify(state.workspace.toolKeys);
+    const stillCurrent=()=>state===originalState && authUser?.id===actor && state.workspace.id===workspace && JSON.stringify(state.workspace.toolKeys)===tools;
     const type = form.dataset.entity;
+    if (!state.workspace.canOperate) throw new Error("Your workspace role is read-only.");
     if (!canUseEntityType(type)) throw new Error("This tool is not enabled for the current workspace.");
     const id = form.dataset.id || null;
     const collection = collectionFor[type];
     if (!collection || !state[collection]) return;
     const existing = id ? getEntity(type, id) : null;
     const data = parseEntityForm(form, type, existing);
-    if (type === "product" && !isPlatformWorkspace()) {
+    if (type === "product") {
       const client = getSupabaseClient();
       if (!client || !authUser) throw new Error("Database authentication is unavailable.");
-      const desiredStock = Math.max(0, Number(data.stock || 0));
       let itemId = existing?.inventoryItemId || null;
       let currentStock = Number(existing?.stock || 0);
       if (itemId) {
@@ -6194,7 +6341,7 @@
           workspace_id: state.workspace.id,
           sku: String(data.sku || "").trim(),
           name: String(data.name || "").trim(),
-          unit: "unit",
+          unit: String(data.unit || "unit").trim(),
           reorder_point: Math.max(0, Number(data.reorderAt || 0)),
           safety_stock: 0,
           lead_time_days: 3,
@@ -6207,22 +6354,10 @@
         itemId = created.id;
         currentStock = Number(created.on_hand || 0);
       }
-      const quantityDelta = desiredStock - currentStock;
-      if (quantityDelta !== 0) {
-        const { error } = await client.from("crm_inventory_movements").insert({
-          workspace_id: state.workspace.id,
-          item_id: itemId,
-          quantity_delta: quantityDelta,
-          movement_type: existing ? "count" : "opening",
-          employee_profile_id: authUser.id,
-          notes: existing ? "Inventory count updated" : "Opening stock",
-          created_by: authUser.id
-        });
-        if (error) throw error;
-      }
       data.inventoryItemId = itemId;
-      data.stock = desiredStock;
+      data.stock = currentStock;
     }
+    if(!stillCurrent()) return;
     const prefix = { deal: "dl", lead: "ld", contact: "ct", company: "co", task: "tk", project: "pr", event: "ev", product: "pd", invoice: "in", campaign: "cp", page: "pg", form: "fm", automation: "au", article: "kb", employee: "emp" }[type] || type.slice(0, 2);
     const now = isoNow();
     if (!existing) {
@@ -6275,6 +6410,7 @@
     }
     if (type === "article") data.authorId ||= state.currentUserId;
 
+    if(!stillCurrent()) return;
     if (existing) {
       const index = state[collection].findIndex(item => item.id === id);
       state[collection][index] = data;
@@ -6299,15 +6435,40 @@
     if (existing && ui.drawer?.type === type && ui.drawer?.id === id) renderPortal();
     try {
       if (durableVersion !== null) await upsertDurableRecord(type, data, durableVersion);
+      if(!stillCurrent()) return;
       await syncCloudWorkspacePushNow();
+      if(!stillCurrent()) return;
       toast(existing ? `${capitalize(type)} updated` : `${capitalize(type)} created`, `${titleForEntity(type, data)} · saved to database`);
     } catch (error) {
-      toast("Database save failed", `${titleForEntity(type, data)} is not committed yet: ${error.message || "unknown error"}`, "danger");
+      if(stillCurrent()) toast("Database save failed", `${titleForEntity(type, data)} is not committed yet: ${error.message || "unknown error"}`, "danger");
     }
   }
 
   async function handleSubmit(form, event) {
+    if (form.dataset.form?.startsWith("hp-")) { event?.preventDefault(); return getHospitality().submit(form); }
     const kind = form.dataset.form;
+    if (kind?.startsWith("suite-")) return getSuiteControls().submit(form);
+    if (kind === "inventory-location") {
+      const values = new FormData(form),originalState=state,actor=authUser.id,workspace=state.workspace.id;
+      await window.AkiHQInventoryOps.createLocation(getSupabaseClient(),workspace,values.get("name"),values.get("code"));
+      if(state!==originalState || authUser?.id!==actor) return;
+      const locations=await window.AkiHQInventoryOps.loadLocations(getSupabaseClient(),workspace);
+      if(state!==originalState || authUser?.id!==actor) return;
+      inventoryLocations=locations;
+      clearFormDraft(form); ui.modal=null; render(); toast("Location created", "Ready for stock receipts and transfers."); return;
+    }
+    if (kind === "inventory-operation") {
+      const payload=window.AkiHQInventoryOps.fromForm(new FormData(form),form.dataset.type);
+      if (!navigator.locks?.request) throw new Error("Use an up-to-date browser over HTTPS to safely record stock.");
+      const workspace=state.workspace.id,user=authUser.id;
+      await navigator.locks.request(`akihq-stock:${user}:${workspace}`, {ifAvailable:true}, async lock => {
+        if (!lock) throw new Error("Another tab is recording stock. Review its result before trying again.");
+        if(state.workspace.id!==workspace || authUser?.id!==user) throw new Error("Workspace changed; open the operation again.");
+        window.AkiHQInventoryOps.stagePending(localStorage,user,workspace,form.dataset.requestKey,payload);
+      });
+      ui.modal=null; render(); await retryInventoryOperation(); return;
+    }
+    if (kind === "commerce-export") return exportCommerceRecords(form);
     if (kind === "telegram-chat") {
       const message = String(new FormData(form).get("message") || "").trim();
       const button = event.submitter || form.querySelector('[type="submit"]');
@@ -6604,51 +6765,19 @@
       const integration = integrationCatalog.find(item => item.id === id);
       const values = Object.fromEntries(new FormData(form));
       state.integrations[id] = {
-        status: "connected",
-        label: `${integration?.name || id} workspace`,
-        config: { apiKey: values.apiKey || "", endpoint: values.endpoint || "", senderEmail: values.senderEmail || "", pubKey: values.pubKey || "", notes: values.notes || "" },
+        status: "configured",
+        label: `${integration?.name || id} configuration notes`,
+        config: { notes: values.notes || "" },
         connectedAt: isoNow(),
         updatedAt: isoNow()
       };
       addActivity("integration", id, "connected integration", integration?.name || id, "integrations");
       addAudit("integration.connected", { provider: id });
       ui.modal = null; persist(); render();
-      toast("Integration Connected", `${integration?.name || id} is live and active in your workspace.`, "success");
+      toast("Configuration notes saved", "Provider setup and verification are still required.", "info");
       return;
     }
-    if (kind === "stock") {
-      const product = getEntity("product", form.dataset.id);
-      const values = Object.fromEntries(new FormData(form));
-      if (!product) return;
-      const adjustment = Number(values.adjustment || 0);
-      if (!isPlatformWorkspace()) {
-        const client = getSupabaseClient();
-        if (!client || !authUser || !product.inventoryItemId) {
-          toast("Stock not adjusted", "Save this product to smart inventory first.", "danger");
-          return;
-        }
-        const { error } = await client.from("crm_inventory_movements").insert({
-          workspace_id: state.workspace.id,
-          item_id: product.inventoryItemId,
-          quantity_delta: adjustment,
-          movement_type: ({ "Purchase received": "purchase", "Sale": "sale", "Damage": "waste", "Stock count": "count", "Correction": "adjustment" })[values.reason] || "adjustment",
-          employee_profile_id: authUser.id,
-          notes: String(values.note || values.reason || "Manual adjustment").trim(),
-          created_by: authUser.id
-        });
-        if (error) {
-          toast("Stock not adjusted", error.message || "The stock ledger rejected the change.", "danger");
-          return;
-        }
-      }
-      product.stock = Math.max(0, Number(product.stock || 0) + adjustment);
-      product.updatedAt = isoNow();
-      addActivity("product", product.id, "adjusted stock", `${adjustment >= 0 ? "+" : ""}${adjustment} · ${values.reason}${values.note ? ` · ${values.note}` : ""}`, "inventory");
-      addAudit("product.stock_adjusted", { id: product.id, adjustment, reason: values.reason });
-      ui.modal = null; persist();
-      toast("Stock adjusted", `${product.name}: ${Number(product.stock).toLocaleString()} units`);
-      return;
-    }
+    if (kind === "stock") throw new Error("Open Stock operations to record a receipt, count, transfer or waste.");
     if (kind === "cloud-auth") {
       const values = Object.fromEntries(new FormData(form));
       const intent = event.submitter?.value || "signin";
@@ -6937,6 +7066,59 @@
     }
   }
 
+  let commerceExportBusy = false;
+  let commerceWorkbookPromise;
+
+  function renderCommerceExportModal() {
+    const timezone = state.workspace.timezone || "Europe/Madrid";
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map(p => [p.type, p.value]));
+    const today = `${parts.year}-${parts.month}-${parts.day}`;
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal" role="dialog" aria-modal="true" aria-labelledby="commerce-export-title"><header class="modal-head"><div><h2 id="commerce-export-title">Export ${ui.modal.mode === "pos" ? "sales" : "inventory"} records</h2><p>Excel workbook · ${escapeHtml(timezone)}</p></div><button class="icon-btn" data-action="close-modal" aria-label="Close">${icon("close")}</button></header><form data-form="commerce-export" data-mode="${escapeHtml(ui.modal.mode)}"><div class="modal-body"><p>Operational records for reconciliation with your accountant. This is not an IVA book or fiscal invoice. Historical IVA was not recorded.</p><div class="form-grid"><label>From<input name="from" type="date" value="${today.slice(0, 7)}-01" required></label><label>Through<input name="through" type="date" value="${today}" required></label></div><p>All available records in the period are fetched. The catalogue sheet is current; the recorded valuation sheet uses the selected period end and labels unknown historical costs. Sales totals do not prove payment settlement.</p></div><footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">Cancel</button><button class="action-btn primary" type="submit" ${commerceExportBusy ? "disabled" : ""}>${commerceExportBusy ? "Preparing…" : "Download Excel"}</button></footer></form></section>`;
+  }
+
+  async function exportCommerceRecords(form) {
+    if (commerceExportBusy) return;
+    const mode = form.dataset.mode;
+    if (!["pos", "inventory"].includes(mode) || !canUseTool(mode)) throw new Error("Export access required.");
+    requireExport(mode);
+    const client = getSupabaseClient();
+    if (!client || !authUser) throw new Error("Sign in before exporting.");
+    const originalState=state,actor=authUser.id;
+    const active=()=>state===originalState && authUser?.id===actor;
+    const input = new FormData(form);
+    const options = { mode, workspace: state.workspace.id, from: String(input.get("from")), through: String(input.get("through")), timezone: state.workspace.timezone || "Europe/Madrid" };
+    window.AkiCommerceExport.period(options.from, options.through, options.timezone);
+    commerceExportBusy = true;
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Preparing…";
+    try {
+      if (!window.XLSX) {
+        commerceWorkbookPromise ||= new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "assets/vendor/xlsx-0.20.3.min.js";
+          script.onload = resolve;
+          script.onerror = () => { script.remove(); commerceWorkbookPromise = null; reject(new Error("Could not load Excel export support.")); };
+          document.head.appendChild(script);
+        });
+        await commerceWorkbookPromise;
+      }
+      const data = await window.AkiCommerceExport.collect(client, options);
+      if (state.workspace.id !== options.workspace || !active() || !canUseTool(mode)) throw new Error("Workspace or permissions changed. Start the export again.");
+      requireExport(mode);
+      const workbook = window.AkiCommerceExport.workbook(window.XLSX, data);
+      const bytes = window.XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      downloadBlob(`akihq-${mode}-${options.from}-${options.through}.xlsx`, new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      toast("Operational export downloaded", "Read the workbook notes and reconciliation results before accounting use.", "success");
+    } catch (error) {
+      if(active()) toast("Export failed", error.message || "No partial workbook was downloaded.", "danger");
+    } finally {
+      commerceExportBusy = false;
+      button.disabled = false;
+      button.textContent = "Download Excel";
+    }
+  }
+
   function printInvoice(id) {
     const invoice = getEntity("invoice", id);
     if (!invoice) return;
@@ -6950,7 +7132,7 @@
     popup.document.write(`<!doctype html><html><head><title>${escapeHtml(invoice.number)}</title><style>
       body{font-family:Arial,sans-serif;color:#17203a;margin:0;padding:48px} .top{display:flex;justify-content:space-between;gap:40px}.brand{font-size:28px;font-weight:800}.muted{color:#69738f}h1{font-size:38px;margin:42px 0 8px}table{width:100%;border-collapse:collapse;margin-top:38px}th,td{text-align:left;padding:14px;border-bottom:1px solid #dce2ef}th{font-size:11px;text-transform:uppercase;color:#69738f}.totals{margin:32px 0 0 auto;width:320px}.totals div{display:flex;justify-content:space-between;padding:8px 0}.grand{font-size:20px;font-weight:800;border-top:2px solid #17203a;margin-top:8px;padding-top:14px!important}.notes{margin-top:48px;padding:18px;background:#f4f6fb;border-radius:12px}@media print{body{padding:18mm}}</style></head><body>
       <div class="top"><div><div class="brand">AkiHQ</div><div class="muted">${escapeHtml(state.workspace.name)}<br>${escapeHtml(state.workspace.timezone)}</div></div><div class="muted" style="text-align:right">${escapeHtml(invoice.type)}<br><strong style="color:#17203a">${escapeHtml(invoice.number)}</strong></div></div>
-      <h1>${escapeHtml(invoice.type)}</h1><div class="muted">Issued ${escapeHtml(formatDate(invoice.issueDate))} · Due ${escapeHtml(formatDate(invoice.dueDate))}</div>
+      <h1>${escapeHtml(invoice.type === "Quote" ? "Quote" : "Operational document")}</h1>${invoice.type !== "Quote" ? '<p><strong>NOT A FISCAL INVOICE — historical fiscal data has not been verified.</strong></p>' : ""}<div class="muted">Issued ${escapeHtml(formatDate(invoice.issueDate))} · Due ${escapeHtml(formatDate(invoice.dueDate))}</div>
       <div style="margin-top:30px"><strong>Bill to</strong><br>${escapeHtml(company?.name || "Customer")}<br><span class="muted">${escapeHtml(company?.email || "")}${company?.city ? `<br>${escapeHtml(company.city)}` : ""}</span></div>
       <table><thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead><tbody><tr><td>${escapeHtml(invoice.notes || `${invoice.type} services`)}</td><td style="text-align:right">${escapeHtml(formatMoney(subtotal))}</td></tr></tbody></table>
       <div class="totals"><div><span>Subtotal</span><span>${escapeHtml(formatMoney(subtotal))}</span></div><div><span>Tax</span><span>${escapeHtml(formatMoney(invoice.tax))}</span></div><div class="grand"><span>Total</span><span>${escapeHtml(formatMoney(invoice.total))}</span></div></div>
@@ -6972,16 +7154,20 @@
   }
 
   function exportData() {
+    if (!state.workspace.canAdminister) throw new Error("Workspace owner or administrator access required for a snapshot export.");
+    clearDeniedCollections();
     downloadBlob(`akihq-${state.workspace.slug || "workspace"}-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2), "application/json");
     toast("Backup downloaded", "Keep it somewhere safer than your Downloads graveyard.");
   }
 
   function csvCell(value) {
-    const string = Array.isArray(value) ? value.join("; ") : value && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+    let string = Array.isArray(value) ? value.join("; ") : value && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+    if (typeof value !== "number" && /^[\s\uFEFF]*[=+@-]/.test(string)) string = "'" + string;
     return `"${string.replaceAll('"', '""')}"`;
   }
 
   function exportEntityCsv(entityName) {
+    requireExport(collectionTools[entityName] || entityName);
     const collection = state[entityName];
     if (!Array.isArray(collection) || !collection.length) {
       toast("Nothing to export", capitalize(entityName), "info");
@@ -7137,45 +7323,17 @@
   }
 
   async function cloudPush() {
-    try {
-      const session = await ensureCloudSession();
-      const userId = session.user?.id || cloudSession?.user?.id;
-      if (!userId) throw new Error("Supabase did not return a user ID.");
-      const wsId = state.workspace?.id || "ws_akipasa";
-      await supabaseRequest("/rest/v1/workspace_snapshots?on_conflict=workspace_id", {
-        method: "POST",
-        token: session.access_token,
-        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: [{ workspace_id: wsId, updated_by: userId, data: state, updated_at: isoNow() }]
-      });
-      addAudit("cloud.snapshot_pushed", { userId, workspaceId: wsId });
-      store.save(state);
-      toast("Cloud snapshot uploaded", "This workspace is now backed up to Supabase database.");
-    } catch (error) {
-      console.error(error);
-      toast("Cloud push failed", error.message, "danger");
-    }
+    try { await pushWorkspaceSnapshot(); toast("Workspace saved", "Authorised records were committed to the database."); }
+    catch (error) { toast("Save failed", error.message, "danger"); }
   }
 
   async function cloudPull() {
-    try {
-      const session = await ensureCloudSession();
-      const userId = session.user?.id || cloudSession?.user?.id;
-      if (!userId) throw new Error("Supabase did not return a user ID.");
-      const wsId = state.workspace?.id || "ws_akipasa";
-      const rows = await supabaseRequest(`/rest/v1/workspace_snapshots?workspace_id=eq.${encodeURIComponent(wsId)}&select=data,updated_at&limit=1`, { token: session.access_token });
-      const snapshot = Array.isArray(rows) ? rows[0] : null;
-      if (!snapshot?.data?.workspace) throw new Error("No shared cloud snapshot exists for this workspace yet.");
-      state = snapshot.data;
-      store.save(state);
-      ui.route = "dashboard";
-      location.hash = "#/dashboard";
-      render();
-      toast("Cloud snapshot restored", `Pulled data saved ${formatDate(snapshot.updated_at, { time: true })}.`);
-    } catch (error) {
-      console.error(error);
-      toast("Cloud pull failed", error.message, "danger");
+    if (workspaceMutationVersion !== workspaceCommittedVersion) {
+      toast("Unsaved changes", "Resolve the pending save before refreshing.", "warning"); return;
     }
+    await syncCloudWorkspacePull();
+    await syncDurableRecordsPull();
+    render();
   }
 
   function attachAfterRender() {
@@ -7188,7 +7346,7 @@
   document.addEventListener("click", event => {
     const target = event.target.closest("[data-action]");
     if (target) {
-      handleAction(target, event);
+      handleAction(target, event).catch(error => toast("Action could not be completed", error.message || "Please retry.", "danger"));
       return;
     }
     if (ui.dropdown && !event.target.closest(".dropdown")) {
@@ -7295,9 +7453,16 @@
     try {
       const parsed = JSON.parse(await file.text());
       if (!parsed?.workspace || !Array.isArray(parsed?.deals) || !parsed?.settings) throw new Error("This file is not a valid AkiHQ workspace backup.");
-      state = parsed;
+      if (!state.workspace.canAdminister) throw new Error("Workspace administrator permission required.");
+      if (parsed.workspace.id !== state.workspace.id) throw new Error("Import must belong to the currently selected workspace.");
+      const relational = new Set(["products","employees","events","knowledge"]);
+      for (const [key, tool] of Object.entries(collectionTools)) {
+        if (!relational.has(key) && canUseTool(tool) && Array.isArray(parsed[key])) state[key] = parsed[key];
+      }
+      clearDeniedCollections();
       state.version = APP_VERSION;
-      store.save(state);
+      markWorkspaceDirty(); store.save(state);
+      await pushWorkspaceSnapshot(workspaceMutationVersion);
       ui.route = "dashboard";
       ui.drawer = null;
       ui.modal = null;
@@ -7474,10 +7639,7 @@
       .eq("profile_id", userId)
       .eq("status", "active");
     if (error) {
-      if (["moderator", "administrator"].includes(role)) {
-        return [platformWorkspace];
-      }
-      return [];
+      throw error;
     }
     const workspaceRows = (membershipRows || []).flatMap(member => {
       const workspace = Array.isArray(member.crm_workspaces) ? member.crm_workspaces[0] : member.crm_workspaces;
@@ -7493,27 +7655,21 @@
       workspaceRows.unshift(platformWorkspace);
     }
     if (!workspaceRows.length) return [];
-    const { data: entitlementRows } = await client
-      .from("crm_workspace_entitlements")
-      .select("workspace_id,tool_key,active,starts_at,ends_at")
-      .in("workspace_id", workspaceRows.map(workspace => workspace.id))
-      .eq("active", true);
-    const now = Date.now();
-    workspaceRows.forEach(workspace => {
-      workspace.toolKeys = (entitlementRows || [])
-        .filter(entitlement => entitlement.workspace_id === workspace.id
-          && (!entitlement.starts_at || new Date(entitlement.starts_at).getTime() <= now)
-          && (!entitlement.ends_at || new Date(entitlement.ends_at).getTime() > now))
-        .map(entitlement => entitlement.tool_key);
-    });
-    // Unlike legacy platform navigation, Support always fails closed and uses
-    // the server's role-template decision, never just an entitlement or URL.
-    await Promise.all(workspaceRows.map(async workspace => {
-      const { data: access, error: accessError } = await client.rpc("crm_support_access", { p_workspace: workspace.id });
-      workspace.toolKeys = workspace.toolKeys.filter(key => key !== "support");
-      if (!accessError && access?.read) workspace.toolKeys.push("support");
+    const authorised = await Promise.all(workspaceRows.map(async workspace => {
+      const { data: access, error: accessError } = await client.rpc("crm_workspace_access", { p_workspace: workspace.id });
+      if (accessError) {
+        if (accessError.code === "42501") return null;
+        throw new Error("Dashboard backend is unavailable or being updated. Your sign-in is still valid; please reload shortly.");
+      }
+      if (!access) throw new Error("Dashboard access could not be verified. Please reload shortly.");
+      workspace.toolKeys = Array.isArray(access.tool_keys) ? access.tool_keys : [];
+      workspace.canAdminister = access.can_administer === true;
+      workspace.canOperate = access.can_operate === true;
+      workspace.canExport = access.can_export === true;
+      workspace.exportToolKeys = Array.isArray(access.export_tool_keys) ? access.export_tool_keys : [];
+      return workspace;
     }));
-    return workspaceRows;
+    return authorised.filter(Boolean);
   }
 
   function activateWorkspace(workspace) {
@@ -7523,6 +7679,12 @@
     state = store.load();
     state.workspace = { ...state.workspace, ...workspace };
     state.currentUserId = authUser.id;
+    clearDeniedCollections();
+    ui.posCart = {};
+    ui.posBusy = false;
+    inventoryLocations = [];
+    suiteControls?.dispose(); suiteControls = null;
+    hospitality?.dispose(); hospitality = null;
     if (workspace.id !== "ws_akipasa" && ["social", "ai-team"].includes(ui.crmTab)) ui.crmTab = "deals";
     if (!canUseRoute(ui.route)) {
       ui.route = canUseRoute("dashboard") ? "dashboard" : visibleNavSections()[0]?.items[0]?.[0] || "settings";
@@ -7534,6 +7696,7 @@
     durableRecordMutationVersion = 0;
     durableRecordCommittedVersion = 0;
     lastRemoteWorkspaceUpdate = null;
+    workspaceSaveError = "";
     hasWorkspaceSnapshotsTable = true;
   }
 
@@ -7603,7 +7766,12 @@
       console.warn("Profile check error:", e);
     }
 
-    availableWorkspaces = await loadAccessibleWorkspaces(client, session.user.id, role);
+    try {
+      availableWorkspaces = await loadAccessibleWorkspaces(client, session.user.id, role);
+    } catch (error) {
+      renderLoginScreen(error.message || "Dashboard access could not be verified. Please reload shortly.");
+      return;
+    }
     // The database membership is authoritative. Standard Business accounts have no CRM workspace.
     if (!availableWorkspaces.length) {
       try { await client.auth.signOut(); } catch {}
@@ -7658,7 +7826,7 @@
         location: "Spain",
         phone: "",
         joinedAt: isoNow(),
-        leaveBalance: 20
+        leaveBalance: 0
       });
     }
 
@@ -7724,6 +7892,7 @@
     bootedUserId = session.user.id;
     client.auth.onAuthStateChange(async (event, newSession) => {
       if (event === "SIGNED_OUT" || !newSession) {
+        if (authUser?.id) clearSignedOutDeviceCache(authUser.id);
         authUser = null;
         authRole = null;
         store = new StateStore();
