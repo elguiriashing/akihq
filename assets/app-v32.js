@@ -583,7 +583,7 @@
 
   function clearRevokedWorkspace(workspaceId) {
     if (state.workspace.id!==workspaceId) return;
-    store.clear(); suiteControls?.dispose(); suiteControls=null;
+    store.clear(); suiteControls?.dispose(); suiteControls=null; hospitality?.dispose(); hospitality=null;
     state.workspace.toolKeys=[]; state.workspace.canOperate=false; state.workspace.canAdminister=false;
     state.workspace.canExport=false; state.workspace.exportToolKeys=[];
     clearDeniedCollections(); posSales=[]; tipAdjustments=[]; inventoryMovements=[];
@@ -621,7 +621,7 @@
         if(before!==JSON.stringify([state.workspace.toolKeys,state.workspace.canAdminister,state.workspace.canOperate,state.workspace.exportToolKeys])) {
           clearDeniedCollections();
           if(!canUseTool("inventory")) { state.products=[]; inventoryMovements=[]; inventoryRecommendations=[]; }
-          suiteControls?.dispose(); suiteControls=null;
+          suiteControls?.dispose(); suiteControls=null; hospitality?.dispose(); hospitality=null;
           if (!canUseRoute(ui.route)) { ui.route="settings"; ui.modal=null; ui.drawer=null; }
           store.save(state); requestBackgroundRender();
         }
@@ -3108,7 +3108,22 @@
     </div>`;
   }
 
+  let hospitality = null;
+  let hospitalityKey = "";
+  function getHospitality() {
+    const key = `${authUser?.id}:${state.workspace.id}`;
+    if (!hospitality || hospitalityKey !== key) {
+      hospitality?.dispose(); hospitalityKey = key;
+      hospitality = window.AkiHospitality.create({client:getSupabaseClient(),workspace:state.workspace,actor:authUser?.id,refresh:render,toast,isActive:()=>ui.route === "pos" && `${authUser?.id}:${state.workspace.id}` === key});
+    }
+    return hospitality;
+  }
   function renderPOS() {
+    if (window.AkiHospitality && authUser) {
+      let unresolvedLegacyCheckout = true;
+      try { unresolvedLegacyCheckout = !!pendingPOSSale(); } catch {}
+      if (!unresolvedLegacyCheckout) return getHospitality().render();
+    }
     const products = state.products.filter(product => product.status === "Active" && product.inventoryItemId && Number(product.price || 0) >= 0).map(product=>({...product,stock:product.posStock ?? product.stock}));
     const categories = ["All", ...new Set(products.map(product => product.category || "General"))];
     const query = ui.posSearch.trim().toLowerCase();
@@ -5135,6 +5150,7 @@
   }
 
   async function handleAction(target, event) {
+    if (target.dataset.action?.startsWith("hp-")) return getHospitality().action(target);
     if (target.dataset.action?.startsWith("suite-")) { await getSuiteControls().action(target); return; }
     if (["pos-add","pos-decrement","pos-clear","pos-tender"].includes(target.dataset.action) && pendingPOSSale()) {
       toast("Pending sale", "Retry the pending sale before changing the order.", "warning"); return;
@@ -6076,7 +6092,7 @@
       if ((key.startsWith("akihq:workspace-cache:") || key.startsWith("akihq:form-draft:") || key.startsWith("akihq:selected-workspace:")) && (key.includes(userId) || key.includes("anonymous"))) localStorage.removeItem(key);
     }
     // Pending stock/sale keys survive logout so uncertain commits can be reconciled.
-    store.value=null; state=seedState(); suiteControls?.dispose(); suiteControls=null;
+    store.value=null; state=seedState(); suiteControls?.dispose(); suiteControls=null; hospitality?.dispose(); hospitality=null;
     ui.modal=null; ui.drawer=null; ui.searchQuery=""; portal.innerHTML="";
   }
 
@@ -6426,6 +6442,7 @@
   }
 
   async function handleSubmit(form, event) {
+    if (form.dataset.form?.startsWith("hp-")) { event?.preventDefault(); return getHospitality().submit(form); }
     const kind = form.dataset.form;
     if (kind?.startsWith("suite-")) return getSuiteControls().submit(form);
     if (kind === "inventory-location") {
@@ -7660,6 +7677,7 @@
     ui.posBusy = false;
     inventoryLocations = [];
     suiteControls?.dispose(); suiteControls = null;
+    hospitality?.dispose(); hospitality = null;
     if (workspace.id !== "ws_akipasa" && ["social", "ai-team"].includes(ui.crmTab)) ui.crmTab = "deals";
     if (!canUseRoute(ui.route)) {
       ui.route = canUseRoute("dashboard") ? "dashboard" : visibleNavSections()[0]?.items[0]?.[0] || "settings";
