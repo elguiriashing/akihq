@@ -2811,39 +2811,15 @@
   }
 
   function renderLegacyInbox() {
-    state.conversations ||= [
-      {
-        id: "conv_01",
-        name: "Soho House Barcelona",
-        channel: "WhatsApp Business",
-        assignedTo: state.currentUserId,
-        unread: 1,
-        messages: [
-          { id: "m1", text: "Hello! We would like to connect our venue calendar to AkiPasa.", at: new Date(Date.now() - 3600000 * 4).toISOString(), direction: "in" },
-          { id: "m2", text: "Hi! Thanks for reaching out. Let's verify your venue profile in AkiHQ.", at: new Date(Date.now() - 3600000 * 2).toISOString(), direction: "out" },
-          { id: "m3", text: "Sounds great, sending over our manager contact details.", at: new Date(Date.now() - 3600000).toISOString(), direction: "in" }
-        ]
-      },
-      {
-        id: "conv_02",
-        name: "Pacha Ibiza Operations",
-        channel: "Resend Email",
-        assignedTo: state.currentUserId,
-        unread: 0,
-        messages: [
-          { id: "m4", text: "Can we request an updated invoice for the VIP package booking?", at: new Date(Date.now() - 3600000 * 12).toISOString(), direction: "in" },
-          { id: "m5", text: "Invoice INV-1014 has been generated and sent to your billing address.", at: new Date(Date.now() - 3600000 * 6).toISOString(), direction: "out" }
-        ]
-      }
-    ];
+    state.conversations ||= [];
     const selected = state.conversations.find(conversation => conversation.id === ui.selectedConversationId) || state.conversations[0];
     if (!selected && !state.conversations.length) {
-      return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("inbox")}</div><h2>Your shared inbox is empty</h2><p>Connect Resend, Gmail, Outlook, WhatsApp or another channel from Integrations.</p><button class="action-btn primary" data-action="navigate" data-route="integrations">Open integrations</button></div></section>`;
+      return `<section class="panel empty-state"><div><div class="empty-state-icon">${icon("inbox")}</div><h2>No conversation records yet</h2><p>External email and messaging delivery is not enabled for this business workspace. Provider connections are in pilot; configuring a record does not activate delivery.</p><button class="action-btn primary" data-action="navigate" data-route="integrations">Open integrations</button></div></section>`;
     }
     return `
       <div class="inbox-route-note" style="margin-bottom:12px;padding:10px 14px;background:rgba(124,140,255,.08);border:1px solid rgba(124,140,255,.2);border-radius:var(--radius);display:flex;align-items:center;gap:12px">
         <div style="font-size:11px;color:var(--text);flex:1">
-          💬 <strong>Shared Customer Inbox</strong> — This view displays external customer conversations (WhatsApp, Email & Webhooks). Looking for internal staff channels & DMs?
+          💬 <strong>Conversation records · provider pilot</strong> — Notes saved here stay in this workspace. They are not sent as email or WhatsApp messages. Looking for internal staff channels & DMs?
         </div>
         <button class="action-btn primary" data-action="navigate" data-route="collaboration" style="height:28px;font-size:10px;padding:0 12px">Go to Team Chat →</button>
       </div>
@@ -2874,8 +2850,8 @@
               ${selected.messages.map(message => `<div class="message ${message.direction === "out" ? "out" : ""}">${escapeHtml(message.text)}<span class="message-time">${escapeHtml(formatDate(message.at, { time: true, year: false }))}</span></div>`).join("")}
             </div>
             <form class="composer" data-form="message" data-conversation-id="${selected.id}">
-              <textarea name="text" required placeholder="Write a reply…"></textarea>
-              <button class="icon-btn create-btn" type="submit" title="Send">${icon("send")}</button>
+              <textarea name="text" required placeholder="Write an internal note (not sent externally)…"></textarea>
+              <button class="icon-btn create-btn" type="submit" title="Save internal note">${icon("send")}</button>
             </form>
           </div>` : ""}
       </section>`;
@@ -6707,11 +6683,11 @@
       const text = String(new FormData(form).get("text") || "").trim();
       const conversation = getEntity("conversation", form.dataset.conversationId);
       if (!text || !conversation) return;
-      conversation.messages.push({ id: uid("m"), direction: "out", text, at: isoNow() });
+      conversation.messages.push({ id: uid("m"), direction: "out", text: "[Internal note — not sent] " + text, at: isoNow() });
       conversation.status = "Open";
-      addActivity("conversation", conversation.id, "replied to a conversation", conversation.name, "inbox");
+      addActivity("conversation", conversation.id, "added an internal note", conversation.name, "inbox");
       persist();
-      toast("Reply saved", "Connect an email or messaging provider to send it externally.", "info");
+      toast("Internal note saved", "Saved to this workspace only. No external message was sent.", "info");
       return;
     }
     if (kind === "feed-post") {
