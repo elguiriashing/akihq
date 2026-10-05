@@ -7544,6 +7544,7 @@
           </section>
         </main>
       </div>
+    `;
     portal.innerHTML = "";
 
     document.getElementById("google-login-btn")?.addEventListener("click", async () => {
