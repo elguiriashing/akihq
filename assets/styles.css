@@ -2910,3 +2910,264 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
   font-size: 12px;
   line-height: 1.45;
 }
+
+
+/* Unified product-family login. AkiHQ uses the same layout language as AkiPasa
+   and AkiBusiness, with its own blue/purple identity. */
+.suite-login-screen {
+  --suite-accent: #8b68ff;
+  --suite-accent-soft: rgba(139,104,255,.14);
+  --suite-bg: #14213d;
+  min-height: 100dvh;
+  width: 100vw;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(80,118,255,.18), transparent 28rem),
+    radial-gradient(circle at 88% 18%, rgba(139,104,255,.18), transparent 30rem),
+    linear-gradient(145deg, #101a35, #14213d 54%, #12172f);
+  color: #f7f7f5;
+}
+
+.suite-login-shell {
+  width: min(1180px, calc(100% - 2rem));
+  min-height: 100dvh;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, .8fr);
+  align-items: center;
+  gap: clamp(3rem, 7vw, 7rem);
+  padding: 4rem 0;
+}
+
+.suite-login-intro {
+  display: grid;
+  align-content: center;
+  max-width: 35rem;
+}
+
+.suite-login-kicker,
+.suite-product-label,
+.suite-login-form-head > span {
+  color: var(--suite-accent);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.suite-login-intro h1 {
+  margin: .55rem 0 .6rem;
+  max-width: 8ch;
+  font-size: clamp(3.3rem, 7vw, 6.4rem);
+  line-height: .92;
+  letter-spacing: -.065em;
+}
+
+.suite-login-intro > p {
+  max-width: 32rem;
+  margin: 0 0 2.2rem;
+  color: #b6c0d7;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.suite-product-switcher {
+  display: grid;
+  gap: .55rem;
+  margin-top: .65rem;
+}
+
+.suite-product-card {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  align-items: center;
+  gap: .8rem;
+  min-height: 64px;
+  padding: .78rem .95rem;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 14px;
+  background: rgba(23,35,68,.78);
+  color: #f7f7f5;
+  text-decoration: none;
+  transition: .16s ease;
+}
+
+.suite-product-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(139,104,255,.55);
+  background: rgba(36,46,86,.9);
+}
+
+.suite-product-card.active {
+  border-color: rgba(139,104,255,.74);
+  background: rgba(139,104,255,.12);
+  box-shadow:
+    inset 3px 0 0 var(--suite-accent),
+    0 10px 30px rgba(92,64,205,.12);
+}
+
+.suite-product-card > span {
+  display: grid;
+  gap: .16rem;
+  min-width: 0;
+}
+
+.suite-product-card strong {
+  font-size: .88rem;
+}
+
+.suite-product-card small {
+  color: #9fa9c2;
+  font-size: .72rem;
+  line-height: 1.35;
+}
+
+.suite-product-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(255,255,255,.035);
+}
+.suite-product-dot-akipasa { background: #ff6b1d; }
+.suite-product-dot-business { background: #ffd447; }
+.suite-product-dot-hq { background: #8b68ff; }
+
+.suite-login-panel {
+  width: 100%;
+  padding: clamp(1.55rem, 3vw, 2.25rem);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 22px;
+  background: rgba(17,25,54,.82);
+  box-shadow: 0 24px 70px rgba(0,0,0,.24);
+  backdrop-filter: blur(24px) saturate(135%);
+}
+
+.suite-login-brand {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1.8rem;
+}
+
+.suite-login-brand img {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+}
+
+.suite-login-brand > div {
+  display: grid;
+  line-height: 1.05;
+}
+
+.suite-login-brand strong {
+  font-size: 1rem;
+}
+
+.suite-login-brand small {
+  margin-top: .18rem;
+  color: #8f99b3;
+  font-size: .65rem;
+}
+
+.suite-login-form-head h2 {
+  margin: .35rem 0 .3rem;
+  font-size: clamp(1.7rem, 3vw, 2.2rem);
+  letter-spacing: -.035em;
+}
+
+.suite-login-form-head p {
+  margin: 0 0 1.25rem;
+  color: #9fa9c2;
+  font-size: .78rem;
+  line-height: 1.45;
+}
+
+.suite-google-btn {
+  min-height: 48px;
+  border-radius: 13px;
+}
+
+.suite-login-form {
+  display: grid;
+  gap: .85rem;
+}
+
+.suite-login-form label {
+  display: grid;
+  gap: .4rem;
+  color: #f2f4fa;
+  font-size: .78rem;
+  font-weight: 760;
+}
+
+.suite-login-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: .8rem .9rem;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  outline: none;
+  background: rgba(37,47,88,.72);
+  color: #f7f7f5;
+}
+
+.suite-login-form input:focus {
+  border-color: rgba(139,104,255,.72);
+  box-shadow: 0 0 0 3px rgba(139,104,255,.15);
+}
+
+.suite-login-submit {
+  min-height: 48px;
+  margin-top: .15rem;
+  border: 0;
+  border-radius: 13px;
+  color: #fff;
+  background: linear-gradient(135deg, #6079f4, #8b68ff);
+}
+
+.suite-login-submit:hover {
+  filter: brightness(1.05);
+}
+
+.suite-login-foot {
+  margin: 1rem 0 0;
+  color: #8f99b3;
+  font-size: .7rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.suite-login-error {
+  margin-bottom: 1rem;
+}
+
+.login-mode {
+  min-height: 100dvh;
+  overflow: auto;
+}
+
+@media (max-width: 850px) {
+  .suite-login-shell {
+    grid-template-columns: 1fr;
+    width: min(100% - 1.25rem, 38rem);
+    gap: 1.5rem;
+    padding: 2rem 0 3rem;
+  }
+
+  .suite-login-intro {
+    max-width: none;
+  }
+
+  .suite-login-intro h1 {
+    font-size: clamp(3rem, 14vw, 4.7rem);
+  }
+
+  .suite-login-intro > p {
+    margin-bottom: 1.4rem;
+  }
+
+  .suite-login-panel {
+    border-radius: 18px;
+  }
+}
