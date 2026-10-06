@@ -7492,20 +7492,19 @@
           <section class="suite-login-intro">
             <div class="suite-login-kicker">AKIHQ</div>
             <h1>Run the<br>business.</h1>
-            <p>CRM, PoS, inventory, staff and operations in one private workspace.</p>
             <div class="suite-product-label">Choose your workspace</div>
             <nav class="suite-product-switcher" aria-label="AkiPasa products">
               <a class="suite-product-card" href="https://akipasa.com/es/auth">
                 <i class="suite-product-dot suite-product-dot-akipasa"></i>
-                <span><strong>AkiPasa</strong><small>Explore, Passport, AkiPals and community.</small></span>
+                <span><strong>AkiPasa</strong></span>
               </a>
               <a class="suite-product-card" href="https://business.akipasa.com/es/auth?next=/es/business">
                 <i class="suite-product-dot suite-product-dot-business"></i>
-                <span><strong>AkiBusiness</strong><small>Listings, events, loyalty and promotion.</small></span>
+                <span><strong>AkiBusiness</strong></span>
               </a>
               <a class="suite-product-card active" href="https://crm.akipasa.com">
                 <i class="suite-product-dot suite-product-dot-hq"></i>
-                <span><strong>AkiHQ</strong><small>CRM, PoS, inventory and operations.</small></span>
+                <span><strong>AkiHQ</strong></span>
               </a>
             </nav>
           </section>
@@ -7518,7 +7517,6 @@
             <div class="suite-login-form-head">
               <span>WELCOME BACK</span>
               <h2>Sign in to AkiHQ</h2>
-              <p>Use the same account you use across AkiPasa products.</p>
             </div>
             ${errorMsg ? `<div class="toast-item danger suite-login-error">${escapeHtml(errorMsg)}</div>` : ""}
             <button type="button" class="google-btn suite-google-btn" id="google-login-btn">
@@ -7540,12 +7538,12 @@
               </label>
               <button type="submit" class="action-btn primary suite-login-submit" id="login-submit">Sign in</button>
             </form>
-            <p class="suite-login-foot">AkiHQ access is available to authorised staff and active business workspaces.</p>
           </section>
         </main>
       </div>
     `;
     portal.innerHTML = "";
+    requestAnimationFrame(() => window.scrollTo(0, 0));
 
     document.getElementById("google-login-btn")?.addEventListener("click", async () => {
       const client = getSupabaseClient();

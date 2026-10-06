@@ -3149,25 +3149,80 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
 
 @media (max-width: 850px) {
   .suite-login-shell {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     width: min(100% - 1.25rem, 38rem);
-    gap: 1.5rem;
-    padding: 2rem 0 3rem;
+    min-height: 100dvh;
+    align-items: stretch;
+    gap: 1.15rem;
+    padding: calc(1rem + env(safe-area-inset-top, 0px)) 0 2.5rem;
   }
 
   .suite-login-intro {
-    max-width: none;
+    display: contents;
+  }
+
+  .suite-login-kicker {
+    order: 1;
+    padding-top: 0.25rem;
   }
 
   .suite-login-intro h1 {
-    font-size: clamp(3rem, 14vw, 4.7rem);
-  }
-
-  .suite-login-intro > p {
-    margin-bottom: 1.4rem;
+    order: 2;
+    max-width: 9ch;
+    margin: 0.25rem 0 0.45rem;
+    font-size: clamp(2.8rem, 12.5vw, 4.35rem);
   }
 
   .suite-login-panel {
+    order: 3;
+    padding: 1.25rem;
     border-radius: 18px;
+  }
+
+  .suite-product-label {
+    display: none;
+  }
+
+  .suite-product-switcher {
+    order: 4;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+
+  .suite-product-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.4rem;
+    min-height: 48px;
+    padding: 0.58rem 0.52rem;
+    border-radius: 12px;
+  }
+
+  .suite-product-card strong {
+    overflow: hidden;
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .suite-product-card small {
+    display: none;
+  }
+
+  .suite-product-card.active {
+    box-shadow:
+      inset 0 -3px 0 var(--suite-accent),
+      0 8px 20px rgba(92,64,205,.1);
+  }
+
+  .suite-login-brand {
+    margin-bottom: 1.1rem;
+  }
+
+  .suite-login-form-head h2 {
+    margin-bottom: 0.85rem;
   }
 }
