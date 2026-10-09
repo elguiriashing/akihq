@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Refreshed the AkiHQ logo and installed app icon with the suite's purple-and-gold identity; updated app chrome colors and offline cache version.
+
 ## 0.1.0 — 2026-08-04
 
 Initial working alpha release.
