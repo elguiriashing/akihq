@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AkiHQ logo">
   <defs>
-    <linearGradient id="g" x1="16" y1="12" x2="110" y2="116" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#68e0ff"/>
-      <stop offset=".48" stop-color="#8b7bff"/>
-      <stop offset="1" stop-color="#ff68bb"/>
+    <linearGradient id="hq" x1="24" y1="24" x2="84" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B69AFF"/>
+      <stop offset="1" stop-color="#8D54F6"/>
     </linearGradient>
   </defs>
-  <rect width="128" height="128" rx="30" fill="#11162f"/>
-  <path d="M24 91 54 30h18l32 61H84l-7-15H48l-7 15H24Zm31-31h15l-8-17-7 17Z" fill="url(#g)"/>
-  <path d="M78 33h21v17H86v12h11v16H78V33Z" fill="#eaf1ff" opacity=".9"/>
+  <rect width="128" height="128" rx="30" fill="#10152F"/>
+  <path d="M18 94 49 30h19l32 64H82l-7-15H43l-7 15H18Zm31-31h20l-10-21-10 21Z" fill="url(#hq)"/>
+  <path d="M75 32h27v15H85v10h15v14H85v9h18v14H75V32Z" fill="#F2EEFF"/>
+  <path d="m105 18 3.4 10.6L119 32l-10.6 3.4L105 46l-3.4-10.6L91 32l10.6-3.4L105 18Z" fill="#FFD447"/>
 </svg>

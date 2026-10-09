@@ -1,4 +1,4 @@
-const CACHE = "akihq-v97";
+const CACHE = "akihq-v98";
 const ASSETS = [
   "./assets/floor-editor.js?v=2",
   "./assets/hospitality-pos.js?v=3",
