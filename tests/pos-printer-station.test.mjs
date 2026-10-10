@@ -61,7 +61,7 @@ test('claim is required before printing and a ticket cannot be printed twice',as
   await h.controller.action({dataset:{action:'hp-printer-filter',filter:'queued'}});
   assert.equal(h.w.document.querySelector('[data-action="hp-print80"]'),null);
   await h.controller.action(h.w.document.querySelector('[data-action="hp-claim"]'));
-  assert(h.w.document.querySelector('[data-action="hp-print80"]'));
+  assert(h.w.document.querySelector('[data-action="hp-print80"]'),JSON.stringify({view:h.w.document.querySelector('.hp-ps-workspace')?.textContent,actions:h.commands,toasts:h.toasts}));
   let count=0;
   h.w.open=()=>({document:{write(){},close(){}},focus(){},print(){count++},close(){},opener:null});
   await h.controller.action(h.w.document.querySelector('[data-action="hp-print80"]'));
