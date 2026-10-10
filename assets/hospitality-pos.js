@@ -21,13 +21,15 @@
    ctx.refresh();
    for(const d of root.document.querySelectorAll('.hp-shell details'))if(expanded.has(d.querySelector(':scope > summary')?.textContent))d.open=true;
   }
-  const markDirty=e=>{const f=e.target.closest?.('.hp-form');if(f)f.dataset.dirty='true';};
+  const markDirty=e=>{const f=e.target.closest?.('.hp-form, .hp-v4-form, .hp-v4-inline-form, .hp-v4-product-row');if(f)f.dataset.dirty='true';};
   root.document.addEventListener('input',markDirty);
+  const escapePanel=e=>{if(e.key==='Escape'&&panel){panel='';panelLine='';refresh();}};
+  root.document.addEventListener('keydown',escapePanel);
   const floorEditor=root.AkiFloorEditor?.create({document:root.document,getDraft:()=>layoutDraft,onChange:()=>{}});
   const active=()=>!disposed&&ctx.isActive();
   function pending(){try{return JSON.parse(root.localStorage.getItem(key)||'null')}catch{throw Error('Saved request is unreadable. Do not clear browser storage; contact support.')}}
   async function rpc(name,args={}){if(disposed)throw Error('Workspace changed');const r=await ctx.client.rpc(name,{p_workspace:ctx.workspace.id,...args});if(disposed)throw Error('Workspace changed');if(r.error)throw Error(r.error.message);return r.data;}
-  async function load(){if(busy||!active())return;try{const next=await rpc('crm_hospitality_overview');if(!active())return;const signature=JSON.stringify({...next,server_time:null});data=next;error='';if(signature!==last){last=signature;const focused=root.document.activeElement;if(!layoutDraft&&!focused?.closest?.('.hp-form')&&!root.document.querySelector('.hp-form[data-dirty]'))refresh();}}catch(e){if(!active())return;data=null;error=e.message;refresh();}}
+  async function load(){if(busy||!active())return;try{const next=await rpc('crm_hospitality_overview');if(!active())return;const signature=JSON.stringify({...next,server_time:null});data=next;error='';if(signature!==last){last=signature;const focused=root.document.activeElement;if(!layoutDraft&&!focused?.closest?.('.hp-form, .hp-v4-form, .hp-v4-inline-form, .hp-v4-product-row')&&!root.document.querySelector('.hp-form[data-dirty], .hp-v4-form[data-dirty], .hp-v4-inline-form[data-dirty], .hp-v4-product-row[data-dirty]'))refresh();}}catch(e){if(!active())return;data=null;error=e.message;refresh();}}
   function start(){if(started)return;started=true;Promise.resolve().then(load);timer=root.setInterval(load,2500);}
   async function execute(command,retry=false){
    if (!root.navigator.locks?.request) throw Error('Use an up-to-date browser over HTTPS to safely record orders.');
@@ -42,7 +44,7 @@
     let p=pending();if(!retry){if(p)throw Error('Resolve the pending request first');p={key:root.crypto.randomUUID(),command};root.localStorage.setItem(key,JSON.stringify(p));}if(!p)throw Error('No pending request');
     const result=await rpc('crm_hospitality_command',{p_key:p.key,p_command:p.command});
     root.localStorage.removeItem(key);
-    if(result.order_id)selected=result.status==='closed'?'':result.order_id;
+    if(result.order_id){if(selected!==result.order_id)panel='';selected=result.status==='closed'?'':result.order_id;}
     if(p.command.action==='layout'){layoutDraft=null;layoutVersion=null;}
     if(p.command.action==='claim_ticket'){printTicket=result;printAttempted=false;}
     return result;
@@ -102,7 +104,7 @@
    if(a==='category'){category=target.dataset.id;refresh();return;}
    if(a==='back'){selected='';panel='';refresh();return;}
    if(a==='refresh'){await load();refresh();return;}
-   if(a==='page'){page=target.dataset.id;refresh();return;}if(a==='select'){selected=target.dataset.id;refresh();return;}
+   if(a==='page'){page=target.dataset.id;refresh();return;}if(a==='select'){selected=target.dataset.id;panel='';panelLine='';refresh();return;}
    if(a==='retry'){await execute(null,true);return;}
    if(a==='abandon'){if(!root.navigator.locks?.request)throw Error('Use an up-to-date browser over HTTPS');await root.navigator.locks.request(key,{ifAvailable:true},async lock=>{if(!lock)throw Error('Another tab is recording an order');const p=pending();if(p){const r=await rpc('crm_hospitality_command',{p_key:root.crypto.randomUUID(),p_command:{action:'abandon',key:p.key}});root.localStorage.removeItem(key);if(r.response?.order_id)selected=r.response.order_id;ctx.toast('Request resolved',r.already_completed?'It was already recorded.':'Unrecorded request cancelled.');}await load();refresh();});return;}
    if(a.startsWith('print')){if(!printTicket||printAttempted)throw Error('Inspect the printer; request a marked copy if another print is needed');const w=root.open('','_blank','width=420,height=650');if(!w)throw Error('Allow the print window in this browser');w.opener=null;try{await execute({action:'begin_print',ticket_id:printTicket.id});printAttempted=true;}catch(e){w.close();throw e;}w.document.write(ticketHTML(printTicket,ctx.workspace,a==='print58'?58:80));w.document.close();w.focus();w.print();refresh();return;}
@@ -175,7 +177,7 @@
    await execute(c);
    if(['payment','move','transfer','line','note','reprice','reverse_payment','cancel'].includes(a)){panel='';panelLine='';paymentAmount=null;refresh();}
   }catch(e){if(disposed)return;error=e.message;ctx.toast('PoS needs attention',error,'warning');refresh();}}
-  return {render,action,submit,dispose(){disposed=true;root.clearInterval(timer);floorEditor?.dispose();root.document.removeEventListener('input',markDirty);data=null;printTicket=null;pairedDevice=null;printerDevices=[];}};
+  return {render,action,submit,dispose(){disposed=true;root.clearInterval(timer);floorEditor?.dispose();root.document.removeEventListener('input',markDirty);root.document.removeEventListener('keydown',escapePanel);data=null;printTicket=null;pairedDevice=null;printerDevices=[];}};
  }
  root.AkiHospitality={create,ticketHTML};
 })(typeof window==='undefined'?globalThis:window);
