@@ -13,7 +13,7 @@
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(ticket.kind)} ${esc(ticket.id)}</title><style>@page{size:${width===58?58:80}mm auto;margin:3mm}body{font:13px monospace;color:#000;width:${width===58?50:72}mm}h1{font-size:18px}li{margin:8px 0}ul{padding-left:16px}.notice{border:2px solid;padding:5px}small{overflow-wrap:anywhere}</style></head><body><h1>${esc(workspace.name)}</h1><h2>${esc(ticket.station)} · ${esc(ticket.kind)}</h2>${p.copy_of?'<h2>COPY / DUPLICADO</h2>':''}<p class="notice">${esc(p.notice||'OPERATIONAL TICKET — NO ES FACTURA')}</p><p>${esc(p.instruction||'')}</p><strong>${esc(o.label)}</strong><p>${esc(o.note)}</p>${ticket.kind==='preparation'?`<h3>Previous</h3>${list(p.previous)}<h3>Current required</h3>${list(p.current)}`:list(o.lines)}${p.destination?.id?`<h3>Destination ${esc(p.destination.table_id||'Walk-in')}</h3>${list(p.destination.lines)}`:''}${p.reason?`<p>${esc(p.reason)}</p>`:''}${p.total_cents!==undefined?`<p>Total ${esc(money(p.total_cents,currency))}<br>Recorded payments ${esc(money(p.paid_cents,currency))}<br>Balance ${esc(money(p.total_cents-p.paid_cents,currency))}</p>${(o.payments||[]).map(x=>`<p>${esc(x.method)} ${esc(money(x.amount_cents,currency))} ${esc(x.reference)}${x.change_cents?` · Change ${esc(money(x.change_cents,currency))}`:''}</p>`).join('')}`:''}<small>Order ${esc(o.id||ticket.order_id)}<br>Ticket ${esc(ticket.id)}<br>${esc(ticket.created_at)}${o.sale_id?`<br>Sale ${esc(o.sale_id)}`:''}</small><p>Keep with the final invoice where required.</p></body></html>`;
  }
  function create(ctx){
-  let view='terminal',category='All',designerCategory='All',panel='',panelLine='',paymentAmount=null,immersive=false,data=null,error='',selected='',page='',busy=false,disposed=false,started=false,timer=null,last='',printTicket=null,printAttempted=false,layoutDraft=null,layoutVersion=null,pairedDevice=null,printerDevices=[],printerFilter='pending',printerStation='all',printerSelected='',printerSettings=false,tapJobs=[],tapTimer=null,tapDrain=null,tapInFlight=0;
+  let view='terminal',category='All',designerCategory='All',panel='',panelLine='',paymentAmount=null,immersive=false,data=null,error='',selected='',page='',busy=false,disposed=false,started=false,timer=null,last='',printTicket=null,printAttempted=false,layoutDraft=null,layoutVersion=null,pairedDevice=null,printerDevices=[],printerFilter='kitchen',printerStation='all',printerSelected='',printerSettings=false,tapJobs=[],tapTimer=null,tapDrain=null,tapInFlight=0;
   const key=`akihq:hospitality:${ctx.actor}:${ctx.workspace.id}`;
   function refresh(){
    if(disposed)return;
@@ -170,7 +170,7 @@
   function settings(){const l=data.layout;return `<details class="panel hp-card"><summary>Floor settings</summary>${form('mode',select('PoS view','mode',[['till','Till only'],['restaurant','Restaurant / bar']],l.mode),`data-version="${data.layout_version}"`)}${form('page',input('New page name','name','','text','required maxlength="80"'),`data-version="${data.layout_version}"`)}${l.pages.map(p=>`<details><summary>Page: ${esc(p.name)}</summary>${form('page_edit',input('Page name','name',p.name,'text','required maxlength="80"')+select('Action','operation',[['rename','Rename'],['delete','Delete empty page']]),`data-id="${esc(p.id)}" data-version="${data.layout_version}"`)}</details>`).join('')}<h3>Tables</h3><p>Position and dimensions are percentages of the page. Names can be table numbers. Occupied tables cannot be deleted.</p>${l.pages.length?[...l.tables,{id:'',name:'',page:l.pages[0].id,shape:'rectangle',x:5,y:5,width:15,height:15,seats:4}].map(t=>`<details><summary>${esc(t.name||'Add table')}</summary>${form('table_edit',input('Number / name','name',t.name,'text','required maxlength="80"')+select('Page','page',l.pages.map(p=>[p.id,p.name]),t.page)+select('Shape','shape',[['rectangle','Rectangle'],['circle','Circle / oval'],['rounded','Rounded rectangle']],t.shape)+['x','y','width','height','seats'].map(k=>input(k,k,t[k],'number',`required min="${['x','y'].includes(k)?0:k==='seats'?1:5}" max="${k==='seats'?999:100}" step="1"`)).join('')+select('Action','operation',[['save','Save table'],['delete','Delete table']]),`data-id="${esc(t.id)}" data-version="${data.layout_version}"`)}</details>`).join(''):''}</details>`;}
   function printerView(){
    return root.AkiPrinterStation.render({
-    tickets:data?.tickets||[],current:printTicket,attempted:printAttempted,
+    tickets:data?.tickets||[],orders:data?.orders||[],recent:data?.recent||[],current:printTicket,attempted:printAttempted,
     tab:printerFilter,station:printerStation,selectedId:printerSelected,
     canManage:!!data?.can_manage,settings:printerSettings,
     devices:printerDevices,paired:pairedDevice
@@ -190,7 +190,7 @@
    if(a==='quick-qty'){enqueueTap('line',target.dataset.order,target.dataset.line,Number(target.dataset.delta));return;}
    if(a==='split-panel'){panel='split';refresh();return;}
    if(a==='payment-panel'){panel='payment';paymentAmount=null;refresh();return;}
-   if(a==='printer-panel'){panel='printer';printerSettings=false;printerFilter='pending';printerSelected='';refresh();return;}
+   if(a==='printer-panel'){panel='printer';printerSettings=false;printerSelected='';refresh();return;}
    if(a==='printer-filter'){printerFilter=target.dataset.filter;printerSelected='';refresh();return;}
    if(a==='printer-select'){printerSelected=target.dataset.id;refresh();return;}
    if(a==='printer-view'){if(!data.can_manage)throw Error('Manager permission required');printerSettings=target.dataset.view==='settings';if(printerSettings)printerDevices=await rpc('crm_printer_manage',{p_action:'list'});refresh();return;}
@@ -279,7 +279,12 @@
    if(a==='transfer'){c.lines=Object.entries(v).filter(([k,q])=>k.startsWith('qty_')&&Number(q)>0).map(([k,q])=>({id:k.slice(4),quantity:Number(q)}));c.destination_version=JSON.parse(f.dataset.destinations||'{}')[v.table_id];}
    if(a==='reprint')c.ticket_id=f.dataset.id;
    await execute(c);
-   if(['payment','move','transfer','line','note','reprice','reverse_payment','cancel'].includes(a)){panel='';panelLine='';paymentAmount=null;refresh();}
+   if(['payment','move','transfer','line','note','reprice','reverse_payment','cancel'].includes(a)){
+    const settled=a==='payment'&&!selected;
+    panel=settled?'printer':'';
+    if(settled){printerSettings=false;printerFilter='paid';printerSelected='';}
+    panelLine='';paymentAmount=null;refresh();
+   }
   }catch(e){if(disposed)return;error=e.message;ctx.toast('PoS needs attention',error,'warning');refresh();}}
   return {render,action,submit,dispose(){disposed=true;if(tapTimer!==null)root.clearTimeout(tapTimer);tapJobs.length=0;root.clearInterval(timer);floorEditor?.dispose();root.document.removeEventListener('input',markDirty);root.document.removeEventListener('keydown',escapePanel);root.document.removeEventListener('change',printerOnChange);data=null;printTicket=null;pairedDevice=null;printerDevices=[];}};
  }
