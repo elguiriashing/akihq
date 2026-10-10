@@ -38,7 +38,7 @@
   const outstandingTaps=()=>tapJobs.reduce((n,x)=>n+Math.abs(x.delta),0);
   function enqueueTap(kind,orderId,id,delta){
    if(!active())throw Error('Workspace changed');
-   if(pending())throw Error('Resolve the pending order request before taking new taps.');
+   if(pending()&&!busy)throw Error('Resolve the pending order request before taking new taps.');
    const o=data?.orders.find(x=>x.id===orderId);
    if(!o)throw Error('Order no longer open');
    if(Number(o.paid_cents)>0)throw Error('Reverse recorded payments before editing this order.');
@@ -124,7 +124,7 @@
   async function executeDirect(command,retry=false){
    if(!root.navigator.locks?.request)throw Error('Use an up-to-date browser over HTTPS to safely record orders.');
    // Queue behind another tab's short command, but never bypass a pending unknown result.
-   return root.navigator.locks.request(key,async lock=>{
+   return root.navigator.locks.request(key,{},async lock=>{
     if(!lock)throw Error('Unable to lock this order; review the other tab.');
     return executeLocked(command,retry);
    });
