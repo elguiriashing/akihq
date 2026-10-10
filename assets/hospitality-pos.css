@@ -65,3 +65,23 @@
 .hp-quick-more>.hp-card{max-height:55dvh;overflow:auto;border:1px solid rgba(158,146,227,.27);border-radius:12px;background:rgba(22,25,56,.98);padding:12px}
 .hp-terminal-bill{max-height:49%;overflow:auto}
 @media(max-width:760px){.hp-quick-bill{padding:8px}.hp-quick-lines{max-height:100px}.hp-quick-line{grid-template-columns:minmax(0,1fr) auto auto;gap:5px;padding:5px}.hp-quick-line>strong{min-width:57px;font-size:12px}.hp-qty-stepper button{min-width:30px;min-height:34px}.hp-quick-actions{gap:4px}.hp-quick-actions .action-btn{font-size:11px;min-height:46px}.hp-terminal-bill{max-height:52%}}
+
+/* Tablet viewport fix: ensure product area and checkout controls do not overlap */
+.hp-terminal.hp-order-open{height:calc(100dvh - 148px);min-height:440px;display:grid;grid-template-rows:auto auto minmax(150px,1fr) minmax(190px,auto) auto;gap:8px;overflow:hidden}
+.hp-order-open .hp-terminal-body{min-height:150px;overflow:hidden}
+.hp-order-open .hp-terminal-catalogue{height:100%;min-height:0}
+.hp-order-open .hp-category-grid{flex:none}
+.hp-order-open .hp-product-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.hp-order-open .hp-terminal-bill{height:auto;min-height:190px;max-height:clamp(190px,36dvh,360px);display:flex;flex-direction:column;overflow:hidden}
+.hp-order-open .hp-quick-bill{height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(35px,1fr) auto auto auto;gap:5px;overflow:hidden}
+.hp-order-open .hp-quick-lines{max-height:none;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.hp-order-open .hp-quick-total{flex:none}
+.hp-order-open .hp-quick-actions{flex:none}
+.hp-order-open .hp-quick-more{max-height:34px;overflow:hidden}
+.hp-order-open .hp-quick-more[open]{position:absolute;z-index:30;bottom:55px;left:16px;right:16px;max-height:min(75dvh,650px);overflow-y:auto;background:var(--bg,#171827);border:1px solid #8b7edd;border-radius:13px;padding:10px;box-shadow:0 -12px 35px #0008}
+.hp-order-open .hp-terminal-tools{height:35px;max-height:35px;overflow:hidden}
+.hp-order-open .hp-terminal-tools>details>summary{padding:7px 9px}
+.hp-order-open .hp-product-buttons .action-btn{min-height:77px}
+.hp-order-open .hp-quick-actions .action-btn{min-height:45px}
+@media(max-width:1100px){.hp-terminal.hp-order-open{height:calc(100dvh - 136px);grid-template-rows:auto auto minmax(128px,1fr) minmax(180px,auto) auto}.hp-order-open .hp-terminal-bill{max-height:35dvh;min-height:180px}.hp-order-open .hp-product-buttons .action-btn{min-height:68px}}
+@media(max-width:760px){.hp-terminal.hp-order-open{height:calc(100dvh - 112px);min-height:390px;grid-template-rows:auto auto minmax(100px,1fr) minmax(170px,auto) auto;gap:5px}.hp-order-open .hp-terminal-bill{min-height:170px;max-height:43dvh}.hp-order-open .hp-quick-bill{padding:5px 7px}.hp-order-open .hp-quick-line{min-height:37px}.hp-order-open .hp-quick-actions .action-btn{min-height:43px}.hp-order-open .hp-category-grid .action-btn{min-height:35px}.hp-order-open .hp-product-buttons .action-btn{min-height:60px}.hp-order-open .hp-terminal-tools{height:28px;max-height:28px}}
