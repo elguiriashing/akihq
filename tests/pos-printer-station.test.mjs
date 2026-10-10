@@ -147,7 +147,8 @@ test('final payment clears active kitchen and unpaid queues but opens the paid b
   assert.equal(h.commands.filter(x=>x.action==='payment').length,1);
   assert.match(h.w.document.querySelector('.hp-ps-header').textContent,/Printer station/);
   assert.equal(h.w.document.querySelector('[data-filter="paid"]').getAttribute('aria-pressed'),'true');
-  assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,1);
+  assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,2);
+  assert([...h.w.document.querySelectorAll('.hp-ps-ticket')].some(el=>el.dataset.id==='final-paid'));
   assert.match(h.w.document.querySelector('.hp-ps-ticket').textContent,/Client bill · paid/);
   await h.controller.action({dataset:{action:'hp-printer-filter',filter:'kitchen'}});
   assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,0);
