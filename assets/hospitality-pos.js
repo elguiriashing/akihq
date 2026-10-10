@@ -13,7 +13,7 @@
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(ticket.kind)} ${esc(ticket.id)}</title><style>@page{size:${width===58?58:80}mm auto;margin:3mm}body{font:13px monospace;color:#000;width:${width===58?50:72}mm}h1{font-size:18px}li{margin:8px 0}ul{padding-left:16px}.notice{border:2px solid;padding:5px}small{overflow-wrap:anywhere}</style></head><body><h1>${esc(workspace.name)}</h1><h2>${esc(ticket.station)} · ${esc(ticket.kind)}</h2>${p.copy_of?'<h2>COPY / DUPLICADO</h2>':''}<p class="notice">${esc(p.notice||'OPERATIONAL TICKET — NO ES FACTURA')}</p><p>${esc(p.instruction||'')}</p><strong>${esc(o.label)}</strong><p>${esc(o.note)}</p>${ticket.kind==='preparation'?`<h3>Previous</h3>${list(p.previous)}<h3>Current required</h3>${list(p.current)}`:list(o.lines)}${p.destination?.id?`<h3>Destination ${esc(p.destination.table_id||'Walk-in')}</h3>${list(p.destination.lines)}`:''}${p.reason?`<p>${esc(p.reason)}</p>`:''}${p.total_cents!==undefined?`<p>Total ${esc(money(p.total_cents,currency))}<br>Recorded payments ${esc(money(p.paid_cents,currency))}<br>Balance ${esc(money(p.total_cents-p.paid_cents,currency))}</p>${(o.payments||[]).map(x=>`<p>${esc(x.method)} ${esc(money(x.amount_cents,currency))} ${esc(x.reference)}${x.change_cents?` · Change ${esc(money(x.change_cents,currency))}`:''}</p>`).join('')}`:''}<small>Order ${esc(o.id||ticket.order_id)}<br>Ticket ${esc(ticket.id)}<br>${esc(ticket.created_at)}${o.sale_id?`<br>Sale ${esc(o.sale_id)}`:''}</small><p>Keep with the final invoice where required.</p></body></html>`;
  }
  function create(ctx){
-  let view='terminal',category='All',designerCategory='All',panel='',panelLine='',paymentAmount=null,immersive=false,data=null,error='',selected='',page='',busy=false,disposed=false,started=false,timer=null,last='',printTicket=null,printAttempted=false,layoutDraft=null,layoutVersion=null,pairedDevice=null,printerDevices=[],tapJobs=[],tapTimer=null,tapDrain=null;
+  let view='terminal',category='All',designerCategory='All',panel='',panelLine='',paymentAmount=null,immersive=false,data=null,error='',selected='',page='',busy=false,disposed=false,started=false,timer=null,last='',printTicket=null,printAttempted=false,layoutDraft=null,layoutVersion=null,pairedDevice=null,printerDevices=[],tapJobs=[],tapTimer=null,tapDrain=null,tapInFlight=0;
   const key=`akihq:hospitality:${ctx.actor}:${ctx.workspace.id}`;
   function refresh(){
    if(disposed)return;
@@ -35,7 +35,7 @@
   // Tap intents are batched locally, then committed by the normal versioned RPC.
   // This queue never guesses whether an ambiguous network response was saved.
   const tapDelayMs=85;
-  const outstandingTaps=()=>tapJobs.reduce((n,x)=>n+Math.abs(x.delta),0);
+  const outstandingTaps=()=>tapInFlight+tapJobs.reduce((n,x)=>n+Math.abs(x.delta),0);
   function enqueueTap(kind,orderId,id,delta){
    if(!active())throw Error('Workspace changed');
    if(pending()&&!busy)throw Error('Resolve the pending order request before taking new taps.');
@@ -90,10 +90,10 @@
    if(!tapJobs.length)return true;
    tapDrain=(async()=>{
     while(tapJobs.length&&active()){
-     const job=tapJobs.shift();
-     try{await commitTap(job);}
+     const job=tapJobs.shift();tapInFlight=Math.abs(job.delta);
+     try{await commitTap(job);tapInFlight=0;}
      catch(e){
-      const dropped=outstandingTaps();tapJobs.length=0;error=e.message;
+      const dropped=tapJobs.reduce((sum,j)=>sum+Math.abs(j.delta),0);tapInFlight=0;tapJobs.length=0;error=e.message;
       ctx.toast('Check the bill',e.message+(dropped?' · '+dropped+' later tap(s) were not submitted.':'')+' Check any pending request before retrying.','warning');
       refresh();return false;
      }
