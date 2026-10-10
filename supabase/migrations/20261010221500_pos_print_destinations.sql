@@ -16,6 +16,12 @@ begin
  if new.status <> 'queued' then return new; end if;
  select o.status into order_state from akihq_hospitality.orders o
  where o.id=new.order_id and o.workspace_id=new.workspace_id;
+ if new.kind='prebill' and order_state='open' then
+   -- Only the newest unprinted customer pre-bill should remain actionable.
+   update akihq_hospitality.tickets t set status='superseded'
+   where t.workspace_id=new.workspace_id and t.order_id=new.order_id
+     and t.kind='prebill' and t.status='queued';
+ end if;
  if new.kind='payment' and
    ((new.payload->>'paid_cents')::bigint is distinct from (new.payload->>'total_cents')::bigint
      or order_state='cancelled') then
@@ -71,6 +77,17 @@ update akihq_hospitality.tickets t
        and (pt.payload->>'paid_cents')::bigint=(pt.payload->>'total_cents')::bigint
      order by pt.created_at desc,pt.id desc limit 1
    );
+-- Collapse historic unprinted duplicates of the same unpaid customer bill.
+-- Keep tickets that were already claimed or whose print outcome is uncertain.
+update akihq_hospitality.tickets t set status='superseded'
+where t.kind='prebill' and t.status='queued'
+  and exists (
+   select 1 from akihq_hospitality.tickets newer
+   where newer.workspace_id=t.workspace_id and newer.order_id=t.order_id
+     and newer.kind='prebill' and newer.status='queued'
+     and (newer.created_at, newer.id)>(t.created_at,t.id)
+  );
+
 -- Old partial payment slips are archived, not misrepresented as paid bills.
 update akihq_hospitality.tickets t set status='superseded'
  where t.kind='payment' and t.status='queued'
