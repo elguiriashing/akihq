@@ -1,9 +1,9 @@
-const CACHE = "akihq-v103";
+const CACHE = "akihq-v104";
 const ASSETS = [
   "./assets/floor-editor.js?v=2",
-  "./assets/hospitality-pos.js?v=10",
-  "./assets/pos-printer-station.js?v=1",
-  "./assets/pos-printer-station.css?v=1",
+  "./assets/hospitality-pos.js?v=11",
+  "./assets/pos-printer-station.js?v=2",
+  "./assets/pos-printer-station.css?v=2",
   "./assets/hospitality-pos.css?v=9",
   "./assets/pos-v4.js?v=1",
   "./assets/pos-v4-dialogs.js?v=1",
