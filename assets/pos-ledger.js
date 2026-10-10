@@ -23,7 +23,7 @@ function chooser(p){
  const field=(name,label,value="",type="text",place="")=>'<label>'+esc(label)+'<input name="'+name+'" type="'+type+'" value="'+esc(value)+'" placeholder="'+esc(place)+'"></label>';
  return '<form class="hp-ledger-filters" data-form="hp-ledger-search">'+
  '<div class="hp-ledger-filter-row">'+field("from_date","From date",f.from_date||"","date")+field("to_date","Through date",f.to_date||"","date")+field("table","Table",f.table||"","text","Table 12")+
- '<label>Closing account<select name="account"><option value="">All staff</option>'+staff.map(a=>'<option value="'+esc(a.actor_name)+'" '+(a.actor_name===f.account?"selected":"")+'>'+esc(a.actor_name)+'</option>').join("")+'</select></label></div>'+
+ '<label>Closing account<select name="account"><option value="">All staff</option>'+staff.map(a=>'<option value="'+esc(a.actor_id)+'" '+(a.actor_id===f.account?"selected":"")+'>'+esc(a.actor_name)+'</option>').join("")+'</select></label></div>'+
  '<div class="hp-ledger-filter-row">'+field("item","Product / item",f.item||"","text","Beer, Coke, fries...")+field("min_eur","Min bill (€)",f.min_eur||"","number","0.00")+field("max_eur","Max bill (€)",f.max_eur||"","number","0.00")+
  '<label>Trading day<select name="trading_day"><option value="">All trading days</option><option value="unassigned" '+(f.trading_day==="unassigned"?"selected":"")+'>Before tracking / unassigned</option>'+days.map(d=>'<option value="'+esc(d.id)+'" '+(d.id===f.trading_day?"selected":"")+'>'+esc(labelDay(d,tz))+'</option>').join("")+'</select></label></div>'+
  '<div class="hp-ledger-filter-actions"><button class="action-btn primary" type="submit">Search closed bills</button>'+button("ledger-reset","Clear filters")+'</div></form>';
