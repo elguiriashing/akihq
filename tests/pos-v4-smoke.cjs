@@ -3,7 +3,7 @@
 "use strict";
 const fs=require("node:fs"),path=require("node:path"),assert=require("node:assert/strict");
 const read=file=>fs.readFileSync(path.join(__dirname,"..",file),"utf8");
-const files=["assets/pos-v4.js","assets/pos-v4-dialogs.js","assets/hospitality-pos.js"];
+const files=["assets/pos-v4.js","assets/pos-v4-dialogs.js","assets/pos-printer-station.js","assets/hospitality-pos.js"];
 const layout={mode:"restaurant",pages:[{id:"f",name:"Floor"}],tables:[{id:"t1",name:"1",page:"f",shape:"rectangle",x:5,y:5,width:15,height:15,seats:4}]};
 const order={id:"o1",label:"Table 1",table_id:"t1",version:1,guests:2,note:"",lines:[{id:"l1",name:"Beer",quantity:2,unit_price_cents:250,note:"",seat:"",station:"bar"}],payments:[],total_cents:500,paid_cents:0};
 let db={layout,layout_version:0,orders:[order],catalogue:[{id:"p1",name:"Beer",category:"Drinks",sale_price_cents:250},{id:"p2",name:"Fries",category:"Snacks",sale_price_cents:150}],tickets:[],can_manage:true,can_export:true};
