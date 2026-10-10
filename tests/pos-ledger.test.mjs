@@ -44,12 +44,12 @@ test('ledger provides closed-bill lookup, account/date/product/price filters and
   assert.match(body,/Closer Staff/);
   const form=h.w.document.querySelector('[data-form="hp-ledger-search"]');
   form.elements.from_date.value='2026-10-10';form.elements.to_date.value='2026-10-11';
-  form.elements.item.value='Coke';form.elements.table.value='7';form.elements.account.value='Closer Staff';
+  form.elements.item.value='Coke';form.elements.table.value='7';form.elements.account.value='staff-1';
   form.elements.min_eur.value='10.00';form.elements.max_eur.value='20.00';
   await h.ctrl.submit(form);
   assert.equal(h.lookup.item,'Coke');assert.equal(h.lookup.min_cents,1000);assert.equal(h.lookup.max_cents,2000);
   assert.equal(h.lookup.from_date,'2026-10-10');assert.equal(h.lookup.to_date,'2026-10-11');
-  assert.equal(h.lookup.account,'Closer Staff');
+  assert.equal(h.lookup.account,'staff-1');
   await h.ctrl.action({dataset:{action:'hp-ledger-bill',id:'bill-1'}});
   body=h.w.document.body.textContent;
   assert.match(body,/Closed bill/);assert.match(body,/Recorded payments/);assert.match(body,/Activity trail/);
