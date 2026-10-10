@@ -216,7 +216,7 @@
    if(a==='open')c={action:'open',label:'Walk-in'};
    if(a==='table'){const t=data.layout.tables.find(t=>t.id===target.dataset.id);c={action:'open',table_id:t.id,label:`Table ${t.name}`};}
    if(a==='add'){enqueueTap('product',target.dataset.order,target.dataset.id,1);return;}
-   if(['claim','confirm','uncertain'].includes(a)){c={action:`${a}_ticket`,ticket_id:target.dataset.id};if(a==='claim')printerSelected=target.dataset.id;}
+   if(['claim','confirm','uncertain'].includes(a)){c={action:`${a}_ticket`,ticket_id:target.dataset.id};if(a==='claim'){printerSelected=target.dataset.id;printerFilter='pending';}}
    await execute(c);if(['confirm','uncertain'].includes(a)){printTicket=null;refresh();}
   }catch(e){if(disposed)return;error=e.message;ctx.toast('PoS needs attention',error,'warning');refresh();}}
   async function submit(f){try{
