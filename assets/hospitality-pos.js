@@ -137,7 +137,7 @@
     let p=pending();if(!retry){if(p)throw Error('Resolve the pending request first');p={key:root.crypto.randomUUID(),command};root.localStorage.setItem(key,JSON.stringify(p));}if(!p)throw Error('No pending request');
     const result=await rpc('crm_hospitality_command',{p_key:p.key,p_command:p.command});
     root.localStorage.removeItem(key);
-    if(result.order_id&&(p.command.action==='open'||!selected||selected===p.command.order_id)){if(selected!==result.order_id)panel='';selected=result.status==='closed'?'':result.order_id;}
+    if(result.order_id&&(p.command.action==='open'||(p.command.order_id&&(!selected||selected===p.command.order_id)))){if(selected!==result.order_id)panel='';selected=result.status==='closed'?'':result.order_id;}
     if(p.command.action==='layout'){layoutDraft=null;layoutVersion=null;}
     if(p.command.action==='claim_ticket'){printTicket=result;printAttempted=false;}
     return result;
