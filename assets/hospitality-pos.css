@@ -101,3 +101,43 @@
 .hp-order-open .hp-quick-more>summary{padding:4px 2px!important}
 @media(max-width:1100px){.hp-terminal.hp-order-open{grid-template-rows:auto auto minmax(105px,1fr) minmax(245px,44dvh) auto}.hp-order-open .hp-terminal-bill{min-height:0;max-height:none}.hp-order-open .hp-quick-bill{padding:10px 12px;gap:6px}.hp-order-open .hp-quick-line{min-height:45px;padding:7px 10px}}
 @media(max-width:760px){.hp-terminal.hp-order-open{grid-template-rows:auto auto minmax(95px,1fr) minmax(240px,47dvh) auto}.hp-order-open .hp-terminal-bill{min-height:0;max-height:none}.hp-order-open .hp-quick-bill{padding:9px 10px;gap:5px}.hp-order-open .hp-quick-lines{gap:5px}.hp-order-open .hp-quick-line{min-height:43px;padding:6px 8px}.hp-order-open .hp-quick-actions{gap:5px}}
+
+/* AkiHQ POS 3.0: dedicated restaurant register, landscape-first */
+@media(min-width:901px){
+.hp-shell.hp-terminal.hp-order-open{
+  height:calc(100dvh - 140px)!important;min-height:470px;
+  display:grid!important;grid-template-columns:minmax(0,1.65fr) minmax(330px,1fr)!important;
+  grid-template-rows:auto auto minmax(0,1fr) auto!important;
+  gap:10px!important;padding:12px!important;align-items:stretch;
+}
+.hp-order-open>.hp-mode-switch{grid-column:1/-1;grid-row:1;margin:0}
+.hp-order-open>.hp-terminal-top{grid-column:1/-1;grid-row:2;margin:0}
+.hp-order-open>.hp-register-menu{grid-column:1;grid-row:3;min-width:0;min-height:0!important;overflow:hidden!important}
+.hp-order-open>.hp-register-ticket{grid-column:2;grid-row:3;width:100%;height:100%!important;min-height:0!important;max-height:none!important;box-sizing:border-box;overflow:hidden!important}
+.hp-order-open>.hp-terminal-tools{grid-column:1/-1;grid-row:4;min-height:30px}
+.hp-order-open .hp-terminal-catalogue{display:flex;flex-direction:column;min-height:0;height:100%}
+.hp-order-open .hp-category-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.hp-order-open .hp-category-grid .action-btn{min-height:44px}
+.hp-order-open .hp-product-scroll{flex:1;min-height:0;overflow:auto;padding:4px}
+.hp-order-open .hp-product-buttons{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));align-content:start;gap:10px}
+.hp-order-open .hp-product-buttons .action-btn{min-height:85px}
+.hp-order-open .hp-quick-bill{height:100%!important;display:grid!important;grid-template-rows:auto minmax(0,1fr) auto auto auto!important;gap:8px;padding:16px!important}
+.hp-order-open .hp-quick-lines{min-height:0!important;max-height:none!important;overflow:auto!important;scrollbar-gutter:stable}
+.hp-order-open .hp-quick-line{grid-template-columns:minmax(0,1fr) auto auto;gap:6px;min-height:54px}
+.hp-order-open .hp-quick-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.hp-order-open .hp-quick-actions .action-btn{min-height:50px}
+.hp-order-open .hp-quick-total{padding:11px 0 7px}
+.hp-order-open .hp-quick-more{max-height:32px}
+}
+@media(min-width:901px) and (max-width:1150px){
+.hp-shell.hp-terminal.hp-order-open{grid-template-columns:minmax(0,1.25fr) minmax(320px,1fr)!important}
+.hp-order-open .hp-product-buttons{grid-template-columns:repeat(3,minmax(0,1fr))}
+.hp-order-open .hp-quick-line{padding:7px;gap:4px}
+}
+@media(max-width:900px){
+.hp-shell.hp-terminal.hp-order-open{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto auto minmax(120px,1fr) minmax(230px,42dvh) auto!important}
+.hp-order-open>.hp-register-menu{min-height:0;overflow:hidden}
+.hp-order-open>.hp-register-ticket{height:100%;min-height:0;max-height:none}
+.hp-order-open .hp-quick-bill{height:100%;grid-template-rows:auto minmax(40px,1fr) auto auto auto}
+.hp-order-open .hp-quick-actions{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
