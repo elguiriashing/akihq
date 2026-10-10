@@ -169,7 +169,7 @@ begin
         count(*) filter (where b.closed_at >= (date_trunc('day',now_local) at time zone tz)),
         coalesce(sum(b.total_cents) filter (where b.closed_at >= (date_trunc('week',now_local) at time zone tz)),0),
         count(*) filter (where b.closed_at >= (date_trunc('week',now_local) at time zone tz)),
-        coalesce(sum(b.total_cents) filter (where b.trading_day_id=opened.id),0),
+        coalesce(sum(b.total_cents) filter (where b.trading_day_id=(opened->>'id')::uuid),0),
         count(*) filter (where b.trading_day_id=opened.id),
         count(*) filter (where b.trading_day_id is null)
  into calendar_cents,calendar_count,weekly_cents,weekly_count,current_cents,current_count,unassigned
