@@ -13,7 +13,7 @@
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(ticket.kind)} ${esc(ticket.id)}</title><style>@page{size:${width===58?58:80}mm auto;margin:3mm}body{font:13px monospace;color:#000;width:${width===58?50:72}mm}h1{font-size:18px}li{margin:8px 0}ul{padding-left:16px}.notice{border:2px solid;padding:5px}small{overflow-wrap:anywhere}</style></head><body><h1>${esc(workspace.name)}</h1><h2>${esc(ticket.station)} · ${esc(ticket.kind)}</h2>${p.copy_of?'<h2>COPY / DUPLICADO</h2>':''}<p class="notice">${esc(p.notice||'OPERATIONAL TICKET — NO ES FACTURA')}</p><p>${esc(p.instruction||'')}</p><strong>${esc(o.label)}</strong><p>${esc(o.note)}</p>${ticket.kind==='preparation'?`<h3>Previous</h3>${list(p.previous)}<h3>Current required</h3>${list(p.current)}`:list(o.lines)}${p.destination?.id?`<h3>Destination ${esc(p.destination.table_id||'Walk-in')}</h3>${list(p.destination.lines)}`:''}${p.reason?`<p>${esc(p.reason)}</p>`:''}${p.total_cents!==undefined?`<p>Total ${esc(money(p.total_cents,currency))}<br>Recorded payments ${esc(money(p.paid_cents,currency))}<br>Balance ${esc(money(p.total_cents-p.paid_cents,currency))}</p>${(o.payments||[]).map(x=>`<p>${esc(x.method)} ${esc(money(x.amount_cents,currency))} ${esc(x.reference)}${x.change_cents?` · Change ${esc(money(x.change_cents,currency))}`:''}</p>`).join('')}`:''}<small>Order ${esc(o.id||ticket.order_id)}<br>Ticket ${esc(ticket.id)}<br>${esc(ticket.created_at)}${o.sale_id?`<br>Sale ${esc(o.sale_id)}`:''}</small><p>Keep with the final invoice where required.</p></body></html>`;
  }
  function create(ctx){
-  let view='terminal',category='All',designerCategory='All',panel='',panelLine='',paymentAmount=null,immersive=false,data=null,error='',selected='',page='',busy=false,disposed=false,started=false,timer=null,last='',printTicket=null,printAttempted=false,layoutDraft=null,layoutVersion=null,pairedDevice=null,printerDevices=[];
+  let view='terminal',category='All',designerCategory='All',panel='',panelLine='',paymentAmount=null,immersive=false,data=null,error='',selected='',page='',busy=false,disposed=false,started=false,timer=null,last='',printTicket=null,printAttempted=false,layoutDraft=null,layoutVersion=null,pairedDevice=null,printerDevices=[],tapJobs=[],tapTimer=null,tapDrain=null,tapInFlight=0;
   const key=`akihq:hospitality:${ctx.actor}:${ctx.workspace.id}`;
   function refresh(){
    if(disposed)return;
@@ -31,10 +31,101 @@
   async function rpc(name,args={}){if(disposed)throw Error('Workspace changed');const r=await ctx.client.rpc(name,{p_workspace:ctx.workspace.id,...args});if(disposed)throw Error('Workspace changed');if(r.error)throw Error(r.error.message);return r.data;}
   async function load(){if(busy||!active())return;try{const next=await rpc('crm_hospitality_overview');if(!active())return;const signature=JSON.stringify({...next,server_time:null});data=next;error='';if(signature!==last){last=signature;const focused=root.document.activeElement;if(!layoutDraft&&!focused?.closest?.('.hp-form, .hp-v4-form, .hp-v4-inline-form, .hp-v4-product-row')&&!root.document.querySelector('.hp-form[data-dirty], .hp-v4-form[data-dirty], .hp-v4-inline-form[data-dirty], .hp-v4-product-row[data-dirty]'))refresh();}}catch(e){if(!active())return;data=null;error=e.message;refresh();}}
   function start(){if(started)return;started=true;Promise.resolve().then(load);timer=root.setInterval(load,2500);}
+
+  // Tap intents are batched locally, then committed by the normal versioned RPC.
+  // This queue never guesses whether an ambiguous network response was saved.
+  const tapDelayMs=85;
+  const outstandingTaps=()=>tapInFlight+tapJobs.reduce((n,x)=>n+Math.abs(x.delta),0);
+  function enqueueTap(kind,orderId,id,delta){
+   if(!active())throw Error('Workspace changed');
+   if(pending()&&!busy)throw Error('Resolve the pending order request before taking new taps.');
+   const o=data?.orders.find(x=>x.id===orderId);
+   if(!o)throw Error('Order no longer open');
+   if(Number(o.paid_cents)>0)throw Error('Reverse recorded payments before editing this order.');
+   if(!Number.isInteger(delta)||!delta)throw Error('Invalid tap');
+   const previous=tapJobs.find(x=>x.kind===kind&&x.orderId===orderId&&x.id===id);
+   if(previous){
+    if(Math.abs(previous.delta+delta)>999)throw Error('Too many pending taps');
+    previous.delta+=delta;
+    if(previous.delta===0)tapJobs.splice(tapJobs.indexOf(previous),1);
+   }else{
+    if(tapJobs.length>=50)throw Error('Please wait for pending items to save');
+    tapJobs.push({kind,orderId,id,delta});
+   }
+   if(!tapDrain&&tapTimer===null&&tapJobs.length)
+    tapTimer=root.setTimeout(()=>{tapTimer=null;void flushTaps();},tapDelayMs);
+   refresh();
+  }
+  async function commitTap(job){
+   const o=data?.orders.find(x=>x.id===job.orderId);
+   if(!o)throw Error('Order has closed or moved; review the bill.');
+   if(Number(o.paid_cents)>0)throw Error('Cannot change an order after recording payment.');
+   if(job.kind==='line'){
+    const l=o.lines.find(x=>x.id===job.id);
+    if(!l){if(job.delta<0)return;throw Error('Item was removed; review the bill.');}
+    const qty=Math.max(0,Number(l.quantity)+job.delta);
+    if(qty!==Number(l.quantity))
+     await executeDirect({action:'line',order_id:o.id,version:o.version,line_id:l.id,quantity:qty,note:l.note||'',seat:l.seat||'',station:l.station||'kitchen'});
+    return;
+   }
+   if(job.kind!=='product'||job.delta<=0)throw Error('Invalid product tap');
+   if(!data.catalogue.some(x=>String(x.id)===job.id))throw Error('Product no longer available.');
+   // Prepared/seat-specific variants remain separate lines.
+   const plain=o.lines.find(l=>String(l.item_id)===job.id&&!String(l.note||'').trim()&&!String(l.seat||'').trim()&&l.station==='kitchen');
+   if(plain){
+    await executeDirect({action:'line',order_id:o.id,version:o.version,line_id:plain.id,quantity:Number(plain.quantity)+job.delta,note:'',seat:'',station:'kitchen'});
+    return;
+   }
+   await executeDirect({action:'add',order_id:o.id,version:o.version,item_id:job.id});
+   if(job.delta>1){
+    const updated=data?.orders.find(x=>x.id===o.id);
+    const l=updated?.lines.find(x=>String(x.item_id)===job.id&&!String(x.note||'').trim()&&!String(x.seat||'').trim()&&x.station==='kitchen');
+    if(!l)throw Error('First item saved but its new line was not reloaded; review the bill.');
+    await executeDirect({action:'line',order_id:updated.id,version:updated.version,line_id:l.id,quantity:Number(l.quantity)+job.delta-1,note:'',seat:'',station:'kitchen'});
+   }
+  }
+  async function flushTaps(){
+   if(tapTimer!==null){root.clearTimeout(tapTimer);tapTimer=null;}
+   if(tapDrain)return tapDrain;
+   if(!tapJobs.length)return true;
+   tapDrain=(async()=>{
+    while(tapJobs.length&&active()){
+     const job=tapJobs.shift();tapInFlight=Math.abs(job.delta);
+     try{await commitTap(job);tapInFlight=0;}
+     catch(e){
+      const dropped=tapJobs.reduce((sum,j)=>sum+Math.abs(j.delta),0);tapInFlight=0;tapJobs.length=0;error=e.message;
+      ctx.toast('Check the bill',e.message+(dropped?' · '+dropped+' later tap(s) were not submitted.':'')+' Check any pending request before retrying.','warning');
+      refresh();return false;
+     }
+    }
+    return active();
+   })();
+   try{return await tapDrain;}
+   finally{
+    tapDrain=null;
+    if(tapJobs.length&&active()&&tapTimer===null)tapTimer=root.setTimeout(()=>{tapTimer=null;void flushTaps();},tapDelayMs);
+    refresh();
+   }
+  }
+
   async function execute(command,retry=false){
-   if (!root.navigator.locks?.request) throw Error('Use an up-to-date browser over HTTPS to safely record orders.');
-   return root.navigator.locks.request(key,{ifAvailable:true},async lock=>{
-    if(!lock)throw Error('Another tab is recording an order. Review that tab first.');
+   const hadTaps=!!(tapJobs.length||tapTimer!==null||tapDrain);
+   if(hadTaps&&!retry){
+    if(!await flushTaps())throw Error('Review the current bill before continuing.');
+    // Send and pre-bill are safe to rebase after this device's queued taps.
+    if(['send','prebill'].includes(command?.action)){
+     const o=data?.orders.find(x=>x.id===command.order_id);
+     if(!o)throw Error('Order no longer open');
+     command={...command,version:o.version};
+    }
+   }
+   return executeDirect(command,retry);
+  }
+  async function executeDirect(command,retry=false){
+   if(!root.navigator.locks?.request)throw Error('Use an up-to-date browser over HTTPS to safely record orders.');
+   // Queue behind another tab's short command, but never bypass a pending unknown result.
+   return root.navigator.locks.request(key,{},async lock=>{
+    if(!lock)throw Error('Unable to lock this order; review the other tab.');
     return executeLocked(command,retry);
    });
   }
@@ -44,7 +135,7 @@
     let p=pending();if(!retry){if(p)throw Error('Resolve the pending request first');p={key:root.crypto.randomUUID(),command};root.localStorage.setItem(key,JSON.stringify(p));}if(!p)throw Error('No pending request');
     const result=await rpc('crm_hospitality_command',{p_key:p.key,p_command:p.command});
     root.localStorage.removeItem(key);
-    if(result.order_id){if(selected!==result.order_id)panel='';selected=result.status==='closed'?'':result.order_id;}
+    if(result.order_id&&(p.command.action==='open'||!selected||selected===p.command.order_id)){if(selected!==result.order_id)panel='';selected=result.status==='closed'?'':result.order_id;}
     if(p.command.action==='layout'){layoutDraft=null;layoutVersion=null;}
     if(p.command.action==='claim_ticket'){printTicket=result;printAttempted=false;}
     return result;
@@ -62,7 +153,7 @@
    const orders=`<section class="panel hp-card"><h3>Open orders</h3><div class="hp-toolbar">${data.orders.map(x=>btn('select',`${tableName(x)} · ${money(x.total_cents-x.paid_cents,ctx.workspace.currency)} due`, `data-id="${x.id}" aria-pressed="${x.id===selected}"`)).join('')||'<p>No open orders</p>'}</div></section>`;
    const groups=root.AkiPosV4.groups(layout,data.catalogue);
    if(!groups.some(g=>g.id===category))category='All';
-   const catalogue=o?`<section class="hp-terminal-catalogue">${root.AkiPosV4.categoryButtons(layout,data.catalogue,category)}${root.AkiPosV4.itemButtons(layout,data.catalogue,category,o,ctx.workspace.currency)}</section>`:'';
+   const catalogue=o?`<section class="hp-terminal-catalogue">${root.AkiPosV4.categoryButtons(layout,data.catalogue,category)}${root.AkiPosV4.itemButtons(layout,data.catalogue,category,o,ctx.workspace.currency)}<div class="hp-tap-status" role="status" aria-live="polite">${tapJobs.length||tapDrain?'Saving '+outstandingTaps()+' item tap(s)…':''}</div></section>`:'';
 
    const details=o?`<section class="panel hp-card"><h2>${esc(tableName(o))}</h2><p>Order ${esc(o.id.slice(0,8))} · revision ${o.version}</p>${form('note',input('Order notes','note',o.note,'text','maxlength="2000"')+input('Guests','guests',o.guests,'number','min="1" max="999" required'),orderAttrs(o))}<div class="hp-lines">${o.lines.map(l=>`<details><summary>${esc(l.quantity)} × ${esc(l.name)} · ${esc(money(l.unit_price_cents,ctx.workspace.currency))} each ${esc(l.note)}</summary>${form('line',input('Quantity (0 removes)','quantity',l.quantity,'number','min="0" max="999999" step="0.001" required')+input('Preparation notes','note',l.note,'text','maxlength="1000"')+input('Seat','seat',l.seat,'text','maxlength="30"')+select('Station','station',[['kitchen','Kitchen'],['bar','Bar']],l.station),`${orderAttrs(o)} data-line="${l.id}"`)}</details>`).join('')||'<p>Choose a product to start.</p>'}</div><p><b>Total ${esc(money(o.total_cents,ctx.workspace.currency))}</b> · Paid ${esc(money(o.paid_cents,ctx.workspace.currency))} · Due ${esc(money(o.total_cents-o.paid_cents,ctx.workspace.currency))}</p><div class="hp-toolbar">${btn('send','Send kitchen / bar revision',orderAttrs(o))}${btn('prebill','Queue pre-bill',orderAttrs(o))}</div><details><summary>Move order or split items</summary>${form('move',select('Move whole order to','table_id',tables()),orderAttrs(o))}${form('transfer',select('Transfer selected quantities to','table_id',tables())+o.lines.map(l=>input(`${l.name} (up to ${l.quantity})`,`qty_${l.id}`,0,'number',`min="0" max="${l.quantity}" step="0.001"`)).join(''),`${orderAttrs(o)} data-destinations="${esc(JSON.stringify(Object.fromEntries(data.orders.filter(x=>x.table_id).map(x=>[x.table_id,x.version]))))}"`)}</details><details><summary>Record payment / split bill</summary><p>Record money already collected using cash or an external terminal. This does not charge a card or issue an invoice.</p>${form('payment',input('Amount','amount',((o.total_cents-o.paid_cents)/100).toFixed(2),'number','min="0.01" step="0.01" required')+select('Method','method',[['cash','Cash'],['card','External card terminal'],['other','Other external payment']])+input('Cash tendered (optional)','tendered','','number','min="0.01" step="0.01"')+input('External payment reference','reference','','text','maxlength="120"'),orderAttrs(o))}${form('equal',input('Number of remaining shares','shares',2,'number','min="2" max="100" required'),orderAttrs(o))}<p>Equal shares rounds down to cents; the final payer covers the remainder.</p>${o.payments.map(p=>`<p>${esc(p.method)} · ${esc(money(p.amount_cents,ctx.workspace.currency))} ${esc(p.reference||p.reason||'')}</p>`).join('')}</details>${data.can_manage?`<details><summary>Administrator corrections</summary>${form('reprice',input('Reason for catalogue repricing','reason','','text','required minlength="3" maxlength="500"'),orderAttrs(o))}${form('reverse_payment',select('Payment to reverse','payment_id',o.payments.filter(p=>p.amount_cents>0&&!o.payments.some(r=>r.reverses===p.id)).map(p=>[p.id,`${p.method} ${money(p.amount_cents,ctx.workspace.currency)}`]))+input('Reason (record an actual refund separately)','reason','','text','required minlength="3" maxlength="500"'),orderAttrs(o))}${form('cancel',input('Cancellation reason','reason','','text','required minlength="3" maxlength="500"'),orderAttrs(o))}</details>`:''}</section>`:'<section class="panel hp-card"><h2>Select a table or start a walk-in</h2><p>Staff use their own AkiHQ accounts on phones. Orders sync while connected.</p></section>';
    const tileFloor=layout.mode==='restaurant'?`<section class="hp-tile-floor"><div class="hp-tile-heading"><strong>Choose a table</strong><span>${layout.tables.filter(t=>t.page===page).length} tables</span></div><div class="hp-tile-grid">${layout.tables.filter(t=>t.page===page).map(t=>{const activeOrder=data.orders.find(o=>o.table_id===t.id);return `<button type="button" class="hp-tile-table ${activeOrder?'occupied':''}" data-action="hp-table" data-id="${esc(t.id)}"><span aria-hidden="true">▣</span><strong>${esc(t.name)}</strong><small>${activeOrder?esc(money(activeOrder.total_cents-activeOrder.paid_cents,ctx.workspace.currency))+' due':esc(t.seats)+' seats · Available'}</small></button>`}).join('')||'<p>Add tables using the Designer.</p>'}</div></section>`:'';
@@ -88,7 +179,7 @@
    if(a==='layout-edit'){layoutDraft=JSON.parse(JSON.stringify(data.layout));layoutVersion=data.layout_version;refresh();return;}
    if(a==='layout-discard'){layoutDraft=null;layoutVersion=null;refresh();return;}
    if(a==='layout-save'){await execute({action:'layout',version:layoutVersion,layout:layoutDraft});layoutDraft=null;layoutVersion=null;refresh();return;}
-   if(a==='quick-qty'){const o=current();if(!o||o.id!==target.dataset.order)throw Error('Order changed, refresh before editing.');const l=o.lines.find(x=>x.id===target.dataset.line);if(!l)throw Error('Item no longer exists');const quantity=Number(l.quantity)+Number(target.dataset.delta);if(quantity<0)throw Error('Invalid quantity');await execute({action:'line',order_id:o.id,version:o.version,line_id:l.id,quantity,note:l.note||'',seat:l.seat||'',station:l.station||'bar'});return;}
+   if(a==='quick-qty'){enqueueTap('line',target.dataset.order,target.dataset.line,Number(target.dataset.delta));return;}
    if(a==='split-panel'){panel='split';refresh();return;}
    if(a==='payment-panel'){panel='payment';paymentAmount=null;refresh();return;}
    if(a==='printer-panel'){panel='printer';refresh();return;}
@@ -112,7 +203,7 @@
    let c={action:a,order_id:target.dataset.order,version:Number(target.dataset.version)};
    if(a==='open')c={action:'open',label:'Walk-in'};
    if(a==='table'){const t=data.layout.tables.find(t=>t.id===target.dataset.id);c={action:'open',table_id:t.id,label:`Table ${t.name}`};}
-   if(a==='add')c.item_id=target.dataset.id;
+   if(a==='add'){enqueueTap('product',target.dataset.order,target.dataset.id,1);return;}
    if(['claim','confirm','uncertain'].includes(a))c={action:`${a}_ticket`,ticket_id:target.dataset.id};
    await execute(c);if(['confirm','uncertain'].includes(a)){printTicket=null;refresh();}
   }catch(e){if(disposed)return;error=e.message;ctx.toast('PoS needs attention',error,'warning');refresh();}}
@@ -178,7 +269,7 @@
    await execute(c);
    if(['payment','move','transfer','line','note','reprice','reverse_payment','cancel'].includes(a)){panel='';panelLine='';paymentAmount=null;refresh();}
   }catch(e){if(disposed)return;error=e.message;ctx.toast('PoS needs attention',error,'warning');refresh();}}
-  return {render,action,submit,dispose(){disposed=true;root.clearInterval(timer);floorEditor?.dispose();root.document.removeEventListener('input',markDirty);root.document.removeEventListener('keydown',escapePanel);data=null;printTicket=null;pairedDevice=null;printerDevices=[];}};
+  return {render,action,submit,dispose(){disposed=true;if(tapTimer!==null)root.clearTimeout(tapTimer);tapJobs.length=0;root.clearInterval(timer);floorEditor?.dispose();root.document.removeEventListener('input',markDirty);root.document.removeEventListener('keydown',escapePanel);data=null;printTicket=null;pairedDevice=null;printerDevices=[];}};
  }
  root.AkiHospitality={create,ticketHTML};
 })(typeof window==='undefined'?globalThis:window);

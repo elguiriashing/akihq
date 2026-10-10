@@ -8,6 +8,7 @@ on:
       - "assets/pos-v4-dialogs.js"
       - "assets/pos-v4.css"
       - "tests/pos-v4-smoke.cjs"
+      - "tests/pos-rapid-taps.test.mjs"
       - ".github/workflows/pos-v4-smoke.yml"
   push:
     branches: [main]
@@ -26,4 +27,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - run: npm ci --prefix cloudflare
       - run: node tests/pos-v4-smoke.cjs
+      - run: node --test tests/pos-rapid-taps.test.mjs
