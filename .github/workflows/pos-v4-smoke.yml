@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - "assets/hospitality-pos.js"
+      - "assets/pos-ledger.js"
+      - "assets/pos-ledger.css"
+      - "supabase/migrations/20261010223000_pos_trading_days_ledger.sql"
+      - "tests/pos-ledger.test.mjs"
       - "assets/hospitality-pos.css"
       - "assets/pos-v4.js"
       - "assets/pos-v4-dialogs.js"
@@ -34,3 +38,4 @@ jobs:
       - run: node tests/pos-v4-smoke.cjs
       - run: node --test tests/pos-rapid-taps.test.mjs
       - run: node --test tests/pos-printer-station.test.mjs
+      - run: node --test tests/pos-ledger.test.mjs
