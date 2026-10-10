@@ -44,7 +44,7 @@ test('ledger provides closed-bill lookup, account/date/product/price filters and
   assert.match(body,/Closer Staff/);
   const form=h.w.document.querySelector('[data-form="hp-ledger-search"]');
   form.elements.from_date.value='2026-10-10';form.elements.to_date.value='2026-10-11';
-  form.elements.item.value='Coke';form.elements.table.value='7';form.elements.account.value='staff-1';
+  form.querySelector('[name="item"]').value='Coke';form.elements.table.value='7';form.elements.account.value='staff-1';
   form.elements.min_eur.value='10.00';form.elements.max_eur.value='20.00';
   await h.ctrl.submit(form);
   assert.equal(h.lookup.item,'Coke');assert.equal(h.lookup.min_cents,1000);assert.equal(h.lookup.max_cents,2000);
