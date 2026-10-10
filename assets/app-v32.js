@@ -3280,7 +3280,7 @@
   }
 
   function canManageTeamChat() {
-    const role = String(selectedWorkspace?.role || "").toLowerCase();
+    const role = String(state.workspace?.role || "").toLowerCase();
     return ["owner", "admin", "manager"].includes(role);
   }
 
