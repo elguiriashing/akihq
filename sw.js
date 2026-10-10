@@ -1,4 +1,4 @@
-const CACHE = "akihq-v98";
+const CACHE = "akihq-v99";
 const ASSETS = [
   "./assets/floor-editor.js?v=2",
   "./assets/hospitality-pos.js?v=3",
@@ -22,6 +22,17 @@ const ASSETS = [
   "./config.js?v=41",
   "./assets/supabase.js?v=40",
   "./assets/logo.svg",
+  "./assets/icons/favicon.ico",
+  "./assets/icons/icon.svg",
+  "./assets/icons/icon-16.png",
+  "./assets/icons/icon-32.png",
+  "./assets/icons/icon-48.png",
+  "./assets/icons/icon-64.png",
+  "./assets/icons/icon-180.png",
+  "./assets/icons/icon-192.png",
+  "./assets/icons/icon-512.png",
+  "./assets/icons/maskable-192.png",
+  "./assets/icons/maskable-512.png",
   "./manifest.webmanifest"
 ];
 
