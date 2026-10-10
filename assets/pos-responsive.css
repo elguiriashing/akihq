@@ -1,0 +1,115 @@
+/* AkiHQ PoS responsive register.
+ * Keep trading-day controls, status notices and table toolbar in one layout row.
+ * Previous fixed five-row grid gave the bill an implicit row below the viewport.
+ */
+.hp-order-open > .hp-register-intro{min-width:0;display:grid;gap:8px;align-content:start}
+.hp-register-intro > .hp-mode-switch,
+.hp-register-intro > .hp-terminal-top,
+.hp-order-open > .hp-register-menu,
+.hp-order-open > .hp-register-ticket{min-width:0}
+.hp-order-open .hp-quick-heading{min-width:0}
+.hp-order-open .hp-quick-actions .action-btn{touch-action:manipulation}
+.hp-order-open .hp-qty-stepper button{min-width:40px;min-height:40px}
+
+/* Desktop + wide landscape tablets: two panes with independent scrolling. */
+@media (min-width:901px){
+ .hp-shell.hp-terminal.hp-order-open{
+  height:clamp(480px,calc(100dvh - 215px),1100px)!important;
+  min-height:0!important;display:grid!important;
+  grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr)!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  gap:10px!important;overflow:hidden!important
+ }
+ .hp-order-open > .hp-register-intro{grid-column:1/-1;grid-row:1}
+ .hp-order-open > .hp-register-menu{
+  grid-column:1;grid-row:2!important;min-height:0!important;
+  overflow:hidden!important
+ }
+ .hp-order-open > .hp-register-ticket{
+  grid-column:2;grid-row:2!important;height:100%!important;
+  min-height:0!important;max-height:none!important;
+  display:flex!important;overflow:hidden!important
+ }
+ .hp-order-open .hp-quick-bill{
+  min-height:0!important;height:100%!important;
+  grid-template-rows:auto minmax(0,1fr) auto auto auto!important;
+  overflow:hidden!important
+ }
+ .hp-order-open .hp-quick-lines{min-height:0!important;overflow-y:auto!important}
+}
+
+/* Narrow tablets, split-screen and phones: allow page scrolling, never clip Pay.
+ * The existing .content scroll surface reserves fixed nav and device safe areas.
+ */
+@media (max-width:900px){
+ .hp-shell.hp-terminal.hp-order-open{
+  display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto!important;height:auto!important;
+  min-height:0!important;max-height:none!important;
+  overflow:visible!important;align-content:start;gap:10px
+ }
+ .hp-order-open > .hp-register-intro{grid-column:1;grid-row:1}
+ .hp-order-open > .hp-register-menu{
+  grid-column:1;grid-row:2!important;height:clamp(185px,30dvh,300px);
+  min-height:0!important;overflow:hidden!important
+ }
+ .hp-order-open .hp-terminal-catalogue{height:100%;min-height:0}
+ .hp-order-open .hp-product-scroll{
+  min-height:0!important;overflow-y:auto!important;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch
+ }
+ .hp-order-open > .hp-register-ticket{
+  grid-column:1;grid-row:3!important;height:auto!important;
+  min-height:0!important;max-height:none!important;
+  overflow:visible!important;display:block!important
+ }
+ .hp-order-open .hp-quick-bill{
+  display:flex!important;flex-direction:column;gap:8px;
+  height:auto!important;min-height:0!important;overflow:visible!important
+ }
+ .hp-order-open .hp-quick-lines{
+  flex:0 1 auto;min-height:0!important;max-height:min(27dvh,230px)!important;
+  overflow-y:auto!important;-webkit-overflow-scrolling:touch
+ }
+ .hp-order-open .hp-quick-actions{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .hp-order-open .hp-quick-actions .action-btn{min-height:48px}
+ .hp-order-open .hp-v4-utilities{flex-wrap:wrap}
+}
+
+/* Two larger thumb-friendly action columns on phones. */
+@media (max-width:650px){
+ .hp-order-open .hp-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .hp-order-open .hp-quick-actions .action-btn{font-size:13px;min-height:48px}
+ .hp-order-open .hp-quick-line{grid-template-columns:minmax(0,1fr) auto auto;gap:5px}
+ .hp-order-open .hp-quick-line > strong{min-width:50px}
+ .hp-register-intro .hp-terminal-top .hp-toolbar{gap:7px}
+ .hp-register-intro .hp-terminal-top .hp-toolbar .action-btn{flex:1 1 auto;min-height:44px}
+ .hp-order-open .hp-quick-heading .action-btn{min-height:44px}
+}
+@media (max-width:380px){
+ .hp-shell.hp-terminal.hp-order-open{padding:7px!important}
+ .hp-order-open .hp-quick-line{padding:6px}
+ .hp-order-open .hp-qty-stepper button{min-width:38px}
+ .hp-order-open .hp-quick-heading strong{font-size:17px}
+}
+@media (max-height:550px) and (orientation:landscape){
+ .hp-shell.hp-terminal.hp-order-open{min-height:0!important}
+}
+@media (max-width:900px) and (max-height:550px) and (orientation:landscape){
+ .hp-order-open > .hp-register-menu{height:185px}
+ .hp-order-open .hp-quick-lines{max-height:125px!important}
+}
+
+/* Immersive mode has no app chrome. Let the content scroll to the last control. */
+body:has(.hp-terminal.hp-immersive) .content-shell{
+ height:100dvh!important;max-height:100dvh!important
+}
+body:has(.hp-terminal.hp-immersive) .content{
+ box-sizing:border-box;overflow-y:auto!important;
+ padding-bottom:max(12px,env(safe-area-inset-bottom))!important
+}
+@media (max-width:900px){
+ body:has(.hp-terminal.hp-immersive) .hp-terminal.hp-order-open{
+  height:auto!important;min-height:0!important;max-height:none!important
+ }
+}
