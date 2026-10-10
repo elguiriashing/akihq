@@ -113,3 +113,136 @@ body:has(.hp-terminal.hp-immersive) .content{
   height:auto!important;min-height:0!important;max-height:none!important
  }
 }
+
+/* POS checkout-safe layout: mobile first; never tuck payment behind navigation. */
+@media (max-width:900px) {
+ body:has(.hp-terminal.hp-order-open) .content {
+   overflow-y:auto!important;
+   overscroll-behavior-y:contain;
+   padding-bottom:calc(var(--mobile-tabbar-height, 0px) + env(safe-area-inset-bottom, 0px) + 32px)!important;
+ }
+ body:has(.hp-terminal.hp-order-open) .view {
+   min-height:0!important;
+   padding-bottom:24px!important;
+ }
+ .hp-shell.hp-terminal.hp-order-open {
+   width:100%!important;
+   height:auto!important;
+   max-height:none!important;
+   min-height:0!important;
+   display:flex!important;
+   flex-direction:column!important;
+   gap:9px!important;
+   overflow:visible!important;
+   padding:9px!important;
+   box-sizing:border-box;
+ }
+ .hp-order-open > .hp-register-intro {
+   display:grid!important;
+   gap:8px;
+   flex:none;
+ }
+ .hp-order-open > .hp-register-menu {
+   height:auto!important;
+   min-height:0!important;
+   max-height:none!important;
+   overflow:visible!important;
+   flex:none;
+ }
+ .hp-order-open .hp-terminal-catalogue {
+   height:auto!important;
+   display:flex;
+   flex-direction:column;
+   gap:9px;
+ }
+ .hp-order-open .hp-product-scroll {
+   height:auto!important;
+   max-height:min(35dvh, 340px);
+   min-height:100px!important;
+   overflow-y:auto!important;
+   overscroll-behavior:contain;
+ }
+ .hp-order-open > .hp-register-ticket {
+   flex:none;
+   width:100%;
+   height:auto!important;
+   min-height:0!important;
+   max-height:none!important;
+   overflow:visible!important;
+   display:block!important;
+ }
+ .hp-order-open .hp-quick-bill {
+   display:flex!important;
+   flex-direction:column!important;
+   height:auto!important;
+   min-height:0!important;
+   max-height:none!important;
+   gap:9px;
+   padding:12px!important;
+   overflow:visible!important;
+ }
+ .hp-order-open .hp-quick-lines {
+   flex:none!important;
+   max-height:min(27dvh,210px)!important;
+   min-height:45px!important;
+   overflow-y:auto!important;
+ }
+ .hp-order-open .hp-quick-total {
+   flex:none;
+   padding:8px 2px!important;
+ }
+ .hp-order-open .hp-quick-actions {
+   display:grid!important;
+   grid-template-columns:repeat(2,minmax(0,1fr))!important;
+   gap:8px!important;
+   flex:none;
+ }
+ .hp-order-open .hp-quick-actions .action-btn {
+   min-height:52px!important;
+   font-size:13px!important;
+   padding:10px 6px!important;
+   white-space:normal;
+   touch-action:manipulation;
+ }
+ .hp-order-open .hp-v4-utilities {
+   flex-wrap:wrap;
+   gap:6px;
+ }
+}
+@media (max-width:767px) {
+ body:has(.hp-terminal.hp-order-open) .content {
+   padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))!important;
+ }
+ .hp-order-open .hp-product-scroll {max-height:260px;}
+ .hp-order-open .hp-quick-lines {max-height:175px!important;}
+ .hp-order-open .hp-mode-switch {gap:6px;}
+ .hp-order-open .hp-mode-switch .action-btn {min-height:42px;white-space:normal;}
+ .hp-order-open .hp-register-intro .hp-toolbar {gap:6px;}
+}
+@media (max-width:500px) {
+ .hp-order-open .hp-product-buttons {grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+ .hp-order-open .hp-category-grid {grid-template-columns:repeat(3,minmax(0,1fr))!important;}
+ .hp-order-open .hp-quick-line {gap:5px!important;padding:8px!important;}
+ .hp-order-open .hp-quick-line .hp-qty-stepper button {min-height:40px;min-width:38px;}
+ .hp-order-open .hp-quick-heading {gap:6px;}
+ .hp-order-open .hp-quick-heading strong {font-size:17px;}
+ .hp-order-open .hp-quick-heading .action-btn {min-height:42px;}
+}
+@media (max-width:900px) and (max-height:550px) and (orientation:landscape) {
+ .hp-order-open .hp-product-scroll{max-height:160px;}
+ .hp-order-open .hp-quick-lines{max-height:100px!important;}
+ .hp-order-open .hp-quick-actions .action-btn{min-height:44px!important;}
+}
+@media (min-width:901px) and (max-width:1190px) {
+ .hp-shell.hp-terminal.hp-order-open{
+   grid-template-columns:minmax(0,1.2fr) minmax(310px,1fr)!important;
+ }
+ .hp-order-open .hp-quick-bill {padding:10px!important;}
+ .hp-order-open .hp-quick-actions .action-btn{min-height:48px;}
+}
+/* In immersive mobile till mode there is no mobile tabbar reservation. */
+@media (max-width:900px) {
+ body:has(.hp-terminal.hp-immersive) .content {
+   padding-bottom:calc(env(safe-area-inset-bottom,0px) + 22px)!important;
+ }
+}
