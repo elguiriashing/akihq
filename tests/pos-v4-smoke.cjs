@@ -12,7 +12,7 @@ const root={
  document:{querySelectorAll:()=>[],querySelector:()=>null,activeElement:null,addEventListener(){},removeEventListener(){}},
  localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},
  navigator:{locks:{request:async(k,o,fn)=>fn({})}},crypto:{randomUUID:()=>"00000000-0000-4000-a000-"+String(++sequence).padStart(12,"0")},
- FormData:class{constructor(form){return form.fields}},setInterval:()=>0,clearInterval(){}
+ FormData:class{constructor(form){return form.fields}},setInterval:()=>0,clearInterval(){},setTimeout:(fn,ms)=>setTimeout(fn,ms),clearTimeout:id=>clearTimeout(id)
 };
 for(const file of files)new Function("window","globalThis",read(file))(root,root);
 const h=root.AkiHospitality.create({
@@ -58,6 +58,7 @@ async function run(){
  await h.action({dataset:{action:"hp-select",id:"o1"}});
  assert.match(h.render(),/Cocktails/);
  await h.action({dataset:{action:"hp-quick-qty",order:"o1",line:"l1",delta:"1"}});
+ await new Promise(resolve=>setTimeout(resolve,180));
  assert.ok(commands.some(c=>c.action==="line"&&c.line_id==="l1"&&c.quantity===3));
  await h.submit({dataset:{form:"hp-payment",order:"o1",version:order.version},fields:[["amount","2.50"],["method","cash"],["tendered","2.50"],["reference",""]]});
  assert.ok(commands.some(c=>c.action==="payment"&&c.amount_cents===250));
