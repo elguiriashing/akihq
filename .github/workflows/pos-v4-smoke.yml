@@ -17,6 +17,7 @@ on:
       - "assets/pos-printer-station.js"
       - "assets/pos-printer-station.css"
       - "tests/pos-v4-smoke.cjs"
+      - "tests/pos-mobile-checkout.cjs"
       - "tests/pos-rapid-taps.test.mjs"
       - "tests/pos-printer-station.test.mjs"
       - ".github/workflows/pos-v4-smoke.yml"
@@ -39,6 +40,7 @@ jobs:
           node-version: "22"
       - run: npm ci --prefix cloudflare
       - run: node tests/pos-v4-smoke.cjs
+      - run: node tests/pos-mobile-checkout.cjs
       - run: node --test tests/pos-rapid-taps.test.mjs
       - run: node --test tests/pos-printer-station.test.mjs
       - run: node --test tests/pos-ledger.test.mjs

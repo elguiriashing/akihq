@@ -75,8 +75,8 @@ async function run(){
  for(const rule of ["@media(min-width:901px)","@media(max-width:900px)","@media(max-width:560px)","orientation:landscape",":has(.hp-terminal.hp-immersive)"])assert.ok((css+"\n"+base).includes(rule),"Missing responsive rule: "+rule);
  const responsive=read("assets/pos-responsive.css"),html=read("index.html"),sw=read("sw.js");
  for(const fragment of [".hp-register-intro","grid-template-rows:auto minmax(0,1fr)","grid-template-rows:auto auto auto","overflow:visible!important","grid-template-columns:repeat(2,minmax(0,1fr))","max-height:550px","safe-area-inset-bottom"])assert.ok(responsive.includes(fragment),"Missing responsive checkout rule: "+fragment);
- assert.ok(html.includes("assets/pos-responsive.css?v=1"));
- assert.ok(sw.includes("./assets/pos-responsive.css?v=1"));
+ assert.ok(html.includes("assets/pos-responsive.css?v=2"));
+ assert.ok(sw.includes("./assets/pos-responsive.css?v=2"));
  assert.ok(sw.includes("./assets/hospitality-pos.js?v=13"));
  h.dispose();
  console.log("PoS v4 controller, persistence, checkout and responsive contracts passed.");
