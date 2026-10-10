@@ -34,6 +34,14 @@ async function run(){
  assert.match(h.render(),/hp-tile-table/);
  await h.action({dataset:{action:"hp-select",id:"o1"}});
  assert.match(h.render(),/hp-v4-product/);
+ const till=h.render();
+ const intro=till.indexOf('class="hp-register-intro"');
+ const day=till.indexOf('class="hp-day-shortcut"');
+ const toolbar=till.indexOf('class="hp-terminal-top"');
+ const menu=till.indexOf('class="hp-terminal-body hp-register-menu"');
+ const ticket=till.indexOf('class="hp-terminal-bill hp-register-ticket"');
+ assert.ok(intro>=0&&intro<day&&day<toolbar&&toolbar<menu&&menu<ticket,"Trading day, menu and bill must have stable register placement");
+ for(const action of ['hp-send','hp-prebill','hp-split-panel','hp-payment-panel'])assert.ok(till.includes('data-action="'+action+'"'),"Checkout action missing: "+action);
  await h.action({dataset:{action:"hp-payment-panel"}});
  assert.match(h.render(),/Record payment/);
  await h.action({dataset:{action:"hp-split-panel"}});
@@ -65,6 +73,11 @@ async function run(){
  assert.deepEqual(toasts,[]);
  const css=read("assets/pos-v4.css"),base=read("assets/hospitality-pos.css");
  for(const rule of ["@media(min-width:901px)","@media(max-width:900px)","@media(max-width:560px)","orientation:landscape",":has(.hp-terminal.hp-immersive)"])assert.ok((css+"\n"+base).includes(rule),"Missing responsive rule: "+rule);
+ const responsive=read("assets/pos-responsive.css"),html=read("index.html"),sw=read("sw.js");
+ for(const fragment of [".hp-register-intro","grid-template-rows:auto minmax(0,1fr)","grid-template-rows:auto auto auto","overflow:visible!important","grid-template-columns:repeat(2,minmax(0,1fr))","max-height:550px","safe-area-inset-bottom"])assert.ok(responsive.includes(fragment),"Missing responsive checkout rule: "+fragment);
+ assert.ok(html.includes("assets/pos-responsive.css?v=1"));
+ assert.ok(sw.includes("./assets/pos-responsive.css?v=1"));
+ assert.ok(sw.includes("./assets/hospitality-pos.js?v=13"));
  h.dispose();
  console.log("PoS v4 controller, persistence, checkout and responsive contracts passed.");
 }
