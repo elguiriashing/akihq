@@ -12,9 +12,12 @@ async function harness(){
   {id:'a',station:'kitchen',kind:'preparation',status:'queued',order_id:'o',created_at:'2026-10-10T19:00:00Z'},
   {id:'b',station:'bar',kind:'preparation',status:'claimed',order_id:'o',created_at:'2026-10-10T18:50:00Z'},
   {id:'c',station:'receipt',kind:'prebill',status:'uncertain',order_id:'o',created_at:'2026-10-10T18:40:00Z'},
-  {id:'d',station:'receipt',kind:'payment',status:'confirmed',order_id:'o',created_at:'2026-10-10T18:30:00Z'}
+  {id:'d',station:'receipt',kind:'payment',status:'confirmed',order_id:'paid-order',order_status:'closed',created_at:'2026-10-10T18:30:00Z'},
+  {id:'e',station:'receipt',kind:'payment',status:'queued',order_id:'paid-order',order_status:'closed',created_at:'2026-10-10T19:01:00Z'},
+  {id:'f',station:'receipt',kind:'prebill',status:'superseded',order_id:'paid-order',order_status:'closed',created_at:'2026-10-10T18:25:00Z'},
+  {id:'g',station:'kitchen',kind:'preparation',status:'claimed',order_id:'paid-order',order_status:'closed',created_at:'2026-10-10T17:25:00Z'}
  ];
- const data=()=>({layout:{mode:'restaurant',pages:[{id:'f',name:'Floor'}],tables:[]},layout_version:0,orders:[],catalogue:[],tickets,can_manage:true,can_export:true});
+ const data=()=>({layout:{mode:'restaurant',pages:[{id:'f',name:'Floor'}],tables:[]},layout_version:0,orders:[{id:'o',label:'Table 1',table_id:null,status:'open',version:1,lines:[],payments:[],total_cents:0,paid_cents:0,guests:1}],recent:[{id:'paid-order',label:'Table 2',status:'closed'}],catalogue:[],tickets,can_manage:true,can_export:true});
  Object.defineProperty(w.crypto,'randomUUID',{configurable:true,value:()=> '00000000-0000-4000-a000-'+String(++seq).padStart(12,'0')});
  w.navigator.locks={request:async(_k,_opt,fn)=>fn({})};
  scripts.forEach(src=>w.eval(src));
@@ -41,24 +44,34 @@ async function harness(){
  controller=w.AkiHospitality.create(ctx);ctx.refresh();await wait(20);
  return {w,dom,controller,tickets,commands,toasts,close(){controller.dispose();dom.window.close()}};
 }
-test('printer inbox provides clear ticket status views and destination filtering',async()=>{
+test('three print destinations separate active jobs from settled orders and history',async()=>{
  const h=await harness();try{
   await h.controller.action({dataset:{action:'hp-printer-panel'}});
-  assert.match(h.w.document.body.textContent,/Printer station/);
-  assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,3);
-  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'history'}});
+  const view=h.w.document.body.textContent;
+  for(const name of ['Kitchen / Bar','Client Bill Unpaid','Client Bill Paid','History & Review'])assert.match(view,new RegExp(name));
+  assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,2);
+  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'unpaid'}});
   assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,1);
-  assert.match(h.w.document.querySelector('.hp-ps-detail').textContent,/Payment receipt/);
-  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'queued'}});
+  assert.match(h.w.document.querySelector('.hp-ps-ticket').textContent,/Client bill · unpaid/);
+  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'paid'}});
+  assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,1);
+  assert.match(h.w.document.querySelector('.hp-ps-ticket').textContent,/Client bill · paid/);
+  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'archive'}});
+  assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,3);
+  assert.match(h.w.document.body.textContent,/Archived after settlement/);
+  await h.controller.action({dataset:{action:'hp-printer-select',id:'f'}});
+  assert.equal(h.w.document.querySelector('[data-action="hp-claim"]'),null);
+  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'kitchen'}});
   const input=h.w.document.querySelector('[data-printer-station]');
   input.value='bar';input.dispatchEvent(new h.w.Event('change',{bubbles:true}));
-  assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,0);
+  assert.equal(h.w.document.querySelectorAll('.hp-ps-ticket').length,1);
  }finally{h.close()}
 });
 test('claim is required before printing and a ticket cannot be printed twice',async()=>{
  const h=await harness();try{
   await h.controller.action({dataset:{action:'hp-printer-panel'}});
-  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'queued'}});
+  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'kitchen'}});
+  await h.controller.action({dataset:{action:'hp-printer-select',id:'a'}});
   assert.equal(h.w.document.querySelector('[data-action="hp-print80"]'),null);
   await h.controller.action(h.w.document.querySelector('[data-action="hp-claim"]'));
   assert(h.w.document.querySelector('[data-action="hp-print80"]'),JSON.stringify({view:h.w.document.querySelector('.hp-ps-workspace')?.textContent,actions:h.commands,toasts:h.toasts}));
@@ -73,7 +86,7 @@ test('claim is required before printing and a ticket cannot be printed twice',as
 test('uncertain ticket requires physical-paper checkbox before confirmation',async()=>{
  const h=await harness();try{
   await h.controller.action({dataset:{action:'hp-printer-panel'}});
-  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'review'}});
+  await h.controller.action({dataset:{action:'hp-printer-filter',filter:'unpaid'}});
   await h.controller.action({dataset:{action:'hp-printer-select',id:'c'}});
   await h.controller.action(h.w.document.querySelector('[data-action="hp-printer-confirm"]'));
   assert.equal(h.commands.filter(x=>x.action==='confirm_ticket').length,0);
@@ -91,10 +104,27 @@ test('settings separated from queue and untrusted values escaped',async()=>{
   assert.match(h.w.document.body.textContent,/Bar device/);
   assert.match(h.w.document.body.textContent,/Last seen: Never/);
   await h.controller.action({dataset:{action:'hp-printer-view',view:'tickets'}});
-  assert.match(h.w.document.body.textContent,/To print/);
+  assert.match(h.w.document.body.textContent,/Kitchen \/ Bar/);
  }finally{h.close()}
  const root={};new Function('window','globalThis',scripts[2])(root,root);
  const html=root.AkiPrinterStation.render({tickets:[{id:'1" onclick="evil()',station:'kitchen',kind:'<img src=x onerror=evil()>',status:'queued',created_at:'2026-10-10T18:00:00Z'}],tab:'all',station:'all'});
  assert.doesNotMatch(html,/<img src=/);
  assert.doesNotMatch(html,/onclick="evil/);
+});
+
+test('settled orders cannot offer stale unpaid or kitchen reprints',async()=>{
+ const root={};new Function('window','globalThis',scripts[2])(root,root);
+ const tickets=[
+  {id:'k',station:'kitchen',kind:'preparation',status:'queued',order_id:'closed',order_status:'closed'},
+  {id:'u',station:'receipt',kind:'prebill',status:'superseded',order_id:'closed',order_status:'closed'},
+  {id:'p',station:'receipt',kind:'payment',status:'queued',order_id:'closed',order_status:'closed'},
+  {id:'partial',station:'receipt',kind:'payment',status:'superseded',order_id:'open',order_status:'open'}
+ ];
+ const printer=root.AkiPrinterStation;
+ assert.equal(printer.filtered(tickets,'kitchen','all').length,0);
+ assert.equal(printer.filtered(tickets,'unpaid','all').length,0);
+ assert.deepEqual(printer.filtered(tickets,'paid','all').map(x=>x.id),['p']);
+ assert.equal(printer.filtered(tickets,'archive','all').length,3);
+ const view=printer.render({tickets,tab:'archive',station:'all'});
+ assert.doesNotMatch(view,/data-action="hp-claim"/);
 });
