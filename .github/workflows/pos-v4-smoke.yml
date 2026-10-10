@@ -1,0 +1,29 @@
+name: AkiHQ PoS smoke
+on:
+  pull_request:
+    paths:
+      - "assets/hospitality-pos.js"
+      - "assets/hospitality-pos.css"
+      - "assets/pos-v4.js"
+      - "assets/pos-v4-dialogs.js"
+      - "assets/pos-v4.css"
+      - "tests/pos-v4-smoke.cjs"
+      - ".github/workflows/pos-v4-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "assets/hospitality-pos.js"
+      - "assets/pos-v4.js"
+      - "assets/pos-v4-dialogs.js"
+      - "tests/pos-v4-smoke.cjs"
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node tests/pos-v4-smoke.cjs

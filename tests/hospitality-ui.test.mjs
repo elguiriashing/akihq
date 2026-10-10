@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from '../cloudflare/node_modules/jsdom/lib/api.js';
+const menuSource=readFileSync(new URL('../assets/pos-v4.js',import.meta.url),'utf8');
+const dialogSource=readFileSync(new URL('../assets/pos-v4-dialogs.js',import.meta.url),'utf8');
 const source=readFileSync(new URL('../assets/hospitality-pos.js',import.meta.url),'utf8');
 const sample=()=>({layout:{mode:'restaurant',pages:[{id:'p1',name:'Terrace'}],tables:[{id:'t1',name:'12',page:'p1',shape:'circle',x:10,y:20,width:20,height:20,seats:4}]},layout_version:3,can_manage:true,can_export:true,orders:[{id:'order-1',table_id:'t1',label:'Table 12',version:2,lines:[{id:'line-1',item_id:'item-1',name:'Coffee',quantity:2,unit_price_cents:250,note:'No sugar',seat:'1',station:'bar'}],note:'Outside',guests:2,payments:[],total_cents:500,paid_cents:0}],tickets:[],catalogue:[{id:'item-1',name:'Coffee',sale_price_cents:250}]});
 async function harness(handler){
  const dom=new JSDOM('<main></main>',{url:'https://hq.example/',runScripts:'outside-only'}),w=dom.window;
- w.navigator.locks={request:async(_k,_o,cb)=>cb({name:'lock'})};w.eval(source);
+ w.navigator.locks={request:async(_k,_o,cb)=>cb({name:'lock'})};w.eval(menuSource);w.eval(dialogSource);w.eval(source);
  const calls=[],messages=[];let snapshot=sample(),controller,active=true;
  const ctx={workspace:{id:'tenant-a',currency:'EUR',name:'Cafe',timezone:'Europe/Madrid'},actor:'owner',isActive:()=>active,toast:(...a)=>messages.push(a),client:{rpc:async(name,args)=>{calls.push({name,args});if(name==='crm_hospitality_overview')return {data:structuredClone(snapshot)};return handler?handler(name,args):{data:{order_id:'order-1'}};}},refresh:()=>{w.document.querySelector('main').innerHTML=controller.render();}};
  controller=w.AkiHospitality.create(ctx);ctx.refresh();await new Promise(r=>setTimeout(r,10));
@@ -16,6 +18,7 @@ test('table selection opens its server order; stale forms keep their original ve
  const h=await harness();try{
   assert.match(h.w.document.body.textContent,/Terrace/);
   await h.controller.action(h.w.document.querySelector('[data-action="hp-table"]'));
+  await h.controller.action(h.w.document.querySelector('[data-action="hp-edit-item"]'));
   const f=h.w.document.querySelector('[data-form="hp-line"]');assert(f);assert.equal(f.dataset.version,'2');
   f.elements.quantity.value='1.5';f.elements.note.value='Extra hot';
   await h.controller.submit(f);
