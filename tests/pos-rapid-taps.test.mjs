@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from '../cloudflare/node_modules/jsdom/lib/api.js';
 
-const scripts=['pos-v4.js','pos-v4-dialogs.js','hospitality-pos.js'].map(name=>readFileSync(new URL('../assets/'+name,import.meta.url),'utf8'));
+const scripts=['pos-v4.js','pos-v4-dialogs.js','pos-printer-station.js','hospitality-pos.js'].map(name=>readFileSync(new URL('../assets/'+name,import.meta.url),'utf8'));
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 async function harness({existing=[],fault=null}={}){
