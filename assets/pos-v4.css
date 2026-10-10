@@ -105,3 +105,8 @@ body:has(.hp-terminal.hp-immersive) .hp-terminal{height:calc(100dvh - 16px)!impo
  .hp-v4-dialog-body{padding:11px;gap:10px}
  .hp-v4-shortcuts .action-btn{min-height:43px}
 }
+
+/* Rapid order tap feedback lives within the menu; never expands the checkout. */
+.hp-terminal-catalogue{position:relative}
+.hp-tap-status:empty{display:none}
+.hp-tap-status:not(:empty){position:absolute;right:10px;bottom:10px;z-index:5;pointer-events:none;padding:9px 14px;border-radius:999px;border:1px solid rgba(122,224,181,.55);background:rgba(17,49,51,.96);color:#abffda;box-shadow:0 7px 22px #0006;font-size:12px;font-weight:650}
