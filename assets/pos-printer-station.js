@@ -51,13 +51,13 @@ function filtered(tickets,tab,station,orders=[],recent=[]){
  return visible.sort((a,b)=>tab==="archive"?new Date(b.created_at)-new Date(a.created_at):new Date(a.created_at)-new Date(b.created_at));
 }
 function printActions(t,current,attempted){
- if(t.status==="superseded"||(t.order_status==="closed"&&t.group!=="paid"&&t.status==="queued")||t.order_status==="unknown")return '<div class="hp-ps-done"><strong>Archived · no longer in the active print queue</strong><p>This job is retained for review. It will not print automatically or be re-sent after the bill is settled.</p></div>';
+ if(t.status==="superseded"||(!t.active&&t.status==="queued")||t.order_status==="unknown")return '<div class="hp-ps-done"><strong>Archived · no longer in the active print queue</strong><p>This job is retained for review. It will not print automatically or be re-sent after the bill is settled.</p></div>';
  if(t.status==="spooled")return '<div class="hp-ps-warning">Sent to the printer spool. This does not confirm paper output. Check the device before requesting a marked copy.</div>';
  const active=current?.id===t.id;
  if(t.status==="queued"){
   return '<div class="hp-ps-primary-action">'+button("claim","Open ticket for printing",scope(t),"primary")+'</div><p class="hp-ps-hint">Opening reserves this ticket for your device. Choose paper width before printing.</p>';
  }
- if(t.status==="claimed"&&active&&!attempted&&(t.order_status!=="closed"||t.group==="paid")){
+ if(t.status==="claimed"&&active&&t.active&&!attempted){
   return '<div class="hp-ps-primary-action"><p>Choose receipt paper width</p><div class="hp-ps-print-width">'+button("print58","Print 58 mm","","primary")+button("print80","Print 80 mm","","primary")+'</div></div><p class="hp-ps-hint">The print dialog will open. A cancelled print still requires you to check the paper before marking the result.</p>';
  }
  if(t.status==="claimed"||t.status==="uncertain"){
