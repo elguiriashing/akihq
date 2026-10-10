@@ -85,3 +85,19 @@
 .hp-order-open .hp-quick-actions .action-btn{min-height:45px}
 @media(max-width:1100px){.hp-terminal.hp-order-open{height:calc(100dvh - 136px);grid-template-rows:auto auto minmax(128px,1fr) minmax(180px,auto) auto}.hp-order-open .hp-terminal-bill{max-height:35dvh;min-height:180px}.hp-order-open .hp-product-buttons .action-btn{min-height:68px}}
 @media(max-width:760px){.hp-terminal.hp-order-open{height:calc(100dvh - 112px);min-height:390px;grid-template-rows:auto auto minmax(100px,1fr) minmax(170px,auto) auto;gap:5px}.hp-order-open .hp-terminal-bill{min-height:170px;max-height:43dvh}.hp-order-open .hp-quick-bill{padding:5px 7px}.hp-order-open .hp-quick-line{min-height:37px}.hp-order-open .hp-quick-actions .action-btn{min-height:43px}.hp-order-open .hp-category-grid .action-btn{min-height:35px}.hp-order-open .hp-product-buttons .action-btn{min-height:60px}.hp-order-open .hp-terminal-tools{height:28px;max-height:28px}}
+
+/* Bill breathing room: give the cart a real viewport, not a one-row letterbox. */
+.hp-terminal.hp-order-open{grid-template-rows:auto auto minmax(115px,1fr) minmax(260px,42dvh) auto}
+.hp-order-open .hp-terminal-bill{height:100%;min-height:0;max-height:none;overflow:hidden;border-radius:18px}
+.hp-order-open .hp-quick-bill{box-sizing:border-box;height:100%;min-height:0;grid-template-rows:auto minmax(70px,1fr) auto auto auto;gap:9px;padding:14px 18px}
+.hp-order-open .hp-quick-heading{padding-bottom:5px}
+.hp-order-open .hp-quick-heading strong{font-size:19px}
+.hp-order-open .hp-quick-lines{min-height:0;max-height:none;overflow-y:auto;scrollbar-gutter:stable;display:flex;flex-direction:column;gap:7px;padding:1px 5px 2px 0}
+.hp-order-open .hp-quick-line{flex-shrink:0;min-height:49px;box-sizing:border-box;padding:10px 13px;margin:0;border-radius:12px;gap:14px;align-items:center}
+.hp-order-open .hp-quick-total{padding:9px 2px 5px;margin-top:1px}
+.hp-order-open .hp-quick-actions{gap:10px}
+.hp-order-open .hp-quick-actions .action-btn{min-height:48px}
+.hp-order-open .hp-quick-more{max-height:31px}
+.hp-order-open .hp-quick-more>summary{padding:4px 2px!important}
+@media(max-width:1100px){.hp-terminal.hp-order-open{grid-template-rows:auto auto minmax(105px,1fr) minmax(245px,44dvh) auto}.hp-order-open .hp-terminal-bill{min-height:0;max-height:none}.hp-order-open .hp-quick-bill{padding:10px 12px;gap:6px}.hp-order-open .hp-quick-line{min-height:45px;padding:7px 10px}}
+@media(max-width:760px){.hp-terminal.hp-order-open{grid-template-rows:auto auto minmax(95px,1fr) minmax(240px,47dvh) auto}.hp-order-open .hp-terminal-bill{min-height:0;max-height:none}.hp-order-open .hp-quick-bill{padding:9px 10px;gap:5px}.hp-order-open .hp-quick-lines{gap:5px}.hp-order-open .hp-quick-line{min-height:43px;padding:6px 8px}.hp-order-open .hp-quick-actions{gap:5px}}
