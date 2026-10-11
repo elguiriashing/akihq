@@ -246,3 +246,289 @@ body:has(.hp-terminal.hp-immersive) .content{
    padding-bottom:calc(env(safe-area-inset-bottom,0px) + 22px)!important;
  }
 }
+
+
+/* PoS mobile checkout rescue: preserve the whole transaction dock.
+ * Only the active ordering screen takes over the viewport.
+ * Floor discovery, Ledger and Designer retain their normal page scrolling.
+ */
+@media (max-width:900px) {
+  body:has(.hp-terminal.hp-order-open) .content-shell {
+    min-height:0!important;
+    height:auto!important;
+    flex:1 1 auto;
+    overflow:hidden!important;
+  }
+  body:has(.hp-terminal.hp-order-open) .content {
+    display:flex!important;
+    flex-direction:column;
+    flex:1 1 auto;
+    min-height:0!important;
+    height:100%!important;
+    overflow:hidden!important;
+    padding:6px 8px max(6px,env(safe-area-inset-bottom,0px))!important;
+    box-sizing:border-box;
+  }
+  body:has(.hp-terminal.hp-order-open) .content > .view {
+    flex:1 1 auto;
+    display:flex!important;
+    flex-direction:column;
+    gap:0!important;
+    height:100%!important;
+    min-height:0!important;
+    max-height:100%!important;
+    overflow:hidden!important;
+    padding:0!important;
+  }
+  body:has(.hp-terminal.hp-order-open) .contextbar {
+    min-height:44px!important;
+    max-height:48px!important;
+    flex:0 0 48px!important;
+    padding:5px 12px!important;
+    display:flex!important;
+    align-items:center;
+  }
+  body:has(.hp-terminal.hp-order-open) .context-title h1 {font-size:15px}
+  body:has(.hp-terminal.hp-order-open) .context-actions {display:none!important}
+  .hp-shell.hp-terminal.hp-order-open {
+    display:flex!important;
+    flex-direction:column!important;
+    flex:1 1 auto;
+    width:100%!important;
+    height:100%!important;
+    max-height:100%!important;
+    min-height:0!important;
+    overflow:hidden!important;
+    gap:6px!important;
+    padding:8px!important;
+    border-radius:12px;
+    margin:0!important;
+    box-sizing:border-box;
+  }
+  .hp-order-open > .hp-register-intro {
+    display:flex!important;
+    flex-direction:column;
+    flex:0 0 auto;
+    min-height:0!important;
+    max-height:unset!important;
+    gap:6px!important;
+  }
+  .hp-order-open .hp-mode-switch {
+    display:flex!important;
+    flex-wrap:nowrap!important;
+    align-items:center;
+    gap:6px!important;
+    overflow-x:auto;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+    white-space:nowrap;
+    padding:0 0 4px!important;
+  }
+  .hp-order-open .hp-mode-switch::-webkit-scrollbar {display:none}
+  .hp-order-open .hp-mode-switch .action-btn {
+    flex:0 0 auto;
+    min-height:38px!important;
+    padding:7px 10px!important;
+    font-size:11px!important;
+    white-space:nowrap!important;
+  }
+  /* Trading-day tools remain one tap away in Lookup; not in the order viewport. */
+  .hp-order-open .hp-day-shortcut {display:none!important}
+  .hp-order-open .hp-terminal-top {min-height:0!important}
+  .hp-order-open .hp-terminal-top .hp-toolbar {
+    display:grid!important;
+    grid-template-columns:auto minmax(0,1fr) auto auto;
+    gap:5px!important;
+    align-items:center;
+    padding:0!important;
+  }
+  .hp-order-open .hp-terminal-top .hp-toolbar .action-btn {
+    min-height:38px!important;
+    padding:7px 8px!important;
+    font-size:11px!important;
+    white-space:nowrap!important;
+    flex:0 0 auto!important;
+  }
+  .hp-order-open .hp-register-table {
+    min-width:0;
+    font-size:14px;
+    text-align:center;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+  }
+  .hp-order-open > .hp-register-menu {
+    flex:1 1 42%;
+    height:auto!important;
+    min-height:90px!important;
+    max-height:none!important;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden!important;
+  }
+  .hp-order-open .hp-terminal-catalogue {
+    min-height:0!important;
+    height:100%!important;
+    flex:1 1 auto;
+    overflow:hidden;
+    gap:5px!important;
+  }
+  .hp-order-open .hp-category-grid {
+    display:grid!important;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    flex:0 0 auto;
+    gap:5px!important;
+  }
+  .hp-order-open .hp-category-grid .action-btn {
+    min-height:36px!important;
+    padding:5px 4px!important;
+    font-size:11px;
+  }
+  .hp-order-open .hp-product-scroll {
+    flex:1 1 auto!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow:auto!important;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+  }
+  .hp-order-open .hp-product-buttons {
+    display:grid!important;
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:6px!important;
+    align-content:start;
+  }
+  .hp-order-open .hp-product-buttons .action-btn {
+    min-height:64px!important;
+    padding:7px 4px!important;
+    font-size:12px!important;
+  }
+  .hp-order-open > .hp-register-ticket {
+    display:flex!important;
+    flex-direction:column;
+    flex:0 1 46%;
+    height:auto!important;
+    min-height:252px!important;
+    max-height:53%!important;
+    overflow:hidden!important;
+    border-radius:14px!important;
+  }
+  .hp-order-open .hp-quick-bill {
+    display:grid!important;
+    grid-template-rows:auto minmax(0,1fr) auto auto auto!important;
+    width:100%;
+    height:100%!important;
+    min-height:0!important;
+    max-height:100%!important;
+    flex:1 1 auto;
+    gap:5px!important;
+    padding:9px!important;
+    overflow:hidden!important;
+  }
+  .hp-order-open .hp-quick-heading {
+    display:flex;
+    gap:6px;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .hp-order-open .hp-quick-heading .action-btn {min-height:36px!important}
+  .hp-order-open .hp-quick-lines {
+    flex:1 1 auto!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow:auto!important;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    padding:0!important;
+    scrollbar-gutter:auto!important;
+  }
+  .hp-order-open .hp-quick-line {
+    flex-shrink:0;
+    min-height:41px!important;
+    padding:5px 6px!important;
+    gap:4px!important;
+    grid-template-columns:minmax(0,1fr) auto auto!important;
+  }
+  .hp-order-open .hp-qty-stepper button {min-width:36px!important;min-height:36px!important}
+  .hp-order-open .hp-quick-total {
+    padding:5px 1px!important;
+    flex:0 0 auto;
+    font-size:12px;
+  }
+  .hp-order-open .hp-quick-total > strong {font-size:18px}
+  .hp-order-open .hp-quick-actions {
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:5px!important;
+    flex:0 0 auto;
+  }
+  .hp-order-open .hp-quick-actions .action-btn {
+    min-height:46px!important;
+    padding:7px 5px!important;
+    font-size:12px!important;
+    white-space:normal!important;
+    touch-action:manipulation;
+  }
+  .hp-order-open .hp-v4-utilities {
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px!important;
+    min-height:0!important;
+    font-size:10px!important;
+  }
+  .hp-order-open .hp-v4-utilities .action-btn {
+    min-height:31px!important;
+    padding:5px!important;
+    font-size:10px!important;
+  }
+}
+/* The standard five-tab app dock must not cover an active table's Pay button. */
+@media (max-width:767px) {
+  body:has(.hp-terminal.hp-order-open) .mobile-tabbar {display:none!important}
+  .hp-order-open .hp-mode-switch .status-pill {display:none!important}
+}
+/* Short phone screens and mobile landscape retain native scrolling rather than
+ * clipping the final payment action. No fixed checkout position or overlays. */
+@media (max-width:900px) and (max-height:670px) {
+  body:has(.hp-terminal.hp-order-open) .content,
+  body:has(.hp-terminal.hp-order-open) .content > .view {
+    overflow-y:auto!important;
+    max-height:none!important;
+    height:auto!important;
+    min-height:0!important;
+    display:block!important;
+    scroll-padding-bottom:24px;
+  }
+  .hp-shell.hp-terminal.hp-order-open {
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  .hp-order-open > .hp-register-menu {
+    min-height:145px!important;
+    max-height:220px!important;
+    height:180px!important;
+  }
+  .hp-order-open > .hp-register-ticket {
+    height:auto!important;
+    min-height:245px!important;
+    max-height:none!important;
+    overflow:visible!important;
+    margin-top:8px;
+  }
+  .hp-order-open .hp-quick-bill {
+    height:auto!important;
+    min-height:245px!important;
+    max-height:none!important;
+    display:flex!important;
+    overflow:visible!important;
+  }
+  .hp-order-open .hp-quick-lines {max-height:135px!important}
+}
+/* Portrait tablet split-view widths above mobile: thumb-target safeguards. */
+@media (min-width:768px) and (max-width:900px) {
+  .hp-order-open > .hp-register-ticket {min-height:290px!important}
+  .hp-order-open .hp-product-buttons {grid-template-columns:repeat(4,minmax(0,1fr))!important}
+}
