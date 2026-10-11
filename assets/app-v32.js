@@ -7828,6 +7828,15 @@
     applySettings();
     render();
 
+    // Account-confirmed, one-time AkiHQ welcome; the shared AkiPasa database
+    // uniquely locks it per user/product. Never block till access on mail errors.
+    void client.rpc("queue_suite_portal_welcome", {
+      p_product: "akihq",
+      p_locale: state.settings?.locale === "es" ? "es" : "en",
+    }).then(({ error }) => {
+      if (error) console.warn("akihq_welcome_queue_unavailable", error.code);
+    }).catch(() => console.warn("akihq_welcome_queue_unavailable"));
+
     // Start workspace-authorized sync. Presence uses the profile heartbeat rather
     // than a global Realtime room that could reveal users across tenants.
     setupRealtimeChat();
