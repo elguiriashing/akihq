@@ -15,7 +15,15 @@ const rules=[
   ".hp-order-open .hp-quick-actions",
   "grid-template-columns:repeat(2,minmax(0,1fr))!important",
   "min-height:52px!important",
-  "body:has(.hp-terminal.hp-immersive)"
+  "body:has(.hp-terminal.hp-immersive)",
+  "body:has(.hp-terminal.hp-order-open) .mobile-tabbar",
+  "body:has(.hp-terminal.hp-order-open) .content-shell",
+  ".hp-order-open .hp-register-menu",
+  ".hp-order-open > .hp-register-ticket",
+  "overflow:hidden!important",
+  "min-height:252px!important",
+  "max-height:670px",
+  "min-width:768px"
 ];
 for(const rule of rules)assert.ok(css.includes(rule),"Missing PoS responsive rule: "+rule);
 assert.match(html,/pos-responsive\.css\?v=2/);
