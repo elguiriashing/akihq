@@ -26,6 +26,6 @@ const rules=[
   "min-width:768px"
 ];
 for(const rule of rules)assert.ok(css.includes(rule),"Missing PoS responsive rule: "+rule);
-assert.match(html,/pos-responsive\.css\?v=2/);
-assert.match(sw,/pos-responsive\.css\?v=2/);
+assert.match(html,/pos-responsive\.css\?v=3/);
+assert.match(sw,/pos-responsive\.css\?v=3/);
 console.log("PoS mobile checkout CSS contracts passed; physical browser layout still requires device acceptance.");
