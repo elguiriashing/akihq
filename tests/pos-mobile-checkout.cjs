@@ -18,7 +18,7 @@ const rules=[
   "body:has(.hp-terminal.hp-immersive)",
   "body:has(.hp-terminal.hp-order-open) .mobile-tabbar",
   "body:has(.hp-terminal.hp-order-open) .content-shell",
-  ".hp-order-open .hp-register-menu",
+  ".hp-order-open > .hp-register-menu",
   ".hp-order-open > .hp-register-ticket",
   "overflow:hidden!important",
   "min-height:252px!important",
