@@ -1,3 +1,7 @@
+## 2026-10-12 — Shared membership catalogue
+
+Membership navigation includes `from=akihq` so the seven-plan AkiSuite catalogue highlights AkiHQ while retaining all plans and EN/ES routing. The entry HTML and service-worker cache version refresh the navigation bundle for existing installations. Workspace membership and SQL tool checks remain authoritative; paid access is never inferred from a global profile role.
+
 # Changelog
 
 ## Unreleased
