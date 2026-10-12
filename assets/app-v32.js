@@ -2082,7 +2082,7 @@
               <span class="nav-icon">${icon("settings")}</span>
               <span class="nav-text">${escapeHtml(t("settings"))}</span>
             </button>
-            <a class="nav-item" href="https://akipasa.com/${state.settings?.locale === "es" ? "es" : "en"}/account/subscription" title="${state.settings?.locale === "es" ? "Gestionar membresías" : "Manage AkiSuite memberships"}" style="text-decoration:none;">
+            <a class="nav-item" href="https://akipasa.com/${state.settings?.locale === "es" ? "es" : "en"}/account/subscription?from=akihq" title="${state.settings?.locale === "es" ? "Gestionar membresías" : "Manage AkiSuite memberships"}" style="text-decoration:none;">
               <span class="nav-icon">${icon("settings")}</span>
               <span class="nav-text">${state.settings?.locale === "es" ? "Membresías AkiSuite" : "AkiSuite memberships"}</span>
             </a>
@@ -7765,7 +7765,7 @@
       renderLoginScreen(error.message || "Dashboard access could not be verified. Please reload shortly.");
       return;
     }
-    // The database membership is authoritative. Standard Business accounts have no CRM workspace.
+    // The database workspace membership and tool permissions are authoritative for both Standard and Pro.
     if (!availableWorkspaces.length) {
       try { await client.auth.signOut(); } catch {}
       authUser = null;
