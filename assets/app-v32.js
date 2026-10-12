@@ -2082,6 +2082,10 @@
               <span class="nav-icon">${icon("settings")}</span>
               <span class="nav-text">${escapeHtml(t("settings"))}</span>
             </button>
+            <a class="nav-item" href="https://akipasa.com/${state.settings?.locale === "es" ? "es" : "en"}/account/subscription" title="${state.settings?.locale === "es" ? "Gestionar membresías" : "Manage AkiSuite memberships"}" style="text-decoration:none;">
+              <span class="nav-icon">${icon("settings")}</span>
+              <span class="nav-text">${state.settings?.locale === "es" ? "Membresías AkiSuite" : "AkiSuite memberships"}</span>
+            </a>
             <a class="nav-item" href="https://akipasa.com" target="_blank" rel="noopener noreferrer" title="Open public website (akipasa.com)" style="text-decoration:none;">
               <span class="nav-icon">${icon("external")}</span>
               <span class="nav-text">AkiPasa Web</span>
