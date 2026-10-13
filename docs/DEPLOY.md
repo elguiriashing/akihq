@@ -1,3 +1,5 @@
+> **Current-authority notice — 13 October 2026:** This guide preserves an earlier alpha deployment procedure. Its browser-local storage, optional-cloud and initial snapshot-push descriptions are historical. Read the [current README](../README.md) and [coordinated release guide](RELEASE-2026-09-23.md), then inspect current configuration, source, migrations and deployment evidence before changing a deployed installation. Do not recreate permission or persistence systems from this older guide. Repository `main` is the verified default/source branch, but the Cloudflare Pages production-branch setting and live hostname alias require independent verification. A successful Pages build does not establish authenticated user acceptance or physical PoS/printer operation. Fiscal issuance and other explicit operational gates in the release guide remain closed until their acceptance evidence exists; this notice authorizes no deployment, schema or data change.
+
 > The September 2026 security/commerce release must be deployed as a coordinated database, Worker and frontend change. Read [the release guide](RELEASE-2026-09-23.md) first.
 
 # Deployment guide
