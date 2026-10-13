@@ -1,3 +1,5 @@
+> **Current-authority notice — 13 October 2026:** The status tables below preserve the earlier alpha inventory. Their “local-first”, “single-user”, permission and snapshot-sync labels are historical and must not be treated as current implementation or deployment evidence. Start with the [current README](../README.md), [coordinated release guide](RELEASE-2026-09-23.md), current source and tests; reconcile any disagreement before rebuilding a capability. The README describes authenticated staff access and RLS-backed persistence. These descriptions do not prove authenticated production acceptance, physical PoS/printer operation or payment acceptance. Fiscal issuance remains gated under the release guide. Verify the current Cloudflare Pages production branch and live hostname alias independently; the repository default branch alone does not establish either.
+
 # Feature status
 
 Legend:
