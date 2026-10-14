@@ -12,7 +12,8 @@ persist = true
 
 # Public/non-secret configuration only. Override these for your deployment.
 [vars]
-ALLOWED_ORIGINS = "https://crm.akipasa.com,http://127.0.0.1:8080"
+# Keep the legacy origin until the canonical deployment and authentication pass smoke tests.
+ALLOWED_ORIGINS = "https://akihq.app,https://crm.akipasa.com,http://127.0.0.1:8080"
 OUTBOUND_WEBHOOK_HOSTS = ""
 SUPABASE_URL = "https://vhpbvcfkcteswlsdjrfl.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_Mm4CJvGyIaLOWbU3g1sxIQ_Wv2jrKt1"
