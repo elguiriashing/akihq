@@ -302,7 +302,7 @@ begin
  if not public.crm_company_access(true) then raise exception 'Administrator required' using errcode='42501';end if;
  perform pg_advisory_xact_lock(hashtext('crm-company-ws_akipasa'));
  select * into r from public.crm_company_records where workspace_id='ws_akipasa' and id=p_id and deleted_at is null for update;
- if not found or p_revision is null or r.revision<>p_revision then raise exception 'Company changed. Refresh before saving.' using errcode='40001';end if;
+ if not found or p_revision is null or r.revision<>p_revision then raise exception 'Company changed. Refresh before saving.' using errcode='PT409';end if;
  if r.publish_state='working' then raise exception 'Wait for the current publishing check to finish';end if;
  if p_archive then
    update public.crm_company_records set deleted_at=now(),revision=revision+1,updated_at=now() where seq=r.seq;

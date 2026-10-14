@@ -239,9 +239,9 @@ begin
   perform 1 from public.crm_workspaces where id=p_workspace for update;
   select * into v_current from public.workspace_snapshots where workspace_id=p_workspace for update;
   if v_current.workspace_id is not null and (p_expected_updated_at is null or v_current.updated_at is distinct from p_expected_updated_at)
-    then raise exception 'Workspace changed. Reload the latest data before saving.' using errcode='40001'; end if;
+    then raise exception 'Workspace changed. Reload the latest data before saving.' using errcode='PT409'; end if;
   if v_current.workspace_id is null and p_expected_updated_at is not null
-    then raise exception 'Workspace snapshot changed. Reload before saving.' using errcode='40001'; end if;
+    then raise exception 'Workspace snapshot changed. Reload before saving.' using errcode='PT409'; end if;
   v_admin:=akihq_security.can_administer(p_workspace);
   v_next:=coalesce(v_current.data,'{}'::jsonb);
   for v_key,v_value in select key,value from jsonb_each(p_data) loop
