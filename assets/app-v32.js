@@ -656,7 +656,7 @@
       p_workspace: wsId, p_data: cleanState, p_expected_updated_at: lastRemoteWorkspaceUpdate
     }).then(({ data, error }) => {
       if (!active()) return;
-      if (error) { workspaceSaveError = error.code === "40001" ? "Another device saved newer changes. Download your pending edits if permitted, then reload and reapply them." : (error.message || "Workspace changes are not saved."); requestBackgroundRender(); throw error; }
+      if (error) { workspaceSaveError = ["PT409", "40001"].includes(error.code) ? "Another device saved newer changes. Download your pending edits if permitted, then reload and reapply them." : (error.message || "Workspace changes are not saved."); requestBackgroundRender(); throw error; }
       if(!data?.updated_at) throw new Error("No workspace save confirmation received. Retry without changing the previous version.");
       workspaceSaveError = "";
       hasWorkspaceSnapshotsTable = true;

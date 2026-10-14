@@ -1,5 +1,8 @@
 > Release status (23 September 2026): see [suite compliance](docs/SUITE-COMPLIANCE.md) and [deployment gates](docs/RELEASE-2026-09-23.md). This branch is not a legally certified invoicing or payroll product; fiscal issuance is blocked.
 
+> Stale company/workspace edits use the finite `PT409` application-conflict
+> contract; see [conflict recovery](docs/PT409-CONFLICT-RECOVERY-2026-10-14.md).
+
 # AkiHQ
 
 **AkiHQ is an original, database-backed business operating system.** It combines CRM, projects, inbox, calendar, stock, invoicing, marketing, internal collaboration, reporting and integration management in one browser app.

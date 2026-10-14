@@ -1,8 +1,14 @@
-# Prepared locally — 14 October 2026
+# 14 October 2026 — Finite stale-edit recovery
+
+- Fresh and upgraded company/workspace conflicts use `PT409`; the UI recognizes
+  both that contract and transitional `40001`, retaining pending edits and recovery
+  guidance without automatically overwriting newer rows.
+
+# Released — 14 October 2026
 
 - Entity form labels and named dialogs; shared modal keyboard focus, dismissal
-  return and draft/caret preservation. Uncommitted, not deployed. Evidence and
-  remaining gates: `docs/GUI-PREPARATION-2026-10-14.md`.
+  return and draft/caret preservation. Merged as AkiHQ #28 and verified byte-for-byte
+  on `crm.akipasa.com`. Evidence: `docs/GUI-PREPARATION-2026-10-14.md`.
 
 ## 2026-10-12 — Shared membership catalogue
 

@@ -317,6 +317,23 @@ test('late snapshot acknowledgement cannot move the new user save baseline or co
   assert.deepEqual(ui.effects,effects);
 });
 
+test('both current and transitional stale-save codes preserve pending edits and show recovery',async t=>{
+  for (const code of ['PT409','40001']) {
+    const ui=setup(t,async()=>({data:null,error:{code,message:'Private conflict detail'}}));
+    ui.api.set({baseline:'read-version',mutation:4,committed:3});
+    await assert.rejects(ui.api.pushSnapshot(4));
+    assert.deepEqual(plain(ui.api.persistence()),{
+      baseline:'read-version',
+      error:'Another device saved newer changes. Download your pending edits if permitted, then reload and reapply them.',
+      committed:3,
+      mutation:4,
+      durableCommitted:0,
+      durableMutation:0
+    });
+    assert.equal(ui.effects.renders,1);
+  }
+});
+
 test('late snapshot save errors cannot overwrite a different workspace or user error state',async t=>{
   for(const changedScope of [{workspace:'workspace-b'},{user:otherUser},{replaceState:true}]) {
     let finish;
