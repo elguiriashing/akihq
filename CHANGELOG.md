@@ -1,3 +1,9 @@
+# Prepared locally — 14 October 2026
+
+- Entity form labels and named dialogs; shared modal keyboard focus, dismissal
+  return and draft/caret preservation. Uncommitted, not deployed. Evidence and
+  remaining gates: `docs/GUI-PREPARATION-2026-10-14.md`.
+
 ## 2026-10-12 — Shared membership catalogue
 
 Membership navigation includes `from=akihq` so the seven-plan AkiSuite catalogue highlights AkiHQ while retaining all plans and EN/ES routing. The entry HTML and service-worker cache version refresh the navigation bundle for existing installations. Workspace membership and SQL tool checks remain authoritative; paid access is never inferred from a global profile role.

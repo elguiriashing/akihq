@@ -1989,6 +1989,8 @@
 
   function render() {
     if (!authUser) return;
+    captureDialogFocus();
+    const pageFocus = describeFocus(document.activeElement);
     applySettings();
     const previousPage = document.getElementById("page-content");
     const scrollPositions = captureScrollPositions(document);
@@ -2019,9 +2021,21 @@
         </section>
       </main>
       ${renderMobileTabbar()}`;
-    renderPortal();
+    renderPortal(true);
     restoreFormValues(document, formValues);
     restoreScrollPositions(document, scrollPositions);
+    syncDialogFocus();
+    // A queued background render can run immediately after dialog dismissal.
+    // Preserve its restored opener when that render replaces the app DOM.
+    if (!dialogFocus.current && !document.querySelector("dialog[open]") && document.activeElement === document.body) {
+      const target = matchingFocus(pageFocus);
+      if (target && !target.disabled && target.getClientRects().length) {
+        target.focus({ preventScroll: true });
+        if (typeof pageFocus.start === "number" && target.setSelectionRange) {
+          try { target.setSelectionRange(pageFocus.start, pageFocus.end, pageFocus.direction); } catch {}
+        }
+      }
+    }
     attachAfterRender();
     requestAnimationFrame(() => {
       const nextPage = document.getElementById("page-content");
@@ -4335,10 +4349,11 @@
     return value;
   }
 
-  function renderField(field, record) {
+  function renderField(field, record, entity) {
     const raw = record?.[field.name] ?? field.value ?? "";
     const value = inputValue(raw, field.type);
-    const common = `name="${field.name}" ${field.required ? "required" : ""} ${field.min !== undefined ? `min="${field.min}"` : ""} ${field.max !== undefined ? `max="${field.max}"` : ""} ${field.step ? `step="${field.step}"` : ""}`;
+    const fieldId = `entity-field-${entity}-${field.name}`;
+    const common = `id="${escapeHtml(fieldId)}" name="${field.name}" ${field.help ? `aria-describedby="${escapeHtml(fieldId)}-help"` : ""} ${field.required ? "required" : ""} ${field.min !== undefined ? `min="${field.min}"` : ""} ${field.max !== undefined ? `max="${field.max}"` : ""} ${field.step ? `step="${field.step}"` : ""}`;
     let control;
     if (field.type === "select") {
       const options = (field.options || []).map(option => Array.isArray(option) ? option : [option, capitalize(option)]);
@@ -4348,10 +4363,73 @@
     } else {
       control = `<input type="${field.type || "text"}" ${common} value="${escapeHtml(value)}">`;
     }
-    return `<div class="form-field ${field.full ? "full" : ""}"><label>${escapeHtml(field.label)}${field.required ? " *" : ""}</label>${control}${field.help ? `<div class="form-help">${escapeHtml(field.help)}</div>` : ""}</div>`;
+    return `<div class="form-field ${field.full ? "full" : ""}"><label for="${escapeHtml(fieldId)}">${escapeHtml(field.label)}${field.required ? " *" : ""}</label>${control}${field.help ? `<div class="form-help" id="${escapeHtml(fieldId)}-help">${escapeHtml(field.help)}</div>` : ""}</div>`;
   }
 
-  function renderPortal() {
+  const dialogFocus = { frames: new Map(), current: null, beforeRender: null };
+  const dialogControlSelector = 'button, input:not([type="hidden"]), select, textarea, a[href], [tabindex]';
+  function describeFocus(element) {
+    if (!element || element === document.body || element === document.documentElement) return null;
+    const attrs = ["id", "name", "data-action", "data-entity", "data-id", "data-route", "data-tab", "data-view", "data-order", "data-line"];
+    return { element, tag: element.tagName, attrs: attrs.filter(name => element.hasAttribute(name)).map(name => [name, element.getAttribute(name)]), text: element.textContent.trim(), start: element.selectionStart, end: element.selectionEnd, direction: element.selectionDirection };
+  }
+  function matchingFocus(description, root = document) {
+    if (!description) return null;
+    if (description.element.isConnected && root.contains(description.element)) return description.element;
+    return [...root.querySelectorAll(dialogControlSelector)].find(element => element.tagName === description.tag && description.attrs.every(([name, value]) => element.getAttribute(name) === value) && element.textContent.trim() === description.text) || null;
+  }
+  function dialogControls(dialog) {
+    return [...dialog.querySelectorAll(dialogControlSelector)].filter(element => !element.disabled && element.tabIndex >= 0 && !element.closest('[hidden], [inert], [aria-hidden="true"]') && element.getClientRects().length && getComputedStyle(element).visibility !== "hidden");
+  }
+  function focusDialogControl(dialog, description) {
+    let target = matchingFocus(description, dialog);
+    if (!target || !dialogControls(dialog).includes(target)) target = dialogControls(dialog)[0];
+    if (!target) { dialog.tabIndex = -1; target = dialog; }
+    target.focus({ preventScroll: true });
+    if (target === matchingFocus(description, dialog) && typeof description?.start === "number" && target.setSelectionRange) {
+      try { target.setSelectionRange(description.start, description.end, description.direction); } catch {}
+    }
+  }
+  function captureDialogFocus() {
+    const active = document.activeElement;
+    dialogFocus.beforeRender = describeFocus(active) || dialogFocus.beforeRender;
+    const frame = dialogFocus.frames.get(dialogFocus.current?.key);
+    if (frame && dialogFocus.current.element.contains(active)) frame.focused = describeFocus(active);
+  }
+  function syncDialogFocus() {
+    // Native showModal() dialogs already own focus and browser inertness.
+    if (document.querySelector("dialog[open]")) return;
+    const dialogs = [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].filter(element => element.getClientRects().length);
+    const identified = dialogs.map(element => {
+      const heading = element.querySelector("h2, h1");
+      if (!element.hasAttribute("aria-label") && !element.hasAttribute("aria-labelledby") && heading) element.setAttribute("aria-label", heading.textContent.trim());
+      const form = element.querySelector("form");
+      return { element, key: [element.className, element.getAttribute("aria-label"), element.getAttribute("aria-labelledby"), form?.dataset.form, form?.dataset.entity, form?.dataset.id].join("|") };
+    });
+    const previous = dialogFocus.current;
+    const next = identified.at(-1) || null;
+    const previousFrame = dialogFocus.frames.get(previous?.key);
+    const previousRemains = identified.some(dialog => dialog.key === previous?.key);
+    if (next && !dialogFocus.frames.has(next.key)) {
+      dialogFocus.frames.set(next.key, { opener: previous && !previousRemains ? previousFrame?.opener : dialogFocus.beforeRender, focused: null });
+    }
+    for (const key of dialogFocus.frames.keys()) if (!identified.some(dialog => dialog.key === key)) dialogFocus.frames.delete(key);
+    dialogFocus.current = next;
+    if (next) {
+      const frame = dialogFocus.frames.get(next.key);
+      if (!next.element.contains(document.activeElement)) {
+        const returning = previous && previous.key !== next.key && !previousRemains;
+        focusDialogControl(next.element, returning ? previousFrame?.opener || frame.focused : frame.focused);
+      }
+    } else if (previousFrame) {
+      const opener = matchingFocus(previousFrame.opener);
+      if (opener && !opener.disabled && opener.getClientRects().length) opener.focus({ preventScroll: true });
+    }
+    dialogFocus.beforeRender = null;
+  }
+
+  function renderPortal(deferFocus = false) {
+    captureDialogFocus();
     const scrollPositions = captureScrollPositions(portal);
     const formValues = captureFormValues(portal);
     const parts = [];
@@ -4365,6 +4443,7 @@
     restoreFormValues(portal, formValues);
     restoreScrollPositions(portal, scrollPositions);
     restoreFormDrafts(portal);
+    if (!deferFocus) syncDialogFocus();
     requestAnimationFrame(() => {
       const messages = $("#messages");
       if (messages) messages.scrollTop = messages.scrollHeight;
@@ -4916,12 +4995,12 @@
     const config = entityFormConfig(type, existing);
     if (!config) return "";
     const hasPickerSelection = type === "employee" && !existing && ui.formDefaults.name;
-    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${["automation", "article"].includes(type) ? "wide" : ""}" role="dialog" aria-modal="true">
-      <header class="modal-head"><div class="entity-logo" style="width:36px;height:36px">${icon(config.icon)}</div><div><h2>${existing ? `Edit ${escapeHtml(config.label)}` : `New ${escapeHtml(config.label)}`}</h2><p>${existing ? "Changes are committed to Supabase" : "Create a database-backed record"}</p></div><button class="icon-btn close-btn" data-action="close-modal">${icon("close")}</button></header>
+    return `<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${["automation", "article"].includes(type) ? "wide" : ""}" role="dialog" aria-modal="true" aria-labelledby="entity-form-title">
+      <header class="modal-head"><div class="entity-logo" style="width:36px;height:36px">${icon(config.icon)}</div><div><h2 id="entity-form-title">${existing ? `Edit ${escapeHtml(config.label)}` : `New ${escapeHtml(config.label)}`}</h2><p>${existing ? "Changes are committed to Supabase" : "Create a database-backed record"}</p></div><button class="icon-btn close-btn" data-action="close-modal" aria-label="${escapeHtml(t("close"))}">${icon("close")}</button></header>
       <form data-form="entity" data-entity="${type}" data-id="${id || ""}" style="display:contents">
         <div class="modal-body">
           ${type === "employee" && !existing ? (isPlatformWorkspace() ? renderUserPickerSection() : `<div class="notice-card"><strong>Add an existing AkiPasa account</strong><span>Enter the exact email used to sign in. Business Pro includes the owner plus three team seats.</span></div>`) : ""}
-          <div class="form-grid">${config.fields.map(field => renderField(field, record)).join("")}</div>
+          <div class="form-grid">${config.fields.map(field => renderField(field, record, type)).join("")}</div>
         </div>
         <footer class="modal-foot"><button type="button" class="action-btn" data-action="close-modal">${escapeHtml(t("cancel"))}</button><button type="submit" class="action-btn primary">${icon("check")} ${escapeHtml(t("save"))}</button></footer>
       </form>
@@ -7363,8 +7442,20 @@
   document.addEventListener("dragend", handleDragEnd);
 
   document.addEventListener("keydown", event => {
+    const dialog = dialogFocus.current?.element;
+    if (event.key === "Tab" && dialog?.isConnected && !document.querySelector("dialog[open]")) {
+      const controls = dialogControls(dialog);
+      const active = document.activeElement;
+      if (!controls.length || !dialog.contains(active) || (event.shiftKey ? active === controls[0] : active === controls.at(-1))) {
+        event.preventDefault();
+        (event.shiftKey ? controls.at(-1) : controls[0] || dialog)?.focus({ preventScroll: true });
+      }
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
+      // The global palette renders below hospitality overlays. Keep keyboard
+      // ownership with the existing dialog until it is dismissed.
+      if (document.querySelector("dialog[open]") || (dialog?.isConnected && !dialog.matches(".command-palette"))) return;
       ui.commandOpen = true;
       ui.commandQuery = "";
       ui.searchQuery = "";
@@ -7379,6 +7470,13 @@
       else if (ui.searchQuery) ui.searchQuery = "";
       renderPortal();
     }
+  });
+
+  document.addEventListener("focusin", event => {
+    const current = dialogFocus.current;
+    if (!current?.element.isConnected || document.querySelector("dialog[open]")) return;
+    if (!current.element.contains(event.target)) focusDialogControl(current.element, dialogFocus.frames.get(current.key)?.focused);
+    else dialogFocus.frames.get(current.key).focused = describeFocus(event.target);
   });
 
   window.addEventListener("hashchange", () => {
