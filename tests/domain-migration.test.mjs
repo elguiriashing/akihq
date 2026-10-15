@@ -19,7 +19,7 @@ for (const origin of ['https://akihq.app', 'https://crm.akipasa.com', 'http://12
       querySelector: () => ({ textContent: '' })
     });
     const context = {
-      appRoot: {}, portal: {}, applySettings() {}, escapeHtml: String,
+      appRoot: {}, portal: {}, state: { settings: { locale: 'en' } }, applySettings() {}, escapeHtml: String,
       window: { location: { origin }, scrollTo() {} },
       document: { getElementById: id => elements.get(id) }, requestAnimationFrame: fn => fn(),
       getSupabaseClient: () => ({ auth: { signInWithOAuth: async options => { oauth = options; return {}; } } })

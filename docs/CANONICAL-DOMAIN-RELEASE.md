@@ -1,5 +1,31 @@
 # AkiHQ canonical domain: staged release and rollback
 
+## 2026-10-15 execution continuation
+
+PR #30 is confirmed open, draft and mergeable through the GitHub connector. The
+frozen gateway dependency install now succeeds; its complete local verification
+suite passed 357 tests with one optional workbook fixture skipped. The gateway
+keeps all existing bindings and scheduled jobs. Cloudflare added exact canonical
+and current Pages-preview CORS origins without altering those bindings or crons.
+
+The login screen now includes password recovery. Reset email returns to the
+current origin root, retaining the existing implicit SPA strategy. The app captures
+the recovery fragment before SDK initialization and shows a dedicated password
+form before any workspace boot. A verified current user is required for password
+updates, and recovery closes the local session before returning to sign-in. EN/ES
+forms and eight isolated recovery tests cover origin retention, expired sessions,
+password mismatch, provider-error privacy and session-closure failure. Passwords
+and tokens are never copied to another application or logged.
+
+Hosted recovery email delivery and end-to-end test-user authentication still need
+provider-backed acceptance. The public current-origin root must be in Supabase's
+exact allowlist, including the specific Pages preview origin. Shared identity is
+preserved; seamless cross-root-domain SSO has not been implemented or claimed.
+
+The older execution-limit notes below describe the previous environment and are
+retained as history; current release evidence must distinguish local fixture
+tests, hosted checks, deployed endpoint checks and authenticated acceptance.
+
 This branch extends the existing PR #30 (`9d44ef8`) instead of recreating its
 canonical `CRM_URL` change. PR open/draft/check state remains unverified: Git pull
 refs are readable, but the GitHub GraphQL request was denied by this environment.

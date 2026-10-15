@@ -4,6 +4,8 @@
   const APP_VERSION = "0.1.0";
   const initialRouteParts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   const initialSearchParams = new URLSearchParams(location.search);
+  // Read before Supabase initializes and removes the recovery credentials from the URL.
+  let passwordRecoveryActive = new URLSearchParams(location.hash.replace(/^#/, "")).get("type") === "recovery";
   const initialSocialResult = initialSearchParams.get("social");
   const initialSocialError = String(initialSearchParams.get("social_error") || "").slice(0, 240);
   const appRoot = document.getElementById("app");
@@ -7640,12 +7642,15 @@
               </label>
               <button type="submit" class="action-btn primary suite-login-submit" id="login-submit">Sign in</button>
             </form>
+            <button type="button" class="action-btn" id="forgot-password-btn">${state.settings?.locale === "es" ? "¿Has olvidado la contraseña?" : "Forgot password?"}</button>
           </section>
         </main>
       </div>
     `;
     portal.innerHTML = "";
     requestAnimationFrame(() => window.scrollTo(0, 0));
+
+    document.getElementById("forgot-password-btn")?.addEventListener("click", () => renderPasswordRecovery(false));
 
     document.getElementById("google-login-btn")?.addEventListener("click", async () => {
       const client = getSupabaseClient();
@@ -7685,6 +7690,76 @@
         await bootWithSession(data.session);
       });
     }
+  }
+
+  function renderPasswordRecovery(hasRecoverySession, message = "") {
+    const es = state.settings?.locale === "es";
+    const text = (en, spanish) => es ? spanish : en;
+    applySettings();
+    appRoot.className = "login-mode";
+    appRoot.innerHTML = `
+      <div class="suite-login-screen suite-login-hq">
+        <main class="suite-login-shell" style="display:block;max-width:540px">
+          <section class="suite-login-panel">
+            <div class="suite-login-brand"><img src="assets/logo.svg" alt="" /><div><strong>AkiHQ</strong><small>by AkiPasa</small></div></div>
+            <h1>${hasRecoverySession ? text("Choose a new password", "Elige una nueva contraseña") : text("Reset your password", "Restablece tu contraseña")}</h1>
+            <p>${hasRecoverySession ? text("Update the password for your shared AkiSuite account.", "Actualiza la contraseña de tu cuenta compartida de AkiSuite.") : text("We will email a recovery link if an account exists for this address.", "Enviaremos un enlace si existe una cuenta con este correo.")}</p>
+            <p id="recovery-message" role="status" aria-live="polite">${escapeHtml(message)}</p>
+            <form id="recovery-form" class="suite-login-form">
+              ${hasRecoverySession ? `
+                <label for="recovery-password">${text("New password", "Nueva contraseña")}<input id="recovery-password" name="password" type="password" minlength="8" required autocomplete="new-password" /></label>
+                <label for="recovery-confirm">${text("Confirm password", "Confirma la contraseña")}<input id="recovery-confirm" name="confirmation" type="password" minlength="8" required autocomplete="new-password" /></label>
+              ` : `<label for="recovery-email">${text("Email", "Correo electrónico")}<input id="recovery-email" name="email" type="email" required autocomplete="email" /></label>`}
+              <button type="submit" class="action-btn primary suite-login-submit" id="recovery-submit">${hasRecoverySession ? text("Save password", "Guardar contraseña") : text("Send recovery link", "Enviar enlace")}</button>
+            </form>
+            <button type="button" class="action-btn" id="recovery-back">${text("Back to sign in", "Volver a iniciar sesión")}</button>
+          </section>
+        </main>
+      </div>`;
+    portal.innerHTML = "";
+    document.getElementById("recovery-back")?.addEventListener("click", async () => {
+      if (passwordRecoveryActive) {
+        const client = getSupabaseClient();
+        const { error } = await client.auth.signOut({ scope: "local" });
+        if (error) { document.getElementById("recovery-message").textContent = text("Could not close the recovery session. Please try again.", "No se ha podido cerrar la sesión de recuperación. Inténtalo de nuevo."); return; }
+      }
+      passwordRecoveryActive = false;
+      history.replaceState(null, "", window.location.pathname);
+      renderLoginScreen();
+    });
+    document.getElementById("recovery-form")?.addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = document.getElementById("recovery-submit");
+      const status = document.getElementById("recovery-message");
+      const client = getSupabaseClient();
+      if (!client) { status.textContent = text("Authentication is unavailable. Please refresh.", "La autenticación no está disponible. Recarga la página."); return; }
+      button.disabled = true;
+      try {
+        if (!hasRecoverySession) {
+          const email = document.getElementById("recovery-email").value.trim();
+          const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + "/" });
+          if (error) throw new Error(text("Could not send a recovery link. Please try again shortly.", "No se ha podido enviar el enlace. Inténtalo de nuevo en unos instantes."));
+          status.textContent = text("If an account exists, a recovery link has been sent. Open it in this browser.", "Si existe una cuenta, hemos enviado un enlace. Ábrelo en este navegador.");
+        } else {
+          const password = document.getElementById("recovery-password").value;
+          const confirmation = document.getElementById("recovery-confirm").value;
+          if (password.length < 8 || password !== confirmation) throw new Error(text("Use at least 8 characters and make sure both passwords match.", "Usa al menos 8 caracteres y comprueba que ambas contraseñas coincidan."));
+          const { data, error: userError } = await client.auth.getUser();
+          if (userError || !data?.user) throw new Error(text("This recovery link has expired. Request a new one.", "El enlace ha caducado. Solicita uno nuevo."));
+          const { error } = await client.auth.updateUser({ password });
+          if (error) throw new Error(text("Could not update the password. Check the password requirements and try again.", "No se ha podido actualizar la contraseña. Revisa los requisitos e inténtalo de nuevo."));
+          const { error: signOutError } = await client.auth.signOut({ scope: "local" });
+          if (signOutError) throw new Error(text("Password updated. Close this recovery session before signing in again.", "Contraseña actualizada. Cierra la sesión de recuperación antes de volver a iniciar sesión."));
+          passwordRecoveryActive = false;
+          history.replaceState(null, "", window.location.pathname);
+          renderLoginScreen(text("Password updated. Sign in with your new password.", "Contraseña actualizada. Inicia sesión con tu nueva contraseña."));
+        }
+      } catch (error) {
+        status.textContent = error.message || "Recovery failed. Please try again.";
+      } finally {
+        button.disabled = false;
+      }
+    });
   }
 
   function renderAccessDenied(email) {
@@ -7982,6 +8057,11 @@
       session = data?.session;
     } catch (err) {
       console.warn("getSession error:", err);
+    }
+    if (passwordRecoveryActive) {
+      // Recovery must finish before workspace boot or role checks consume the session.
+      renderPasswordRecovery(Boolean(session), session ? "" : "This recovery link has expired. Request a new one.");
+      return;
     }
     if (!session) {
       renderLoginScreen();
