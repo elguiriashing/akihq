@@ -11,3 +11,6 @@ test-results/
 # Print-agent pairing credentials and crash journals belong outside the website.
 **/akihq-printer.local.json*
 **/*.printer-secret.json*
+
+# Generated static product release artifact.
+dist-product/

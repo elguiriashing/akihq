@@ -7,7 +7,7 @@ const path = require('node:path');
 const http = require('node:http');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.AKIHQ_PLAYWRIGHT_PATH || '@playwright/test');
-const root = path.resolve(__dirname, '..');
+const root = process.env.AKIHQ_STATIC_ROOT ? path.resolve(process.env.AKIHQ_STATIC_ROOT) : path.resolve(__dirname, '..');
 const app = fs.readFileSync(path.join(root, 'assets/app-v32.js'), 'utf8');
 const seam = `
   authUser={id:'audit-fixture',email:'fixture@example.invalid'};authRole='administrator';state=seedState();
@@ -39,6 +39,7 @@ const server = http.createServer((req, res) => {
   await page.goto(base); await page.waitForFunction(() => window.__audit);
   let cases = 0;
   try {
+    if (process.env.AKIHQ_EXPECTED_PRODUCT) assert.equal(await page.title(), process.env.AKIHQ_EXPECTED_PRODUCT);
     for (const [width, height] of [[360,780], [600,780], [1280,800], [640,400]]) for (const locale of ['en','es']) for (const theme of ['light','dark']) {
       await page.setViewportSize({ width, height }); await page.evaluate(([l,t]) => window.__audit.set(l,t), [locale,theme]);
       const opener = page.locator('[data-action="open-form"][data-entity="deal"]').first(); await opener.click();

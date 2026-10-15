@@ -9,7 +9,7 @@ const config = readFileSync(new URL('../cloudflare/wrangler.toml', import.meta.u
 const allowedOrigins = config.match(/^ALLOWED_ORIGINS = "([^"]+)"/m)[1];
 
 // Exercise the production login handler without initializing business data or a backend.
-for (const origin of ['https://akihq.app', 'https://crm.akipasa.com', 'http://127.0.0.1:8080']) {
+for (const origin of ['https://akibusiness.com', 'https://akihq.app', 'https://crm.akipasa.com', 'http://127.0.0.1:8080']) {
   test(`OAuth stays on its initiating origin: ${origin}`, async () => {
     const handlers = {};
     let oauth;
@@ -33,11 +33,11 @@ for (const origin of ['https://akihq.app', 'https://crm.akipasa.com', 'http://12
   });
 }
 
-test('gateway permits both HQ domains and rejects unrelated origins', () => {
+test('gateway permits staged operations and legacy origins and rejects unrelated origins', () => {
   const start = worker.indexOf('function corsHeaders(');
   const end = worker.indexOf('\nfunction withCors(', start);
   const cors = vm.runInNewContext(`${worker.slice(start, end)}\ncorsHeaders`);
-  for (const origin of ['https://akihq.app', 'https://crm.akipasa.com', 'http://127.0.0.1:8080', 'https://akihq.app.attacker.invalid', 'https://unrelated.invalid']) {
+  for (const origin of ['https://akibusiness.com', 'https://akihq.app', 'https://crm.akipasa.com', 'http://127.0.0.1:8080', 'https://akihq.app.attacker.invalid', 'https://unrelated.invalid']) {
     const request = new Request('https://gateway.invalid/api/health', { headers: { origin } });
     const result = cors(request, { ALLOWED_ORIGINS: allowedOrigins });
     assert.equal(result['access-control-allow-origin'], allowedOrigins.split(',').includes(origin) ? origin : 'null');
