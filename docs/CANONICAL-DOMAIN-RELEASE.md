@@ -2,6 +2,21 @@
 
 ## 2026-10-15 execution continuation
 
+Authenticated Google acceptance on the exact `e35561e` Pages preview reached the
+HQ dashboard and read-only Inventory, PoS tables, CRM, People and Team Chat; reload
+retained the session. Before testing logout, review found that the ordinary and
+access-denied exits used Supabase's default global sign-out scope. All origin-local
+HQ ordinary/account/access-denied exits now explicitly use `scope: local`. Six
+regression cases exercise both logout actions, dirty-workspace refusal, provider
+failure and both access-denied routes while preserving other product sessions.
+That isolation is a simulated provider-contract assertion; actual cross-product
+refresh-token retention has not been verified by a deployed refresh flow.
+Cancelling recovery is also local. A successful shared-password change retains
+explicit `scope: global` revocation as a security response, with clear EN/ES UI
+copy and recovery tests. No password change is tested on the owner's account.
+The app and service-worker asset versions advance together. Deployed local logout
+still needs acceptance on the new exact preview; no global sign-out was triggered.
+
 PR #30 is confirmed open, draft and mergeable through the GitHub connector. The
 frozen gateway dependency install now succeeds; its complete local verification
 suite passed 357 tests with one optional workbook fixture skipped. The gateway
@@ -12,8 +27,8 @@ The login screen now includes password recovery. Reset email returns to the
 current origin root, retaining the existing implicit SPA strategy. The app captures
 the recovery fragment before SDK initialization and shows a dedicated password
 form before any workspace boot. A verified current user is required for password
-updates, and recovery closes the local session before returning to sign-in. EN/ES
-forms and eight isolated recovery tests cover origin retention, expired sessions,
+updates, and successful password recovery revokes all sessions before returning to sign-in. EN/ES
+forms and nine isolated recovery tests cover origin retention, expired sessions,
 password mismatch, provider-error privacy and session-closure failure. Passwords
 and tokens are never copied to another application or logged.
 

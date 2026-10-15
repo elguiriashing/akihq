@@ -13,7 +13,7 @@ test("AkiHQ links to the central AkiSuite membership hub in EN/ES", () => {
 test("the membership navigation bundle has a fresh and consistent offline cache key", () => {
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-  assert.match(html, /app-v32\.js\?v=40/);
-  assert.match(sw, /app-v32\.js\?v=40/);
-  assert.match(sw, /akihq-v114/);
+  assert.match(html, /app-v32\.js\?v=41/);
+  assert.match(sw, /app-v32\.js\?v=41/);
+  assert.match(sw, /akihq-v115/);
 });

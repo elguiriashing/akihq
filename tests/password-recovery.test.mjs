@@ -64,7 +64,7 @@ test('expired recovery session cannot change any password', async () => {
   assert.equal(updated, false); assert.match(f.message(), /expired/);
 });
 
-test('verified recovery updates only current user, closes local session and returns to login', async () => {
+test('verified password recovery updates the current user, explicitly revokes all sessions and returns to login', async () => {
   const calls = [];
   const f = fixture({ active: true, auth: {
     getUser: async () => { calls.push('verify'); return { data: { user: { id: 'fixture-user' } } }; },
@@ -72,7 +72,7 @@ test('verified recovery updates only current user, closes local session and retu
     signOut: async options => { calls.push(['signout', options.scope]); return {}; },
   } });
   f.render(true); f.fill('recovery-password', 'password-A'); f.fill('recovery-confirm', 'password-A'); await f.submit();
-  assert.deepEqual(calls, ['verify', ['update', 'password-A'], ['signout', 'local']]);
+  assert.deepEqual(calls, ['verify', ['update', 'password-A'], ['signout', 'global']]);
   assert.equal(f.context.passwordRecoveryActive, false); assert.match(f.context.login, /Password updated/);
   assert.equal(f.dom.window.location.href, 'https://akihq.app/');
 });
@@ -85,6 +85,14 @@ test('failed recovery-session closure preserves recovery guard', async () => {
   f.render(true); f.fill('recovery-password', 'password-A'); f.fill('recovery-confirm', 'password-A'); await f.submit();
   assert.equal(f.context.passwordRecoveryActive, true); assert.equal(f.context.login, undefined);
   assert.match(f.message(), /Close this recovery session/);
+});
+
+test('cancelling recovery closes only its current session without a password change', async () => {
+  const scopes = [];
+  const f = fixture({ active: true, auth: { signOut: async options => { scopes.push(options.scope); return {}; } } });
+  f.render(true); await f.handlers.get('recovery-back:click')();
+  assert.deepEqual(scopes, ['local']); assert.equal(f.context.passwordRecoveryActive, false);
+  assert.equal(f.context.login, '');
 });
 
 test('Spanish recovery uses labelled accessible inputs', () => {

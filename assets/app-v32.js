@@ -6061,7 +6061,7 @@
         const client = getSupabaseClient();
         if (workspaceMutationVersion !== workspaceCommittedVersion) throw new Error("Save or resolve the pending workspace changes before signing out.");
         const signedOutId=authUser?.id;
-        if (client) { const {error}=await client.auth.signOut(); if(error) throw error; }
+        if (client) { const {error}=await client.auth.signOut({ scope: "local" }); if(error) throw error; }
         if (signedOutId) clearSignedOutDeviceCache(signedOutId);
         authUser = null;
         authRole = null;
@@ -7703,7 +7703,7 @@
           <section class="suite-login-panel">
             <div class="suite-login-brand"><img src="assets/logo.svg" alt="" /><div><strong>AkiHQ</strong><small>by AkiPasa</small></div></div>
             <h1>${hasRecoverySession ? text("Choose a new password", "Elige una nueva contraseña") : text("Reset your password", "Restablece tu contraseña")}</h1>
-            <p>${hasRecoverySession ? text("Update the password for your shared AkiSuite account.", "Actualiza la contraseña de tu cuenta compartida de AkiSuite.") : text("We will email a recovery link if an account exists for this address.", "Enviaremos un enlace si existe una cuenta con este correo.")}</p>
+            <p>${hasRecoverySession ? text("Update the password for your shared AkiSuite account. This signs out all devices.", "Actualiza la contraseña de tu cuenta compartida de AkiSuite. Se cerrarán las sesiones de todos los dispositivos.") : text("We will email a recovery link if an account exists for this address.", "Enviaremos un enlace si existe una cuenta con este correo.")}</p>
             <p id="recovery-message" role="status" aria-live="polite">${escapeHtml(message)}</p>
             <form id="recovery-form" class="suite-login-form">
               ${hasRecoverySession ? `
@@ -7748,7 +7748,8 @@
           if (userError || !data?.user) throw new Error(text("This recovery link has expired. Request a new one.", "El enlace ha caducado. Solicita uno nuevo."));
           const { error } = await client.auth.updateUser({ password });
           if (error) throw new Error(text("Could not update the password. Check the password requirements and try again.", "No se ha podido actualizar la contraseña. Revisa los requisitos e inténtalo de nuevo."));
-          const { error: signOutError } = await client.auth.signOut({ scope: "local" });
+          // A completed shared-password change intentionally revokes all sessions.
+          const { error: signOutError } = await client.auth.signOut({ scope: "global" });
           if (signOutError) throw new Error(text("Password updated. Close this recovery session before signing in again.", "Contraseña actualizada. Cierra la sesión de recuperación antes de volver a iniciar sesión."));
           passwordRecoveryActive = false;
           history.replaceState(null, "", window.location.pathname);
@@ -7787,7 +7788,7 @@
     portal.innerHTML = "";
     document.getElementById("deny-signout")?.addEventListener("click", async () => {
       const client = getSupabaseClient();
-      if (client) { try { await client.auth.signOut(); } catch {} }
+      if (client) { try { await client.auth.signOut({ scope: "local" }); } catch {} }
       authUser = null; authRole = null;
       renderLoginScreen();
     });
@@ -7940,7 +7941,7 @@
     }
     // The database workspace membership and tool permissions are authoritative for both Standard and Pro.
     if (!availableWorkspaces.length) {
-      try { await client.auth.signOut(); } catch {}
+      try { await client.auth.signOut({ scope: "local" }); } catch {}
       authUser = null;
       authRole = null;
       renderAccessDenied(session.user?.email);
