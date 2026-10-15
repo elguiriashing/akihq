@@ -4,6 +4,18 @@
   const APP_VERSION = "0.1.0";
   const initialRouteParts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   const initialSearchParams = new URLSearchParams(location.search);
+  // Keep only the explicit location intent in this tab across same-origin OAuth.
+  // It is never an authorisation grant or a cross-domain session transfer.
+  try {
+    const intentKey = "akihq:pending-workspace-intent";
+    const requested = initialSearchParams.getAll("workspace");
+    if (requested.length) sessionStorage.setItem(intentKey, JSON.stringify({ ids: requested, expires: Date.now() + 30 * 60 * 1000 }));
+    else if (initialSearchParams.has("code") || /(?:^#|&)(?:access_token|type)=/.test(location.hash)) {
+      const pending = JSON.parse(sessionStorage.getItem(intentKey) || "null");
+      sessionStorage.removeItem(intentKey);
+      if (pending?.expires > Date.now() && Array.isArray(pending.ids)) for (const id of pending.ids) initialSearchParams.append("workspace", id);
+    }
+  } catch {} // Blocked browser storage does not change database authorisation.
   // Read before Supabase initializes and removes the recovery credentials from the URL.
   let passwordRecoveryActive = new URLSearchParams(location.hash.replace(/^#/, "")).get("type") === "recovery";
   const initialSocialResult = initialSearchParams.get("social");
@@ -7871,7 +7883,7 @@
     const client = getSupabaseClient();
     if (client && authUser) {
       const refreshed = await loadAccessibleWorkspaces(client, authUser.id, authRole);
-      if (refreshed.length) availableWorkspaces = refreshed;
+      availableWorkspaces = refreshed;
     }
     const workspace = availableWorkspaces.find(item => item.id === workspaceId);
     if (workspaceSwitchingId || !workspace || workspace.id === state.workspace.id) {
@@ -7915,6 +7927,25 @@
     }
   }
 
+  function selectInitialWorkspace(workspaces, params, savedId) {
+    if (params.has("workspace")) {
+      const ids = params.getAll("workspace");
+      if (ids.length !== 1 || !ids[0]) return null;
+      const requested = workspaces.find(workspace => workspace.id === ids[0]);
+      return requested && requested.toolKeys?.length ? requested : null;
+    }
+    return workspaces.find(workspace => workspace.id === savedId)
+      || workspaces.find(workspace => workspace.id === "ws_akipasa") || workspaces[0] || null;
+  }
+
+  function renderRequestedWorkspaceUnavailable() {
+    applySettings();
+    appRoot.className = "login-mode";
+    const managementUrl = window.AKIHQ_CONFIG?.CRM_URL === "https://akibusiness.com" ? "https://akihq.app/" : "https://akibusiness.com/";
+    appRoot.innerHTML = `<div class="login-screen"><section class="login-card" role="status"><h1>Location access pending</h1><p>The requested location is unavailable for this account or has no enabled operations capabilities. Your company administrator must verify its membership and applicable plan.</p><p>No other location has been opened.</p><p><a class="action-btn" href="${managementUrl}">Manage your company and locations</a></p><a class="action-btn" href="/">Choose an available workspace</a></section></div>`;
+    portal.innerHTML = "";
+  }
+
   async function bootWithSession(session) {
     const client = getSupabaseClient();
     if (!session?.user || !client) { renderLoginScreen(); return; }
@@ -7939,24 +7970,23 @@
       renderLoginScreen(error.message || "Dashboard access could not be verified. Please reload shortly.");
       return;
     }
-    // The database workspace membership and tool permissions are authoritative for both Standard and Pro.
-    if (!availableWorkspaces.length) {
+    const savedWorkspaceId = localStorage.getItem(`akihq:selected-workspace:${session.user.id}`);
+    const selectedWorkspace = selectInitialWorkspace(availableWorkspaces, initialSearchParams, savedWorkspaceId);
+    if (initialSearchParams.has("workspace") && !selectedWorkspace) {
+      authUser = null; authRole = null;
+      renderRequestedWorkspaceUnavailable();
+      return;
+    }
+    // The database workspace membership and tool permissions remain authoritative.
+    if (!selectedWorkspace) {
       try { await client.auth.signOut({ scope: "local" }); } catch {}
-      authUser = null;
-      authRole = null;
+      authUser = null; authRole = null;
       renderAccessDenied(session.user?.email);
       return;
     }
-
     authUser = session.user;
     authRole = role;
-
-    const requestedWorkspaceId = initialSearchParams.get("workspace");
-    const savedWorkspaceId = localStorage.getItem(`akihq:selected-workspace:${session.user.id}`);
-    const selectedWorkspace = availableWorkspaces.find(workspace => workspace.id === requestedWorkspaceId)
-      || availableWorkspaces.find(workspace => workspace.id === savedWorkspaceId)
-      || availableWorkspaces.find(workspace => workspace.id === "ws_akipasa")
-      || availableWorkspaces[0];
+    try { sessionStorage.removeItem("akihq:pending-workspace-intent"); } catch {}
     // Supabase is authoritative; browser memory is only the current workspace render cache.
     activateWorkspace(selectedWorkspace);
     await syncCloudWorkspacePull();

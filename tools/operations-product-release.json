@@ -119,8 +119,8 @@
       "to": "  <script src=\"config.js?v=43\"></script>\n"
     },
     {
-      "from": "  <script src=\"assets/app-v32.js?v=41\"></script>\n",
-      "to": "  <script src=\"assets/app-v32.js?v=42\"></script>\n"
+      "from": "  <script src=\"assets/app-v32.js?v=42\"></script>\n",
+      "to": "  <script src=\"assets/app-v32.js?v=43\"></script>\n"
     }
   ],
   "manifest.webmanifest": [
@@ -131,12 +131,12 @@
   ],
   "sw.js": [
     {
-      "from": "const CACHE = \"akihq-v115\";\n",
-      "to": "const CACHE = \"akihq-v116\";\n"
+      "from": "const CACHE = \"akihq-v116\";\n",
+      "to": "const CACHE = \"akihq-v117\";\n"
     },
     {
-      "from": "  \"./assets/app-v32.js?v=41\",\n",
-      "to": "  \"./assets/app-v32.js?v=42\",\n"
+      "from": "  \"./assets/app-v32.js?v=42\",\n",
+      "to": "  \"./assets/app-v32.js?v=43\",\n"
     },
     {
       "from": "  \"./config.js?v=42\",\n",

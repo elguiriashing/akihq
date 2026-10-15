@@ -75,9 +75,10 @@ test('failed workspace authorization closes only the current HQ session', async 
   const client = { auth: f.auth, from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { app_role: 'user' } }) }) }) }) };
   Object.assign(f.context, {
     getSupabaseClient: () => client, availableWorkspaces: [], loadAccessibleWorkspaces: async () => [],
+    initialSearchParams: new URLSearchParams(), localStorage: { getItem: () => null },
     renderAccessDenied: () => { f.context.denied = true; },
   });
-  const start = source.indexOf('  async function bootWithSession(');
+  const start = source.indexOf('  function selectInitialWorkspace(');
   const end = source.indexOf('\n  async function finishBoot(', start);
   vm.runInContext(source.slice(start, end), f.context);
   await f.context.bootWithSession({ user: { id: 'fixture-owner', email: 'fixture@example.invalid' } });

@@ -58,6 +58,15 @@ existing contracts. Do not send customer emails to test this release.
 Existing `loadAccessibleWorkspaces` supports `source_venue_id = null`: it selects
 active memberships and verifies each workspace using server `crm_workspace_access`.
 No public listing is necessary for an already provisioned and authorised workspace.
+Explicit management handoffs use `?workspace=<id>`. The operations app requires an
+exact server-authorized match with enabled capabilities; missing, duplicate,
+unknown and unlicensed targets show “Location access pending” before any workspace
+activation. They never fall back to another saved location. Only requested IDs
+are retained in tab-local storage for up to 30 minutes across same-origin OAuth;
+callback credentials are never stored there. Normal entry without an explicit
+location retains its existing saved-workspace behavior. Empty membership refreshes
+replace the prior available list so revoked entries cannot remain selectable.
+
 All existing PoS, inventory, staff, fiscal, support and export permissions remain
 server controlled. The role switch does not grant an entitlement or alter pricing.
 
