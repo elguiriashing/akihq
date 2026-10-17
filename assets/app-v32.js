@@ -2179,6 +2179,10 @@
               <a href="https://akicoches.com"><img src="https://akipasa.com/brand/conduzco-icon.svg" alt="" width="34" height="34"><span>AkiCoches</span></a>
               <a href="https://akihq.app"><img src="https://akipasa.com/brand/hq-mark.svg" alt="" width="34" height="34"><span>AkiHQ</span></a>
               <a href="https://akibusiness.com" aria-current="page"><img src="assets/icons/icon.svg" alt="" width="34" height="34"><span>AkiBusiness</span><small>Current</small></a>
+              <div class="suite-app-actions">
+                <button type="button" class="suite-app-action" data-action="navigate" data-route="settings">${state.settings?.locale === "es" ? "Ajustes" : "Settings"}</button>
+                <button type="button" class="suite-app-action" data-action="crm-signout">${state.settings?.locale === "es" ? "Cerrar sesión" : "Sign out"}</button>
+              </div>
             </nav>
           </details>
           <button class="top-btn ${state.timer.running ? "timer-live" : ""}" data-action="timer-toggle" title="Work timer">
