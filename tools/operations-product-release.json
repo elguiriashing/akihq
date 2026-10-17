@@ -1,0 +1,156 @@
+{
+  "assets/app-v32.js": [
+    {
+      "from": "            <div class=\"brand-name\">AkiHQ</div>\n",
+      "to": "            <div class=\"brand-name\">AkiBusiness</div>\n"
+    },
+    {
+      "from": "        <div class=\"mobile-wordmark\"><img src=\"assets/logo.svg\" alt=\"\" /><span>AkiHQ</span></div>\n",
+      "to": "        <div class=\"mobile-wordmark\"><img src=\"assets/logo.svg\" alt=\"\" /><span>AkiBusiness</span></div>\n"
+    },
+    {
+      "from": "      return `<section class=\"panel settings-section\"><h2>Workspace profile</h2><p>Defaults used across AkiHQ records, dates and documents.</p>\n",
+      "to": "      return `<section class=\"panel settings-section\"><h2>Workspace profile</h2><p>Defaults used across AkiBusiness records, dates and documents.</p>\n"
+    },
+    {
+      "from": "        <div class=\"setting-row\"><div class=\"setting-copy\"><strong>Local device access</strong><span>Anyone with access to this browser profile can read local AkiHQ data. Use OS account security.</span></div><span class=\"status-pill warning\">Device-controlled</span></div>\n",
+      "to": "        <div class=\"setting-row\"><div class=\"setting-copy\"><strong>Local device access</strong><span>Anyone with access to this browser profile can read local AkiBusiness data. Use OS account security.</span></div><span class=\"status-pill warning\">Device-controlled</span></div>\n"
+    },
+    {
+      "from": "      return `<section class=\"panel settings-section\"><h2>AkiHQ ${APP_VERSION}</h2><p>An original, open-source business workspace built for Alex\u2014not a Bitrix24 source-code copy or branded skin.</p>\n",
+      "to": "      return `<section class=\"panel settings-section\"><h2>AkiBusiness ${APP_VERSION}</h2><p>An original, open-source business workspace built for Alex\u2014not a Bitrix24 source-code copy or branded skin.</p>\n"
+    },
+    {
+      "from": "        <div class=\"dropdown-item\" data-action=\"crm-signout\"><div class=\"activity-icon\">${icon(\"lock\")}</div><div class=\"dropdown-copy\"><strong>Sign out</strong><br>Log out of AkiHQ CRM</div></div>\n",
+      "to": "        <div class=\"dropdown-item\" data-action=\"crm-signout\"><div class=\"activity-icon\">${icon(\"lock\")}</div><div class=\"dropdown-copy\"><strong>Sign out</strong><br>Log out of AkiBusiness</div></div>\n"
+    },
+    {
+      "from": "        toast(\"Signed out\", \"You have been logged out of AkiHQ CRM.\", \"info\");\n",
+      "to": "        toast(\"Signed out\", \"You have been logged out of AkiBusiness.\", \"info\");\n"
+    },
+    {
+      "from": "      <div class=\"top\"><div><div class=\"brand\">AkiHQ</div><div class=\"muted\">${escapeHtml(state.workspace.name)}<br>${escapeHtml(state.workspace.timezone)}</div></div><div class=\"muted\" style=\"text-align:right\">${escapeHtml(invoice.type)}<br><strong style=\"color:#17203a\">${escapeHtml(invoice.number)}</strong></div></div>\n",
+      "to": "      <div class=\"top\"><div><div class=\"brand\">AkiBusiness</div><div class=\"muted\">${escapeHtml(state.workspace.name)}<br>${escapeHtml(state.workspace.timezone)}</div></div><div class=\"muted\" style=\"text-align:right\">${escapeHtml(invoice.type)}<br><strong style=\"color:#17203a\">${escapeHtml(invoice.number)}</strong></div></div>\n"
+    },
+    {
+      "from": "      <div class=\"notes\"><strong>Status: ${escapeHtml(invoice.status)}</strong><br><span class=\"muted\">Generated from AkiHQ ${APP_VERSION}</span></div>\n",
+      "to": "      <div class=\"notes\"><strong>Status: ${escapeHtml(invoice.status)}</strong><br><span class=\"muted\">Generated from AkiBusiness ${APP_VERSION}</span></div>\n"
+    },
+    {
+      "from": "            <div class=\"suite-login-kicker\">AKIHQ</div>\n",
+      "to": "            <div class=\"suite-login-kicker\">AKIBUSINESS</div>\n"
+    },
+    {
+      "from": "              <a class=\"suite-product-card\" href=\"https://business.akipasa.com/es/auth?next=/es/business\">\n",
+      "to": "              <a class=\"suite-product-card\" href=\"https://akihq.app/\">\n"
+    },
+    {
+      "from": "                <span><strong>AkiBusiness</strong></span>\n",
+      "to": "                <span><strong>AkiHQ</strong><small>Free business management</small></span>\n"
+    },
+    {
+      "from": "                <span><strong>AkiHQ</strong></span>\n",
+      "to": "                <span><strong>AkiBusiness</strong><small>Operations workspace</small></span>\n"
+    },
+    {
+      "from": "              <div><strong>AkiHQ</strong><small>by AkiPasa</small></div>\n",
+      "to": "              <div><strong>AkiBusiness</strong><small>by AkiPasa</small></div>\n"
+    },
+    {
+      "from": "              <h2>Sign in to AkiHQ</h2>\n",
+      "to": "              <h2>Sign in to AkiBusiness</h2>\n"
+    },
+    {
+      "from": "            <div class=\"suite-login-brand\"><img src=\"assets/logo.svg\" alt=\"\" /><div><strong>AkiHQ</strong><small>by AkiPasa</small></div></div>\n",
+      "to": "            <div class=\"suite-login-brand\"><img src=\"assets/logo.svg\" alt=\"\" /><div><strong>AkiBusiness</strong><small>by AkiPasa</small></div></div>\n"
+    },
+    {
+      "from": "            <div class=\"brand-copy\"><div class=\"brand-name\">AkiHQ CRM</div></div>\n",
+      "to": "            <div class=\"brand-copy\"><div class=\"brand-name\">AkiBusiness</div></div>\n"
+    },
+    {
+      "from": "            <strong>${escapeHtml(email || \"Your account\")}</strong> is registered as a standard consumer profile.\n",
+      "to": "            <strong>${escapeHtml(email || \"Your account\")}</strong> has no accessible operations workspace.\n"
+    },
+    {
+      "from": "            AkiHQ is available to AkiPasa platform staff and active <strong>Business Pro</strong> workspace members only.\n",
+      "to": "            AkiBusiness requires an authorised workspace membership and its enabled operations capabilities. Ask your company administrator to review your location access. Personal or listing subscriptions do not grant operations access.\n"
+    },
+    {
+      "from": "    // Account-confirmed, one-time AkiHQ welcome; the shared AkiPasa database\n    // uniquely locks it per user/product. Never block till access on mail errors.\n    void client.rpc(\"queue_suite_portal_welcome\", {\n      p_product: \"akihq\",\n      p_locale: state.settings?.locale === \"es\" ? \"es\" : \"en\",\n    }).then(({ error }) => {\n      if (error) console.warn(\"akihq_welcome_queue_unavailable\", error.code);\n    }).catch(() => console.warn(\"akihq_welcome_queue_unavailable\"));\n\n",
+      "to": "    // Product welcome remains paused for the role swap until the shared email\n    // templates and deduplication contract are verified for the operations role.\n\n"
+    },
+    {
+      "from": "body: item.detail || \"AkiHQ workspace activity\"",
+      "to": "body: item.detail || \"AkiBusiness workspace activity\""
+    },
+    {
+      "from": "emails and the rest of AkiHQ.",
+      "to": "emails and the rest of AkiBusiness."
+    },
+    {
+      "from": "Files are shared with every authorised AkiHQ user.",
+      "to": "Files are shared with authorised workspace members."
+    },
+    {
+      "from": "Cloudflare archives each message in AkiHQ,",
+      "to": "Cloudflare archives each message in AkiBusiness,"
+    },
+    {
+      "from": "permanently removed from AkiHQ.",
+      "to": "permanently removed from AkiBusiness."
+    },
+    {
+      "from": "          <button class=\"action-btn primary\" style=\"width:100%;justify-content:center\" id=\"deny-signout\">Sign out & Back to Login</button>\n",
+      "to": "          <p><a class=\"action-btn\" href=\"https://akihq.app/\">Manage your company and locations in AkiHQ</a></p>\n          <button class=\"action-btn primary\" style=\"width:100%;justify-content:center\" id=\"deny-signout\">Sign out & Back to Login</button>\n"
+    }
+  ],
+  "index.html": [
+    {
+      "from": "  <meta name=\"description\" content=\"AkiHQ \u2014 AkiPasa's secure workspace for business operations.\" />\n  <title>AkiHQ</title>\n",
+      "to": "  <meta name=\"description\" content=\"AkiBusiness \u2014 secure operations for your company and locations.\" />\n  <title>AkiBusiness</title>\n"
+    },
+    {
+      "from": "  <noscript>AkiHQ needs JavaScript enabled.</noscript>\n",
+      "to": "  <noscript>AkiBusiness needs JavaScript enabled.</noscript>\n"
+    },
+    {
+      "from": "  <script src=\"config.js?v=42\"></script>\n",
+      "to": "  <script src=\"config.js?v=43\"></script>\n"
+    },
+    {
+      "from": "  <script src=\"assets/app-v32.js?v=42\"></script>\n",
+      "to": "  <script src=\"assets/app-v32.js?v=43\"></script>\n"
+    }
+  ],
+  "manifest.webmanifest": [
+    {
+      "from": "  \"name\": \"AkiHQ\",\n  \"short_name\": \"AkiHQ\",\n  \"description\": \"Open-source business operating system for CRM, projects, operations and collaboration.\",\n",
+      "to": "  \"name\": \"AkiBusiness\",\n  \"short_name\": \"AkiBusiness\",\n  \"description\": \"Company and location operations, inventory, staff and point of sale.\",\n"
+    }
+  ],
+  "sw.js": [
+    {
+      "from": "const CACHE = \"akihq-v116\";\n",
+      "to": "const CACHE = \"akihq-v117\";\n"
+    },
+    {
+      "from": "  \"./assets/app-v32.js?v=42\",\n",
+      "to": "  \"./assets/app-v32.js?v=43\",\n"
+    },
+    {
+      "from": "  \"./config.js?v=42\",\n",
+      "to": "  \"./config.js?v=43\",\n"
+    }
+  ],
+  "config.js": [
+    {
+      "from": "// AkiHQ public configuration \u2014 Supabase anon key is safe to commit (public by design, protected by RLS).\n",
+      "to": "// AkiBusiness public configuration (legacy AKIHQ_CONFIG contract retained) \u2014 Supabase anon key is safe to commit (public by design, protected by RLS).\n"
+    },
+    {
+      "from": "  CRM_URL:           \"https://akihq.app\",\n",
+      "to": "  CRM_URL:           \"https://akibusiness.com\",\n"
+    }
+  ]
+}
