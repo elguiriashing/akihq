@@ -74,3 +74,17 @@
   cursor: pointer;
 }
 .suite-app-action:hover, .suite-app-action:focus-visible { border-color: #a778ff; background: rgba(137,88,255,.15); }
+
+/* The operations shell clips overflowing content and the blurred header
+   creates a containing block. Lift those boundaries only while the
+   application launcher is open so its fixed panel can reach the viewport. */
+.app-shell:has(.suite-app-menu[open]),
+.app-main:has(.suite-app-menu[open]) {
+  overflow: visible;
+}
+.topbar:has(.suite-app-menu[open]) {
+  position: relative;
+  z-index: 400;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
