@@ -1,10 +1,10 @@
-# AkiHQ | Mobile store-release preparation
+# AkiBusiness | Mobile store-release preparation
 
 **Status: prep only. NOT a shippable AAB or IPA.** This branch intentionally does not deploy to production, create a store record, generate signing keys or submit an app. See [store-release.json](./store-release.json) for proposed IDs, localized first-pass copy, sources and explicit release gates.
 
 ## Confirmed source and product-specific review
 
-Free organization/location management hub target. This repository currently has a static original AkiHQ implementation. Verify Cloudflare worker and AkiSuite role swap before associating store product with this source. Test company switching, claimed listings, invitations, team access and auth on a physical tablet.
+Paid AkiBusiness operations suite, with purple AB identity, POS, stock, CRM, teams and reporting. Cloudflare confirms akibusiness.com is a CNAME to akibusiness-operations-preview.pages.dev, built from this HISTORICAL akihq repository's release/akibusiness-operations-brand-v1 branch, not the default main branch. Package the verified production release source only; test POS tablet split view, printing, offline/session recovery and subscriptions.
 
 ## Native packaging and release sequence
 
