@@ -2153,7 +2153,6 @@
   function renderTopbar() {
     const user = currentUser();
     const unseen = liveNotifications().filter(notification => !notification.seen).length;
-    const siteUrl = (window.AKIHQ_CONFIG && window.AKIHQ_CONFIG.SITE_URL) || "https://akipasa.com";
     return `
       <header class="topbar">
         <button class="icon-btn mobile-menu-btn" data-action="toggle-mobile-nav" aria-label="Open navigation">${icon("menu")}</button>
@@ -2169,9 +2168,19 @@
           <kbd>Ctrl K</kbd>
         </div>
         <div class="top-actions">
-          <a class="top-btn" href="${escapeHtml(siteUrl)}" target="_blank" rel="noopener noreferrer" title="View main public website (akipasa.com)" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
-            ${icon("external")}<span>akipasa.com</span>
-          </a>
+          <details class="suite-app-menu">
+            <summary class="top-btn suite-app-toggle" aria-label="Switch AkiSuite app" title="AkiSuite apps">
+              ${icon("external")}<span>AkiSuite</span>
+            </summary>
+            <nav class="suite-app-panel" aria-label="AkiSuite applications">
+              <strong class="suite-app-heading">AkiSuite apps</strong>
+              <a href="https://akipasa.com"><img src="https://akipasa.com/pwa/akipasa-512.png" alt="" width="34" height="34"><span>AkiPasa</span></a>
+              <a href="https://akiduermo.com"><img src="https://akipasa.com/brand/duermo-icon.png" alt="" width="34" height="34"><span>AkiDuermo</span></a>
+              <a href="https://akicoches.com"><img src="https://akipasa.com/brand/conduzco-icon.svg" alt="" width="34" height="34"><span>AkiCoches</span></a>
+              <a href="https://akihq.app"><img src="https://akipasa.com/brand/hq-mark.svg" alt="" width="34" height="34"><span>AkiHQ</span></a>
+              <a href="https://akibusiness.com" aria-current="page"><img src="assets/icons/icon.svg" alt="" width="34" height="34"><span>AkiBusiness</span><small>Current</small></a>
+            </nav>
+          </details>
           <button class="top-btn ${state.timer.running ? "timer-live" : ""}" data-action="timer-toggle" title="Work timer">
             ${icon("timer")}<span id="timer-label">${formatTimer()}</span>
           </button>
