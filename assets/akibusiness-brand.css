@@ -1,0 +1,48 @@
+/* AkiBusiness paid operations theme, aligned with approved AB identity. */
+:root {
+  --bg: #090e28;
+  --surface: rgba(21,26,59,.90);
+  --surface-2: rgba(32,37,83,.88);
+  --surface-3: rgba(44,47,101,.89);
+  --sidebar: rgba(10,14,36,.97);
+  --topbar: rgba(17,20,52,.91);
+  --text: #f8f6ff;
+  --muted: #bcb7da;
+  --subtle: #918daf;
+  --border: rgba(192,175,255,.15);
+  --border-strong: rgba(197,174,255,.25);
+  --accent: #8958ff;
+  --accent-2: #a778ff;
+  --accent-3: #d599ff;
+  --info: #8fbdff;
+  --success: #4bdba7;
+  --warning: #ffd269;
+  --danger: #ff7597;
+}
+html[data-theme="light"] {
+  --bg: #f4f2fd;
+  --surface: rgba(255,255,255,.95);
+  --surface-2: rgba(248,246,255,.95);
+  --surface-3: rgba(234,228,255,.95);
+  --sidebar: rgba(250,248,255,.98);
+  --topbar: rgba(255,255,255,.96);
+  --text: #221e3b;
+  --muted: #625b79;
+  --subtle: #766e8e;
+  --border: rgba(61,49,108,.14);
+  --border-strong: rgba(61,49,108,.24);
+  --accent: #6843d8;
+  --accent-2: #7856db;
+  --accent-3: #ac54c6;
+}
+.brand-name, .mobile-wordmark > span, .suite-login-brand strong {
+  background: linear-gradient(100deg, var(--text) 10%, #a578ff 62%, #dc8eff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.brand img, .mobile-wordmark img, .suite-login-brand img {
+  box-shadow: 0 8px 25px rgba(112,74,233,.26);
+}
+:focus-visible {outline-color:var(--accent)}
+::selection {background:#ac83ff;color:#11142e}
