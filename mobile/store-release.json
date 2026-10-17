@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "status": "PREPARATION_ONLY_NOT_SUBMITTABLE",
+  "product": "AkiBusiness",
+  "webOrigin": "https://akibusiness.com",
+  "startPath": "/",
+  "proposedIdentifiers": {
+    "androidApplicationId": "com.akipasa.business",
+    "iosBundleId": "com.akipasa.business",
+    "warning": "PROPOSALS ONLY. Confirm identifiers before first store app creation/signing."
+  },
+  "platformRequirements": {
+    "googlePlayTargetApiMinimum": 36,
+    "iosBuildWithXcodeMajorMinimum": 26
+  },
+  "listingDraft": {
+    "primaryLocale": "es-ES",
+    "secondaryLocale": "en-GB",
+    "categoryCandidate": "Business",
+    "shortDescriptionEs": "Herramientas profesionales para operar tu negocio.",
+    "shortDescriptionEn": "Professional tools for running your business.",
+    "fullDescriptionEs": "AkiBusiness reúne herramientas operativas para negocios. Accede a funciones como punto de venta, inventario, clientes y operaciones de equipo según el plan y las funciones habilitadas para tu empresa. Trabaja con permisos de usuario y ubicaciones separados. Algunas herramientas requieren una suscripción o configuración adicional.",
+    "fullDescriptionEn": "AkiBusiness brings business operations together. Access point-of-sale, inventory, customer and team operations where your plan and workspace support them. Use location-scoped tools and user permissions. Some functions require an eligible subscription or additional setup.",
+    "privacyPolicyUrl": "",
+    "supportUrl": "",
+    "marketingUrl": "https://akibusiness.com"
+  },
+  "sourceObservation": "Production akibusiness.com is a Cloudflare CNAME to akibusiness-operations-preview.pages.dev, served from elguiriashing/akihq branch release/akibusiness-operations-brand-v1, not main; canonical product is AkiBusiness operations.",
+  "gates": {
+    "sourceAndLiveProductMappingVerified": false,
+    "nativeAndroidBuildVerified": false,
+    "nativeIosBuildVerified": false,
+    "realDeviceAuthAndDeepLinksPassed": false,
+    "nativeAppExperienceReviewed": false,
+    "appAccountDeletionPassed": false,
+    "privacyDataSafetyDeclared": false,
+    "storeBillingCompliant": false,
+    "appIconsAndScreenshotsReviewed": false,
+    "reviewerDemoCredentialsPrepared": false,
+    "signingAndStoreAccountsConfigured": false,
+    "ageRatingAndContentDeclarationsComplete": false
+  },
+  "delivery": {
+    "android": "Android App Bundle (.aab) signed for Play App Signing, not generated",
+    "ios": "Signed .ipa archive and TestFlight build, not generated",
+    "intendedTracks": [
+      "Play internal testing",
+      "TestFlight internal testing"
+    ]
+  },
+  "notes": [
+    "Do not insert app signing keys, provisioning profiles, personal details, reviewer passwords or store API keys in Git.",
+    "Do not publish android/.well-known/assetlinks.json or apple-app-site-association with guessed fingerprints/team IDs.",
+    "Respect AkiSuite cross-domain OAuth callback and application deep linking; each product must survive login, logout and password recovery.",
+    "No automatic purchase-flow enabling: review mobile digital subscription rules and local availability before release."
+  ]
+}
