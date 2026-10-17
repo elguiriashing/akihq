@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "status": "PREPARATION_ONLY_NOT_SUBMITTABLE",
-  "product": "AkiHQ",
-  "webOrigin": "https://akihq.app",
+  "product": "AkiBusiness",
+  "webOrigin": "https://akibusiness.com",
   "startPath": "/",
   "proposedIdentifiers": {
-    "androidApplicationId": "com.akipasa.hq",
-    "iosBundleId": "com.akipasa.hq",
+    "androidApplicationId": "com.akipasa.business",
+    "iosBundleId": "com.akipasa.business",
     "warning": "PROPOSALS ONLY. Confirm identifiers before first store app creation/signing."
   },
   "platformRequirements": {
@@ -17,15 +17,15 @@
     "primaryLocale": "es-ES",
     "secondaryLocale": "en-GB",
     "categoryCandidate": "Business",
-    "shortDescriptionEs": "Gestiona tu empresa y tus ubicaciones desde un solo lugar.",
-    "shortDescriptionEn": "Manage your organisation and locations in one place.",
+    "shortDescriptionEs": "Herramientas profesionales para operar tu negocio.",
+    "shortDescriptionEn": "Professional tools for running your business.",
     "fullDescriptionEs": "",
     "fullDescriptionEn": "",
     "privacyPolicyUrl": "",
     "supportUrl": "",
-    "marketingUrl": "https://akihq.app"
+    "marketingUrl": "https://akibusiness.com"
   },
-  "sourceObservation": "Static original AkiHQ repo with standalone manifest; target role is AkiHQ free management hub, deployment source must be verified after role swap",
+  "sourceObservation": "Production akibusiness.com is a Cloudflare CNAME to akibusiness-operations-preview.pages.dev, served from elguiriashing/akihq branch release/akibusiness-operations-brand-v1, not main; canonical product is AkiBusiness operations.",
   "gates": {
     "sourceAndLiveProductMappingVerified": false,
     "nativeAndroidBuildVerified": false,
