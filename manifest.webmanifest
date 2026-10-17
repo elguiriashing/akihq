@@ -1,6 +1,6 @@
 {
-  "name": "AkiHQ",
-  "short_name": "AkiHQ",
+  "name": "AkiBusiness",
+  "short_name": "AkiBusiness",
   "description": "Open-source business operating system for CRM, projects, operations and collaboration.",
   "start_url": "./index.html",
   "display": "standalone",
