@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { Resvg } = require(path.join(process.env.RUNNER_TEMP, 'brand-render', 'node_modules', '@resvg', 'resvg-js'));
+const base=path.resolve('assets/icons');
+const render=(src,size)=>new Resvg(fs.readFileSync(path.join(base,src),'utf8'),{fitTo:{mode:'width',value:size}}).render().asPng();
+for(const size of [16,32,48,64,180,192,512])fs.writeFileSync(path.join(base,`icon-${size}.png`),render('icon.svg',size));
+for(const size of [192,512])fs.writeFileSync(path.join(base,`maskable-${size}.png`),render('maskable.svg',size));
+const png=render('icon.svg',32);
+const header=Buffer.alloc(22);
+header.writeUInt16LE(1,2);header.writeUInt16LE(1,4);
+header.writeUInt8(32,6);header.writeUInt8(32,7);
+header.writeUInt16LE(1,10);header.writeUInt16LE(32,12);
+header.writeUInt32LE(png.length,14);header.writeUInt32LE(22,18);
+fs.writeFileSync(path.join(base,'favicon.ico'),Buffer.concat([header,png]));
+console.log('Regenerated AkiBusiness icon png, maskable and ICO assets');

@@ -4,8 +4,8 @@
   "description": "Open-source business operating system for CRM, projects, operations and collaboration.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#10152F",
-  "theme_color": "#8056E8",
+  "background_color": "#090e28",
+  "theme_color": "#8058F8",
   "icons": [
     {
       "src": "assets/icons/icon.svg",
