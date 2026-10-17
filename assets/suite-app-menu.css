@@ -1,0 +1,58 @@
+/* Cross-product launcher for the paid AkiBusiness operations console.
+   The workspace picker and ordinary dashboard navigation remain unchanged. */
+.top-actions > .suite-app-menu { position: relative; flex: 0 0 auto; }
+.suite-app-menu > .suite-app-toggle {
+  display: inline-flex !important; align-items: center; gap: 8px;
+  list-style: none; cursor: pointer; min-height: 39px;
+  border-color: rgba(167,120,255,.38);
+  color: var(--text); background: rgba(137,88,255,.12);
+  text-decoration: none;
+}
+.suite-app-toggle::-webkit-details-marker { display: none; }
+.suite-app-menu[open] > .suite-app-toggle, .suite-app-toggle:focus-visible {
+  border-color: #a778ff; outline: 2px solid #a778ff; outline-offset: 2px;
+}
+.suite-app-panel {
+  position: absolute; z-index: 200; right: 0; top: calc(100% + 12px);
+  width: min(278px,calc(100vw - 18px));
+  padding: 10px; display: grid; gap: 5px;
+  max-height: calc(100dvh - 100px); overflow: auto;
+  border: 1px solid var(--border-strong); border-radius: 17px;
+  background: var(--surface); box-shadow: 0 24px 55px rgba(0,0,0,.52);
+}
+.suite-app-heading {
+  color: var(--muted); font-size: 11px; font-weight: 850;
+  text-transform: uppercase; letter-spacing: .11em; padding: 8px 8px 10px;
+}
+.suite-app-panel a {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 53px; padding: 7px 9px;
+  border-radius: 12px; border: 1px solid transparent;
+  text-decoration: none; color: var(--text); font-size: 14px; font-weight: 750;
+}
+.suite-app-panel a:nth-of-type(1) { --app-color: #f26b1d; }
+.suite-app-panel a:nth-of-type(2) { --app-color: #2fc2a5; }
+.suite-app-panel a:nth-of-type(3) { --app-color: #ff3047; }
+.suite-app-panel a:nth-of-type(4) { --app-color: #ffc533; }
+.suite-app-panel a:nth-of-type(5) { --app-color: #a778ff; }
+.suite-app-panel a:hover, .suite-app-panel a:focus-visible,
+.suite-app-panel a[aria-current="page"] {
+  border-color: var(--app-color);
+  background: color-mix(in srgb,var(--app-color) 13%,var(--surface-2));
+}
+.suite-app-panel a:focus-visible { outline: 2px solid var(--app-color); outline-offset: 2px; }
+.suite-app-panel img {
+  display: block; width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: 10px; object-fit: cover;
+}
+.suite-app-panel small { color: var(--muted); font-size: 10px; margin-left: auto; }
+@media (max-width: 767px) {
+  .top-actions > .suite-app-menu { display: block !important; }
+  .top-actions .suite-app-menu > .suite-app-toggle {
+    width: 44px !important; height: 44px !important; min-height: 44px;
+    padding: 0 !important; display: inline-flex !important; justify-content: center;
+    border-radius: 13px;
+  }
+  .suite-app-toggle > span { display: none !important; }
+  .suite-app-panel { position: fixed; top: calc(60px + env(safe-area-inset-top)); right: 8px; }
+}
