@@ -2,15 +2,15 @@ name: Mobile store metadata preflight
 on:
   pull_request:
     paths:
-      - 'mobile/**'
-      - '.github/workflows/mobile-store-preflight.yml'
+      - "mobile/**"
+      - ".github/workflows/mobile-store-preflight.yml"
   push:
     branches:
       - master
       - main
     paths:
-      - 'mobile/**'
-      - '.github/workflows/mobile-store-preflight.yml'
+      - "mobile/**"
+      - ".github/workflows/mobile-store-preflight.yml"
   workflow_dispatch:
 jobs:
   validate-metadata:
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Validate mobile store submission metadata
         run: node mobile/validate-store-release.mjs
       - name: Explain native release status
