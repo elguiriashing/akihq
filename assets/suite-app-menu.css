@@ -56,3 +56,21 @@
   .suite-app-toggle > span { display: none !important; }
   .suite-app-panel { position: fixed; top: calc(60px + env(safe-area-inset-top)); right: 8px; }
 }
+
+/* Operations console: float the launcher above the independent dashboard menus. */
+.suite-app-menu[open] { z-index: 1000; }
+.suite-app-panel {
+  position: fixed; z-index: 1100;
+  top: calc(var(--topbar-height, 60px) + 8px); right: 8px;
+  width: min(290px, calc(100vw - 16px));
+  max-height: calc(100dvh - var(--topbar-height, 60px) - 18px);
+  overscroll-behavior: contain;
+}
+.suite-app-actions { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--border-strong); }
+.suite-app-action {
+  width: 100%; min-height: 44px; padding: 10px 12px;
+  text-align: left; border: 1px solid var(--border-strong); border-radius: 11px;
+  color: var(--text); background: var(--surface-2); font: inherit; font-weight: 750;
+  cursor: pointer;
+}
+.suite-app-action:hover, .suite-app-action:focus-visible { border-color: #a778ff; background: rgba(137,88,255,.15); }
