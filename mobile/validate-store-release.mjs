@@ -12,10 +12,10 @@ const fail = (reason) => { console.error("Mobile release: " + reason); process.e
 let data;
 try { data = JSON.parse(readFileSync(join(directory, "store-release.json"), "utf8")); }
 catch (err) { fail("Unable to parse store-release.json: " + err.message); process.exit(1); }
-const idPattern = /^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9]*){2,}$/;
+const idPattern = new RegExp("^[a-z][a-z0-9]*(?:[.][a-z][a-z0-9]*){2,}$");
 const { proposedIdentifiers: ids, listingDraft: listing, gates, platformRequirements: req } = data;
 if (data.schemaVersion !== 1) fail("Unsupported schema version");
-if (!data.product || !/^https:\\/\\/[a-z0-9.-]+$/.test(data.webOrigin || "")) fail("Invalid product/webOrigin");
+if (!data.product || !String(data.webOrigin || "").startsWith("https://") || !new RegExp("^https://[a-z0-9.-]+$").test(data.webOrigin || "")) fail("Invalid product/webOrigin");
 if (!ids || !idPattern.test(ids.androidApplicationId || "") || !idPattern.test(ids.iosBundleId || ""))
   fail("Invalid proposed mobile IDs (must be at least three dot-separated parts)");
 if (!req || req.googlePlayTargetApiMinimum < 36 || req.iosBuildWithXcodeMajorMinimum < 26)
