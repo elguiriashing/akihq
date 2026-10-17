@@ -1,0 +1,31 @@
+name: Mobile store metadata preflight
+on:
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-store-preflight.yml'
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-store-preflight.yml'
+  workflow_dispatch:
+jobs:
+  validate-metadata:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate mobile store submission metadata
+        run: node mobile/validate-store-release.mjs
+      - name: Explain native release status
+        run: |
+          echo 'PASS means metadata is structurally valid only.'
+          echo 'No native Android or iOS build, signing, upload or QA is performed here.'
+          echo 'To check hard submission gates run node mobile/validate-store-release.mjs --ship'
