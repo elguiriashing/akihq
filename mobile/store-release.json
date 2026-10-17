@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "status": "PREPARATION_ONLY_NOT_SUBMITTABLE",
+  "product": "AkiHQ",
+  "webOrigin": "https://akihq.app",
+  "startPath": "/",
+  "proposedIdentifiers": {
+    "androidApplicationId": "com.akipasa.hq",
+    "iosBundleId": "com.akipasa.hq",
+    "warning": "PROPOSALS ONLY. Confirm identifiers before first store app creation/signing."
+  },
+  "platformRequirements": {
+    "googlePlayTargetApiMinimum": 36,
+    "iosBuildWithXcodeMajorMinimum": 26
+  },
+  "listingDraft": {
+    "primaryLocale": "es-ES",
+    "secondaryLocale": "en-GB",
+    "categoryCandidate": "Business",
+    "shortDescriptionEs": "Gestiona tu empresa y tus ubicaciones desde un solo lugar.",
+    "shortDescriptionEn": "Manage your organisation and locations in one place.",
+    "fullDescriptionEs": "",
+    "fullDescriptionEn": "",
+    "privacyPolicyUrl": "",
+    "supportUrl": "",
+    "marketingUrl": "https://akihq.app"
+  },
+  "sourceObservation": "Static original AkiHQ repo with standalone manifest; target role is AkiHQ free management hub, deployment source must be verified after role swap",
+  "gates": {
+    "sourceAndLiveProductMappingVerified": false,
+    "nativeAndroidBuildVerified": false,
+    "nativeIosBuildVerified": false,
+    "realDeviceAuthAndDeepLinksPassed": false,
+    "nativeAppExperienceReviewed": false,
+    "appAccountDeletionPassed": false,
+    "privacyDataSafetyDeclared": false,
+    "storeBillingCompliant": false,
+    "appIconsAndScreenshotsReviewed": false,
+    "reviewerDemoCredentialsPrepared": false,
+    "signingAndStoreAccountsConfigured": false,
+    "ageRatingAndContentDeclarationsComplete": false
+  },
+  "delivery": {
+    "android": "Android App Bundle (.aab) signed for Play App Signing, not generated",
+    "ios": "Signed .ipa archive and TestFlight build, not generated",
+    "intendedTracks": [
+      "Play internal testing",
+      "TestFlight internal testing"
+    ]
+  },
+  "notes": [
+    "Do not insert app signing keys, provisioning profiles, personal details, reviewer passwords or store API keys in Git.",
+    "Do not publish android/.well-known/assetlinks.json or apple-app-site-association with guessed fingerprints/team IDs.",
+    "Respect AkiSuite cross-domain OAuth callback and application deep linking; each product must survive login, logout and password recovery.",
+    "No automatic purchase-flow enabling: review mobile digital subscription rules and local availability before release."
+  ]
+}
