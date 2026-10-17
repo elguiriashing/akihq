@@ -24,6 +24,26 @@ if (!new RegExp("^[A-Z0-9]{10}$").test(team)) {
   console.error("Set APPLE_TEAM_ID to the actual 10-character Apple Developer Team ID.");
   process.exit(1);
 }
+const universalLinks = (process.env.APPLE_UNIVERSAL_LINK_PATHS || "")
+  .split(",")
+  .map((path) => path.trim())
+  .filter(Boolean);
+if (
+  universalLinks.length === 0 ||
+  universalLinks.some(
+    (path) =>
+      path === "*" ||
+      path === "/*" ||
+      !path.startsWith("/") ||
+      path.includes("..") ||
+      path.includes("?"),
+  )
+) {
+  console.error(
+    "Set APPLE_UNIVERSAL_LINK_PATHS to reviewed, scoped routes. Catch-all links are forbidden.",
+  );
+  process.exit(1);
+}
 const certificate = fingerprint.match(/.{2}/g).join(":");
 const android = [{
   relation: ["delegate_permission/common.handle_all_urls"],
