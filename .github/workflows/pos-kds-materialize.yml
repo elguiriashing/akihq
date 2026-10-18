@@ -1,0 +1,70 @@
+name: Materialize reviewed KDS candidate
+on:
+  push:
+    branches: [feature/pos-kitchen-display-20261018]
+    paths: ['tools/.pos-kds-transfer/**', '.github/workflows/pos-kds-materialize.yml']
+permissions:
+  contents: write
+concurrency:
+  group: pos-kds-candidate-transfer
+  cancel-in-progress: false
+jobs:
+  materialize:
+    if: github.repository == 'elguiriashing/akihq' && github.ref == 'refs/heads/feature/pos-kitchen-display-20261018'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply hash-verified source patch on the candidate only
+        shell: python
+        run: |
+          from pathlib import Path
+          import base64,gzip,hashlib,json,subprocess,os
+          def git(*args): return subprocess.check_output(['git',*args],text=True).strip()
+          path=Path('tools/.pos-kds-transfer/meta.json')
+          m=json.loads(path.read_text())
+          assert git('rev-parse','HEAD^')==m['base_commit']
+          assert git('rev-parse','HEAD^{tree}')!=m['result_tree']
+          assert git('rev-parse',m['base_commit']+'^{tree}')==m['base_tree']
+          assert not git('status','--porcelain')
+          raw=gzip.decompress(base64.b64decode(''.join(Path(p).read_text() for p in m['parts']),validate=True))
+          assert hashlib.sha256(raw).hexdigest()==m['patch_sha256']
+          patch=Path(os.environ['RUNNER_TEMP'])/'kds-reviewed.patch';patch.write_bytes(raw)
+          git('apply','--unidiff-zero','--check','--index',str(patch))
+          git('apply','--unidiff-zero','--index',str(patch))
+          assert sorted(git('diff','--cached','--name-only').splitlines())==sorted(m['paths'])
+          remove=[str(path),*m['parts'],'.github/workflows/pos-kds-materialize.yml']
+          git('rm','--',*remove)
+          git('diff','--cached','--check')
+          assert git('write-tree')==m['result_tree'],'Materialized tree differs from tested local source'
+          (Path(os.environ['RUNNER_TEMP'])/'kds-transfer-metadata.json').write_text(json.dumps({**m,'remove':remove}))
+      - run: npm ci --prefix cloudflare
+      - name: Verify materialized source before committing
+        run: |
+          node --check assets/pos-kds.js
+          node --check assets/hospitality-pos.js
+          node --test tests/pos-kds.test.mjs tests/pos-kds-db.test.mjs tests/production-schema.test.mjs tests/pos-service.test.mjs
+          node tests/pos-v4-smoke.cjs
+          node tests/pos-mobile-checkout.cjs
+      - name: Commit only the verified tree with an expected-head lease
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const cp = require('child_process');
+            const m = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/kds-transfer-metadata.json','utf8'));
+            if(context.repo.owner!=='elguiriashing'||context.repo.repo!=='akihq'||context.ref!=='refs/heads/feature/pos-kitchen-display-20261018')throw Error('Wrong candidate destination');
+            if(cp.execFileSync('git',['write-tree'],{encoding:'utf8'}).trim()!==m.result_tree)throw Error('Source changed during tests');
+            const files=m.paths.map(path=>({path,contents:fs.readFileSync(path).toString('base64')}));
+            const result=await github.graphql(`mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}`,{input:{branch:{repositoryNameWithOwner:'elguiriashing/akihq',branchName:'feature/pos-kitchen-display-20261018'},expectedHeadOid:context.sha,message:{headline:'feat(pos): persistent fullscreen kitchen and bar display with audited revision recovery'},fileChanges:{additions:files,deletions:m.remove.map(path=>({path}))}}});
+            const sha=result.createCommitOnBranch.commit.oid;
+            const commit=await github.rest.git.getCommit({...context.repo,commit_sha:sha});
+            if(commit.data.tree.sha!==m.result_tree)throw Error('Remote tree mismatch; do not release');
+            await core.summary.addHeading('Verified KDS candidate').addRaw(`Commit: ${sha}\n\nTree: ${m.result_tree}\n\nNo production database, merge or deployment performed. Open a PR to run the complete hosted review gates.`).write();
