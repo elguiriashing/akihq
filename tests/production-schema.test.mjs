@@ -2,6 +2,7 @@ import {PGlite} from '../cloudflare/node_modules/@electric-sql/pglite/dist/index
 import {readFileSync,readdirSync} from 'node:fs';
 import test from 'node:test';import assert from 'node:assert/strict';
 const files=readdirSync(new URL('../supabase/migrations/',import.meta.url)).filter(f=>/^202609(23001|2513|2514|2515)/.test(f)).sort();
+files.push('20261018152924_pos_kitchen_display.sql');
 test('release installs on captured production column/types/constraints and serves login prerequisites',async()=>{
  const db=new PGlite();try{
  await db.exec(readFileSync(new URL('./production-schema-fixture.sql',import.meta.url),'utf8'));
@@ -13,6 +14,9 @@ test('release installs on captured production column/types/constraints and serve
  assert.equal(access.can_administer,true);assert(access.tool_keys.includes('pos'));
  const snapshot=(await db.query("select public.crm_read_workspace_snapshot('ws_akipasa') value")).rows[0].value;assert(snapshot.access);
  const orders=(await db.query("select public.crm_hospitality_overview('ws_akipasa') value")).rows[0].value;assert.equal(orders.orders.length,0);
+ const kitchen=(await db.query("select public.crm_kds_overview('ws_akipasa') value")).rows[0].value;assert.equal(kitchen.enabled,false);assert.equal(kitchen.cards.length,0);
+ await db.query("select public.crm_kds_command('ws_akipasa',gen_random_uuid(),'{\"action\":\"kds_enable\",\"confirmed\":true}'::jsonb)");
+ assert.equal((await db.query("select public.crm_kds_overview('ws_akipasa') value")).rows[0].value.enabled,true);
  await db.exec("set request.jwt.claim.sub='10000000-0000-4000-8000-000000000099'");
  await assert.rejects(db.query("select public.crm_workspace_access('ws_akipasa')"),/access required/);
  }finally{await db.close();}

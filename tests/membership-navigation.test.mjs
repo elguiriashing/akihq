@@ -15,5 +15,5 @@ test("the membership navigation bundle has a fresh and consistent offline cache 
   const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
   assert.match(html, /app-v32\.js\?v=42/);
   assert.match(sw, /app-v32\.js\?v=42/);
-  assert.match(sw, /akihq-v118/);
+  assert.match(sw, /akihq-v120/);
 });

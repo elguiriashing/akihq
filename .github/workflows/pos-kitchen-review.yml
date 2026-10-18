@@ -2,15 +2,16 @@ name: AkiBusiness kitchen display review
 on:
   push:
     branches: [feature/pos-kitchen-display-20261018]
+    paths: ['assets/**', 'tests/**', 'supabase/**', 'index.html', 'sw.js', 'tools/operations-product-release.json', '.github/workflows/pos-kitchen-review.yml']
   pull_request:
-    paths: ['assets/**', 'tests/**', 'supabase/**', 'index.html', 'sw.js', '.github/workflows/pos-kitchen-review.yml']
+    paths: ['assets/**', 'tests/**', 'supabase/**', 'index.html', 'sw.js', 'tools/operations-product-release.json', '.github/workflows/pos-kitchen-review.yml']
 permissions:
   contents: read
 concurrency:
   group: pos-kitchen-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
-  review:
+  kitchen-review:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -22,18 +23,90 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --prefix cloudflare
-      - name: Existing service regression
-        run: node tests/pos-v4-smoke.cjs
-      - name: Isolated development evidence
+      - name: Kitchen SQL, permissions, revisions and UI regressions
         run: |
-          mkdir -p /tmp/pos-kitchen-evidence
-          git archive --format=zip HEAD -o /tmp/pos-kitchen-evidence/source.zip
-          tar -czf /tmp/pos-kitchen-evidence/pglite.tar.gz -C cloudflare/node_modules @electric-sql/pglite
-          npx --yes supabase@2.121.0 migration new --help
-          npx --yes supabase@2.121.0 migration new pos_kitchen_display
-          cp supabase/migrations/*_pos_kitchen_display.sql /tmp/pos-kitchen-evidence/
-      - uses: actions/upload-artifact@v4
+          node --check assets/pos-kds.js
+          node --check assets/hospitality-pos.js
+          node --check assets/pos-service.js
+          node --test tests/pos-kds-db.test.mjs tests/pos-kds.test.mjs tests/production-schema.test.mjs tests/pos-service.test.mjs
+          node tests/pos-v4-smoke.cjs
+          node tests/pos-mobile-checkout.cjs
+          node --test tests/pos-rapid-taps.test.mjs tests/pos-printer-station.test.mjs tests/pos-ledger.test.mjs
+      - name: Verify clean paid-product release and cache integration
+        env:
+          NEXT_PUBLIC_AKISUITE_ROLE_SWAP: 'true'
+        run: |
+          node tools/build-product-release.mjs "$RUNNER_TEMP/akibusiness-kitchen-release"
+          node --input-type=module -e "import {readFileSync as read} from 'node:fs';const p=process.env.RUNNER_TEMP+'/akibusiness-kitchen-release/';const meta=JSON.parse(read(p+'release-source.json'));if(meta.product!=='AkiBusiness'||meta.sourceTreeDirty)throw Error('Release metadata mismatch');for(const name of ['pos-kds.js?v=1','pos-kds.css?v=1','hospitality-pos.js?v=15'])if(!read(p+'index.html','utf8').includes(name)||!read(p+'sw.js','utf8').includes(name))throw Error('Missing release asset '+name);if(!read(p+'sw.js','utf8').includes('akihq-v121'))throw Error('Wrong release cache');"
+  postgres-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: pos_kds_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: local-test-only
+      PGDATABASE: pos_kds_test
+    steps:
+      - uses: actions/checkout@v4
         with:
-          name: pos-kitchen-evidence-${{ github.event.pull_request.head.sha || github.sha }}
-          path: /tmp/pos-kitchen-evidence/
-          retention-days: 3
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install synthetic fixture only into the isolated PostgreSQL service
+        run: |
+          node tests/pos-kds-postgres-schema.mjs > "$RUNNER_TEMP/kds-schema.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/kds-schema.sql" > "$RUNNER_TEMP/kds-schema-install.log"
+      - name: Independent-connection races, idempotency and waiter/kitchen lock
+        run: python3 tests/pos-kds-postgres.py
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: desktop
+            sizes: '1280x800,1024x768'
+          - id: tablet
+            sizes: '800x1280,768x1024'
+          - id: narrow
+            sizes: '650x900,360x800'
+          - id: short
+            sizes: '320x640,900x500'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install playwright==1.57.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Chromium geometry, native recovery storage, revision review and access changes
+        env:
+          POS_BROWSER_SIZES: ${{ matrix.sizes }}
+        run: python tests/pos-kds-browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pos-kitchen-browser-${{ matrix.id }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/pos-kitchen/
+          retention-days: 7
+          if-no-files-found: warn

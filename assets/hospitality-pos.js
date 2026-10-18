@@ -23,7 +23,9 @@
    const selection=inputKey?{start:focused.selectionStart,end:focused.selectionEnd}:null;
    const serviceFocus=serviceSelected&&focused?.closest?.('.hp-service-overlay [role="dialog"]')?{action:focused.dataset?.action}:null;
    const scrolls=[...root.document.querySelectorAll('[data-pos-scroll]')].map(el=>({key:el.dataset.posScroll,top:el.scrollTop}));
+   const kitchenFocus=kitchen?.captureFocus();
    ctx.refresh();
+   kitchen?.restoreFocus(kitchenFocus);
    for(const el of root.document.querySelectorAll('[data-pos-scroll]')){const saved=scrolls.find(x=>x.key===el.dataset.posScroll);if(saved)el.scrollTop=saved.top;}
    if(inputKey){const next=root.document.querySelector(inputKey);if(next){next.focus?.({preventScroll:true});if(selection.start!==null)next.setSelectionRange?.(selection.start,selection.end);}}
    if(serviceFocus){const dialog=root.document.querySelector('.hp-service-overlay [role="dialog"]');const target=dialog&&[...dialog.querySelectorAll('button:not([disabled])')].find(el=>serviceFocus.action&&el.dataset.action===serviceFocus.action);(target||dialog)?.focus?.({preventScroll:true});}
@@ -70,6 +72,7 @@
   const serviceNow=()=>{const server=Date.parse(data?.server_time);return Number.isFinite(server)?server+Math.max(0,Date.now()-snapshotAt):Date.now();};
   const floorEditor=root.AkiFloorEditor?.create({document:root.document,getDraft:()=>layoutDraft,onChange:()=>{}});
   const active=()=>!disposed&&ctx.isActive();
+  const kitchen=root.AkiPosKDS?.create({rpc,execute,refresh,isActive:()=>active()&&view==='kitchen'&&!!data,isBlocked:()=>busy||!!pending()||outstandingTaps()>0});
   function pending(){try{return JSON.parse(root.localStorage.getItem(key)||'null')}catch{throw Error('Saved request is unreadable. Do not clear browser storage; contact support.')}}
   async function rpc(name,args={}){if(disposed)throw Error('Workspace changed');const r=await ctx.client.rpc(name,{p_workspace:ctx.workspace.id,...args});if(disposed)throw Error('Workspace changed');if(r.error)throw Error(r.error.message);return r.data;}
   async function load(){if(busy||!active())return;try{const next=await rpc('crm_hospitality_overview');if(!active())return;const signature=JSON.stringify({...next,server_time:null});data=next;snapshotAt=Date.now();error='';const minute=Math.floor(serviceNow()/60000);if(signature!==last||(view==='service'&&minute!==lastServiceMinute)){last=signature;lastServiceMinute=minute;const focused=root.document.activeElement;if(!layoutDraft&&!focused?.closest?.('.hp-form, .hp-v4-form, .hp-v4-inline-form, .hp-v4-product-row')&&!root.document.querySelector('.hp-form[data-dirty], .hp-v4-form[data-dirty], .hp-v4-inline-form[data-dirty], .hp-v4-product-row[data-dirty], .hp-ps-copy form[data-dirty], .hp-ps-pair[data-dirty]'))refresh();}}catch(e){if(!active())return;data=null;error=e.message;refresh();}}
@@ -203,7 +206,7 @@
    if(busy)throw Error('Another request is in progress');busy=true;
    try{
     let p=pending();if(!retry){if(p)throw Error('Resolve the pending request first');p={key:root.crypto.randomUUID(),command};root.localStorage.setItem(key,JSON.stringify(p));}if(!p)throw Error('No pending request');
-    const result=await rpc('crm_hospitality_command',{p_key:p.key,p_command:p.command});
+    const result=await rpc(p.command.action?.startsWith('kds_')?'crm_kds_command':'crm_hospitality_command',{p_key:p.key,p_command:p.command});
     root.localStorage.removeItem(key);
     if(result.order_id&&(p.command.action==='open'||(p.command.order_id&&(!selected||selected===p.command.order_id)))){if(selected!==result.order_id)panel='';selected=result.status==='closed'?'':result.order_id;}
     if(p.command.action==='layout'){layoutDraft=null;layoutVersion=null;}
@@ -230,6 +233,7 @@
    const quickBill=o?`<section class="hp-quick-bill"><div class="hp-quick-heading"><strong>Current bill</strong><button type="button" class="action-btn" data-action="hp-order-panel">⚙ Order settings</button></div><div class="hp-quick-lines" data-pos-scroll="bill">${o.lines.map(l=>`<div class="hp-quick-line"><button type="button" class="hp-item-name hp-v4-edit-item" data-action="hp-edit-item" data-id="${esc(l.id)}" aria-label="Edit ${esc(l.name)}"><strong>${esc(l.name)}</strong>${l.note?`<small>${esc(l.note)}</small>`:""}</button><div class="hp-qty-stepper"><button type="button" data-action="hp-quick-qty" data-delta="-1" data-line="${esc(l.id)}" ${orderAttrs(o)} aria-label="Remove one">−</button><span>${esc(l.quantity)}</span><button type="button" data-action="hp-quick-qty" data-delta="1" data-line="${esc(l.id)}" ${orderAttrs(o)} aria-label="Add one">+</button></div><strong>${esc(money(Number(l.unit_price_cents)*Number(l.quantity),ctx.workspace.currency))}</strong></div>`).join('')||'<p>Tap an item to add it to the bill.</p>'}</div><div class="hp-quick-total"><span>Paid ${esc(money(o.paid_cents,ctx.workspace.currency))} · Due <strong>${esc(money(o.total_cents-o.paid_cents,ctx.workspace.currency))}</strong></span><strong>${esc(money(o.total_cents,ctx.workspace.currency))}</strong></div><div class="hp-quick-actions">${btn('send','Send',orderAttrs(o))}${btn('prebill','Pre-bill',orderAttrs(o))}<button type="button" class="action-btn" data-action="hp-split-panel">Split / Move</button><button type="button" class="action-btn primary" data-action="hp-payment-panel">Pay</button></div><div class="hp-v4-utilities">${data.can_manage?btn("admin-panel","Manager corrections"):""}<span>Operational tickets · No es factura</span></div></section>`:'';
    const switcher=root.AkiPosService?root.AkiPosService.navigation({view,canManage:data.can_manage,immersive,orders:data.orders.length}):`<nav class="hp-mode-switch">${btn('switch-view','Terminal', 'data-id="terminal" aria-pressed="'+(view==='terminal')+'"')}${data.can_manage?btn('switch-view','PoS designer','data-id="designer" aria-pressed="'+(view==='designer')+'"'):''}${btn('switch-view','Lookup & shifts','data-id="ledger" aria-pressed="'+(view==='ledger')+'"')}${view==="terminal"?btn("immersive",immersive?"Exit full screen":"⛶ Full screen",`aria-pressed="${immersive}"`):""}<span class="status-pill success">Shared orders · ${esc(layout.mode)}</span></nav>`;
    const exports=data.can_export?`<details class="panel hp-card"><summary>Accountant evidence export</summary><p>Operational evidence only, not an official tax book.</p>${form('export',input('From','from','','date','required')+input('Through','through','','date','required'))}</details>`:'';
+   if(view==='kitchen'&&kitchen)return `<div class="hp-shell hp-terminal hp-kds-host ${immersive?'hp-immersive':''}" aria-busy="${busy}">${switcher}${error?`<p role="alert">${esc(error)}</p>`:''}${recovery}${kitchen.render()}</div>`;
    if(view==='service'&&root.AkiPosService)return `<div class="hp-shell hp-terminal hp-service-host ${immersive?'hp-immersive':''}" aria-busy="${busy}">${switcher}${error?`<p role="alert">${esc(error)}</p>`:''}${recovery}${root.AkiPosService.serviceBody(data,serviceFilters,ctx.workspace.currency,serviceNow())}${root.AkiPosService.preparationPanel(data.orders.find(x=>x.id===serviceSelected),data.layout,!!p||busy||!!outstandingTaps())}</div>`;
    if(view==='ledger')return `<div class="hp-shell hp-ledger-host">${switcher}${ledgerMarkup()}</div>`;
    if(view==='designer'&&data.can_manage)return `<div class="hp-shell hp-designer hp-v4-design-host" aria-busy="${busy}">${switcher}${error?`<p role="alert">${esc(error)}</p>`:''}${recovery}${root.AkiPosV4.designer(data,designerCategory)}<div class="hp-v4-design-floors"><h2>Floor & table designer</h2>${floor}${settings()}</div><div class="hp-v4-design-printers"><section class="panel hp-card"><h2>Printer station</h2><p>Manage the print queue and paired printers without leaving the designer.</p>${btn("printer-panel","Open printer station")}</section></div>${exports}${panel==="printer"?printerView():""}</div>`;
@@ -247,6 +251,7 @@
    });
   }
   async function action(target){const a=target.dataset.action.slice(3);try{
+   if(a.startsWith('kds-')&&kitchen)return await kitchen.action(target);
    if(a==='product-reset'){productQuery='';refresh();root.document.querySelector('[data-pos-product-search]')?.focus?.({preventScroll:true});return;}
    if(a==='favourites'){favouritesOnly=!favouritesOnly;refresh();return;}
    if(a==='service-filter'){serviceFilters={...serviceFilters,status:['all','changes','partial'].includes(target.dataset.id)?target.dataset.id:'all'};refresh();return;}
@@ -289,7 +294,7 @@
    if(a==='note-preset'){const field=root.document.querySelector('.hp-v4-dialog [name="note"]');if(field){const val=target.dataset.note||'';field.value=[field.value.trim(),val].filter(Boolean).join(', ').slice(0,1000);}return;}
    if(a==='designer-category'){designerCategory=target.dataset.id;refresh();return;}
    if(a==='immersive'){immersive=!immersive;refresh();return;}
-   if(a==='switch-view'){view=['designer','ledger','service'].includes(target.dataset.id)?target.dataset.id:'terminal';panel='';serviceSelected='';if(!['terminal','service'].includes(view))selected='';if(view==='ledger'){refresh();await loadLedger();}else refresh();return;}
+   if(a==='switch-view'){view=['designer','ledger','service','kitchen'].includes(target.dataset.id)?target.dataset.id:'terminal';panel='';serviceSelected='';if(!['terminal','service','kitchen'].includes(view))selected='';if(view==='ledger'){refresh();await loadLedger();}else refresh();return;}
 
    if(a==='ledger-refresh'){await loadLedger();return;}
    if(a==='ledger-mode'){ledgerMode=target.dataset.mode==='days'?'days':'bills';ledgerSelected='';refresh();return;}
@@ -317,6 +322,7 @@
    await execute(c);if(['confirm','uncertain'].includes(a)){printTicket=null;refresh();}
   }catch(e){if(disposed)return;error=e.message;ctx.toast('PoS needs attention',error,'warning');refresh();}}
   async function submit(f){try{
+   if(f.dataset.form.startsWith('hp-kds-')&&kitchen)return await kitchen.submit(f);
    const a=f.dataset.form.slice(3),v=Object.fromEntries(new root.FormData(f));
    if(a==='ledger-search'){
     const price=value=>{
@@ -395,7 +401,7 @@
     panelLine='';paymentAmount=null;refresh();
    }
   }catch(e){if(disposed)return;error=e.message;ctx.toast('PoS needs attention',error,'warning');refresh();}}
-  return {render,action,submit,dispose(){disposed=true;if(tapTimer!==null)root.clearTimeout(tapTimer);tapJobs.length=0;root.clearInterval(timer);floorEditor?.dispose();root.document.removeEventListener('input',markDirty);root.document.removeEventListener('keydown',escapePanel);root.document.removeEventListener('change',printerOnChange);root.document.removeEventListener('input',serviceInput);root.document.removeEventListener('change',serviceChange);productQuery='';favouritesOnly=false;serviceFilters={};serviceSelected='';data=null;printTicket=null;pairedDevice=null;printerDevices=[];}};
+  return {render,action,submit,dispose(){disposed=true;kitchen?.dispose();if(tapTimer!==null)root.clearTimeout(tapTimer);tapJobs.length=0;root.clearInterval(timer);floorEditor?.dispose();root.document.removeEventListener('input',markDirty);root.document.removeEventListener('keydown',escapePanel);root.document.removeEventListener('change',printerOnChange);root.document.removeEventListener('input',serviceInput);root.document.removeEventListener('change',serviceChange);productQuery='';favouritesOnly=false;serviceFilters={};serviceSelected='';data=null;printTicket=null;pairedDevice=null;printerDevices=[];}};
  }
  root.AkiHospitality={create,ticketHTML};
 })(typeof window==='undefined'?globalThis:window);
