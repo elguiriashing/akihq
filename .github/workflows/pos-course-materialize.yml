@@ -1,12 +1,12 @@
-name: POS course candidate source export
+name: POS course candidate blob packaging
 on:
   push:
     branches: [dev/pos-course-materializer-20261018]
     paths: ['.github/workflows/pos-course-materialize.yml']
 permissions:
-  contents: read
+  contents: write
 jobs:
-  source:
+  package:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -18,13 +18,9 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Recover pinned candidate for local review without repository writes
+      - name: Reconstruct the pinned review candidate
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/course-source"
           cp -r tools/course-candidate "$RUNNER_TEMP/course-candidate"
           python - <<'PY'
           import base64,hashlib,lzma,os,pathlib
@@ -37,15 +33,32 @@ jobs:
           git apply --index --unidiff-zero "$RUNNER_TEMP/course-candidate/candidate.patch"
           test "$(git write-tree)" = c4c9a865305c2334abf81de75158de7bb862ac76
           git diff --cached --check
-          git archive --format=zip "$(git write-tree)" -o "$RUNNER_TEMP/course-source/candidate.zip"
-          cp "$RUNNER_TEMP/course-candidate/candidate.patch" "$RUNNER_TEMP/course-source/"
-          git write-tree > "$RUNNER_TEMP/course-source/tree.txt"
-      - run: npm ci --prefix cloudflare
-      - name: Export locked dependencies for isolated local regression tests
-        run: tar -czf "$RUNNER_TEMP/course-source/test-dependencies.tar.gz" cloudflare/node_modules
+      - name: Upload immutable code blobs only, never workflows, refs or deployments
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64,json,os,pathlib,subprocess,urllib.request
+          root='https://api.github.com/repos/elguiriashing/akihq'
+          paths=subprocess.check_output(['git','diff','--cached','--name-only','--diff-filter=AM','-z']).decode().split('\0')
+          result=[]
+          for name in paths:
+            if not name or name.startswith('.github/'):continue
+            raw=pathlib.Path(name).read_bytes()
+            payload=json.dumps({'encoding':'base64','content':base64.b64encode(raw).decode()}).encode()
+            req=urllib.request.Request(root+'/git/blobs',data=payload,method='POST',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'})
+            with urllib.request.urlopen(req,timeout=45) as r:created=json.load(r)
+            expected=subprocess.check_output(['git','hash-object',name]).decode().strip()
+            assert created['sha']==expected,(name,'blob hash mismatch')
+            result.append({'path':name,'sha':expected,'mode':'100644','type':'blob'})
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'course-blobs';out.mkdir()
+          (out/'manifest.json').write_text(json.dumps(result,indent=2))
+          print('Verified immutable source blobs:',len(result))
+          print('No workflows, trees, commits, refs, deployments or business data were written.')
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: pos-course-review-source-${{ github.sha }}
-          path: ${{ runner.temp }}/course-source/
+          name: pos-course-blobs-${{ github.sha }}
+          path: ${{ runner.temp }}/course-blobs/
           retention-days: 3
           if-no-files-found: error
