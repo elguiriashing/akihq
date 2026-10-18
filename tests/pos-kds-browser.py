@@ -70,7 +70,7 @@ def main():
       page.locator('[name="progress:k3"]').select_option('ready')
       page.locator('.hp-kds-form button[type="submit"]').click()
       page.wait_for_function('fixture.kds.cards[3].review_required===false')
-      assert page.locator('[role="dialog"]').count()==0
+      page.locator('[role="dialog"]').wait_for(state='hidden')
       assert page.evaluate('fixture.kds.cards[3].progress.k3')=='ready'
       page.locator('[data-action="hp-kds-filter"][data-value="active"]').click()
       if (w,h,lang,theme) in [(1280,800,'en','dark'),(360,800,'es','light')]:
@@ -90,10 +90,16 @@ def main():
    # Recall changes are exposed only to managers, with a reason form.
    page.locator('[data-action="hp-kds-filter"][data-value="ready"]').click()
    page.locator('[data-action="hp-kds-progress"][data-order="o2"][data-line="k2"]').click()
+   page.wait_for_function("fixture.kds.cards[2].progress.k2==='served' && !localStorage.getItem('akihq:hospitality:fixture-user:fixture-workspace')")
    page.locator('[data-action="hp-kds-filter"][data-value="history"]').click()
    page.locator('[data-action="hp-kds-recall"][data-order="o2"]').click()
    page.locator('[name="reason"]').fill('Served button pressed by mistake');page.locator('.hp-kds-form button[type="submit"]').click()
-   assert page.evaluate('fixture.kds.cards[2].progress.k2')=='queued'
+   # Native Web Locks schedule execution asynchronously after the click event.
+   # Observe the persisted result and completed dialog, not event dispatch.
+   page.wait_for_function("fixture.kds.cards[2].progress.k2==='queued' && !localStorage.getItem('akihq:hospitality:fixture-user:fixture-workspace')")
+   page.locator('[role="dialog"]').wait_for(state='hidden')
+   assert page.evaluate("fixture.commands.filter(c=>c.action==='kds_recall' && c.order_id==='o2' && c.reason==='Served button pressed by mistake').length")==1
+   assert page.evaluate("fixture.notices.filter(n=>n[1]==='error').length")==0
    # Stale review cannot silently overwrite a newer kitchen snapshot.
    page.locator('[data-action="hp-kds-filter"][data-value="review"]').click();page.locator('[data-action="hp-kds-review"]').click()
    page.locator('[name="reason"]').fill('Review draft must survive refresh')
