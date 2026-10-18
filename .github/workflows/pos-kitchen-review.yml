@@ -3,13 +3,7 @@ on:
   push:
     branches: [feature/pos-kitchen-display-20261018]
   pull_request:
-    paths:
-      - 'assets/**'
-      - 'tests/**'
-      - 'supabase/**'
-      - 'index.html'
-      - 'sw.js'
-      - '.github/workflows/pos-kitchen-review.yml'
+    paths: ['assets/**', 'tests/**', 'supabase/**', 'index.html', 'sw.js', '.github/workflows/pos-kitchen-review.yml']
 permissions:
   contents: read
 concurrency:
@@ -27,12 +21,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm ci --prefix cloudflare
       - name: Existing service regression
         run: node tests/pos-v4-smoke.cjs
-      - name: Review source snapshot
-        run: git archive --format=zip HEAD -o /tmp/pos-review-source.zip
+      - name: Isolated development evidence
+        run: |
+          mkdir -p /tmp/pos-kitchen-evidence
+          git archive --format=zip HEAD -o /tmp/pos-kitchen-evidence/source.zip
+          tar -czf /tmp/pos-kitchen-evidence/pglite.tar.gz -C cloudflare/node_modules @electric-sql/pglite
+          npx --yes supabase@2.121.0 migration new --help
+          npx --yes supabase@2.121.0 migration new pos_kitchen_display
+          cp supabase/migrations/*_pos_kitchen_display.sql /tmp/pos-kitchen-evidence/
       - uses: actions/upload-artifact@v4
         with:
-          name: pos-kitchen-source-${{ github.event.pull_request.head.sha || github.sha }}
-          path: /tmp/pos-review-source.zip
-          retention-days: 7
+          name: pos-kitchen-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/pos-kitchen-evidence/
+          retention-days: 3
