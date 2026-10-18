@@ -16,6 +16,9 @@ for (const enabled of [false, true]) {
       const original = await readFile(new URL('../assets/app-v32.js', import.meta.url), 'utf8');
       const product = enabled ? 'AkiBusiness' : 'AkiHQ';
       assert.match(await read('index.html'), new RegExp(`<title>${product}</title>`));
+      // Cloudflare Pages SPA rewrites nested routes back to index.html; base URL
+      // must stay rooted so /es/business loads /assets and /config.js.
+      assert.match(await read('index.html'), /<base href="\/"\s*\/>/);
       assert.equal(JSON.parse(await read('manifest.webmanifest')).name, product);
       assert.equal(JSON.parse(await read('release-source.json')).roleSwap, enabled);
       assert.equal(typeof JSON.parse(await read('release-source.json')).sourceTreeDirty, 'boolean');
