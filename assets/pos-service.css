@@ -187,3 +187,10 @@ html[data-theme=light] .hp-shell{--pos-attention:#885100}
    fullscreen terminal; dashboard chrome must stay hidden beneath it. */
 body:has(.hp-shell.hp-terminal.hp-immersive) .contextbar{display:none!important}
 body:has(.hp-shell.hp-terminal.hp-immersive) .view{transform:none!important;animation:none!important}
+/* Keep the service bar within a 320px phone even with wider system fonts. */
+@media(max-width:350px){
+ .hp-shell .hp-mode-switch.hp-service-nav{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 65px 44px;gap:4px!important}
+ .hp-service-nav .hp-service-count{display:none}
+ .hp-service-nav>.action-btn{min-width:0;padding:6px 4px!important}
+ .hp-service-tools select{padding:6px 3px!important}
+}
