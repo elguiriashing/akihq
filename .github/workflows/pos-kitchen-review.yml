@@ -1,0 +1,38 @@
+name: AkiBusiness kitchen display review
+on:
+  push:
+    branches: [feature/pos-kitchen-display-20261018]
+  pull_request:
+    paths:
+      - 'assets/**'
+      - 'tests/**'
+      - 'supabase/**'
+      - 'index.html'
+      - 'sw.js'
+      - '.github/workflows/pos-kitchen-review.yml'
+permissions:
+  contents: read
+concurrency:
+  group: pos-kitchen-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Existing service regression
+        run: node tests/pos-v4-smoke.cjs
+      - name: Review source snapshot
+        run: git archive --format=zip HEAD -o /tmp/pos-review-source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pos-kitchen-source-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/pos-review-source.zip
+          retention-days: 7
