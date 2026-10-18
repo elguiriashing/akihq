@@ -24,11 +24,13 @@
    const serviceFocus=serviceSelected&&focused?.closest?.('.hp-service-overlay [role="dialog"]')?{action:focused.dataset?.action}:null;
    const scrolls=[...root.document.querySelectorAll('[data-pos-scroll]')].map(el=>({key:el.dataset.posScroll,top:el.scrollTop}));
    const kitchenFocus=kitchen?.captureFocus();
+   const variantFocus=variants?.captureFocus();
    const courseForm=panel==='courses'&&root.document.querySelector('.hp-course-form');
    const courseChecked=courseForm&&Number(courseForm.dataset.course)===courseReview?.course&&Number(courseForm.dataset.version)===courseReview?.order.version&&root.document.querySelector('.hp-course-confirm input')?.checked;
    const courseFocus=panel==='courses'&&focused?.closest?.('.hp-course-overlay')?{action:focused.dataset?.action,name:focused.name}:null;
    ctx.refresh();
    kitchen?.restoreFocus(kitchenFocus);
+   variants?.restoreFocus(variantFocus);
    if(courseChecked&&courseReview?.order.version===current()?.version){const box=root.document.querySelector('.hp-course-confirm input:not([disabled])');if(box)box.checked=true;}
    if(courseFocus){const dialog=root.document.querySelector('.hp-course-dialog');const next=dialog&&[...dialog.querySelectorAll('button:not([disabled]),input:not([disabled])')].find(el=>courseFocus.action?el.dataset.action===courseFocus.action:el.name===courseFocus.name);(next||dialog)?.focus?.({preventScroll:true});}
    for(const el of root.document.querySelectorAll('[data-pos-scroll]')){const saved=scrolls.find(x=>x.key===el.dataset.posScroll);if(saved)el.scrollTop=saved.top;}
@@ -80,6 +82,15 @@
   const floorEditor=root.AkiFloorEditor?.create({document:root.document,getDraft:()=>layoutDraft,onChange:()=>{}});
   const active=()=>!disposed&&ctx.isActive();
   const kitchen=root.AkiPosKDS?.create({rpc,execute,refresh,isActive:()=>active()&&view==='kitchen'&&!!data,isBlocked:()=>busy||!!pending()||outstandingTaps()>0});
+  const variants=root.AkiPosVariants?.create({
+   getData:()=>data,getOrder:id=>data?.orders.find(o=>o.id===id),currentId:()=>selected,
+   isActive:()=>active()&&['terminal','designer'].includes(view),
+   isBlocked:()=>busy||!!pending()||Date.now()-snapshotAt>10000,
+   entryCourse:id=>root.AkiPosCourses?.available(data)?entryCourses[id]||0:0,
+   enqueue:(orderId,itemId,course)=>enqueueTap('product',orderId,itemId,1,course),
+   flushTaps,reload:load,refresh,currency:ctx.workspace.currency,
+   saveLayout:(layout,version)=>execute({action:'layout',layout,version})
+  });
   function pending(){try{return JSON.parse(root.localStorage.getItem(key)||'null')}catch{throw Error('Saved request is unreadable. Do not clear browser storage; contact support.')}}
   async function rpc(name,args={}){if(disposed)throw Error('Workspace changed');const r=await ctx.client.rpc(name,{p_workspace:ctx.workspace.id,...args});if(disposed)throw Error('Workspace changed');if(r.error)throw Error(r.error.message);return r.data;}
   async function load(){if(busy||!active())return;try{const next=await rpc('crm_hospitality_overview');if(!active())return;const signature=JSON.stringify({...next,server_time:null});data=next;snapshotAt=Date.now();error='';const minute=Math.floor(serviceNow()/60000);if(signature!==last||(view==='service'&&minute!==lastServiceMinute)){last=signature;lastServiceMinute=minute;const focused=root.document.activeElement;if(!layoutDraft&&!focused?.closest?.('.hp-form, .hp-v4-form, .hp-v4-inline-form, .hp-v4-product-row')&&!root.document.querySelector('.hp-form[data-dirty], .hp-v4-form[data-dirty], .hp-v4-inline-form[data-dirty], .hp-v4-product-row[data-dirty], .hp-ps-copy form[data-dirty], .hp-ps-pair[data-dirty]'))refresh();}}catch(e){if(!active())return;data=null;error=e.message;refresh();}}
@@ -116,14 +127,15 @@
   // This queue never guesses whether an ambiguous network response was saved.
   const tapDelayMs=85;
   const outstandingTaps=()=>tapInFlight+tapJobs.reduce((n,x)=>n+Math.abs(x.delta),0);
-  function enqueueTap(kind,orderId,id,delta){
+  function enqueueTap(kind,orderId,id,delta,courseOverride){
    if(!active())throw Error('Workspace changed');
    if(pending()&&!busy)throw Error('Resolve the pending order request before taking new taps.');
    const o=data?.orders.find(x=>x.id===orderId);
    if(!o)throw Error('Order no longer open');
    if(Number(o.paid_cents)>0)throw Error('Reverse recorded payments before editing this order.');
    if(!Number.isInteger(delta)||!delta)throw Error('Invalid tap');
-   const course=kind==='product'&&root.AkiPosCourses?.available(data)?entryCourses[orderId]||0:0;
+   const course=kind==='product'&&root.AkiPosCourses?.available(data)?courseOverride??entryCourses[orderId]??0:0;
+   if(!Number.isInteger(course)||course<0||course>6)throw Error('Invalid course choice');
    const previous=tapJobs.find(x=>x.kind===kind&&x.orderId===orderId&&x.id===id&&x.course===course);
    if(previous){
     if(Math.abs(previous.delta+delta)>999)throw Error('Too many pending taps');
@@ -244,9 +256,9 @@
    if(view==='kitchen'&&kitchen)return `<div class="hp-shell hp-terminal hp-kds-host ${immersive?'hp-immersive':''}" aria-busy="${busy}">${switcher}${error?`<p role="alert">${esc(error)}</p>`:''}${recovery}${kitchen.render()}</div>`;
    if(view==='service'&&root.AkiPosService)return `<div class="hp-shell hp-terminal hp-service-host ${immersive?'hp-immersive':''}" aria-busy="${busy}">${switcher}${error?`<p role="alert">${esc(error)}</p>`:''}${recovery}${root.AkiPosService.serviceBody(data,serviceFilters,ctx.workspace.currency,serviceNow())}${root.AkiPosService.preparationPanel(data.orders.find(x=>x.id===serviceSelected),data.layout,!!p||busy||!!outstandingTaps())}</div>`;
    if(view==='ledger')return `<div class="hp-shell hp-ledger-host">${switcher}${ledgerMarkup()}</div>`;
-   if(view==='designer'&&data.can_manage)return `<div class="hp-shell hp-designer hp-v4-design-host" aria-busy="${busy}">${switcher}${error?`<p role="alert">${esc(error)}</p>`:''}${recovery}${root.AkiPosV4.designer(data,designerCategory)}<div class="hp-v4-design-floors"><h2>Floor & table designer</h2>${floor}${settings()}</div><div class="hp-v4-design-printers"><section class="panel hp-card"><h2>Printer station</h2><p>Manage the print queue and paired printers without leaving the designer.</p>${btn("printer-panel","Open printer station")}</section></div>${exports}${panel==="printer"?printerView():""}</div>`;
+   if(view==='designer'&&data.can_manage)return `<div class="hp-shell hp-designer hp-v4-design-host" aria-busy="${busy}">${switcher}${error?`<p role="alert">${esc(error)}</p>`:''}${recovery}${root.AkiPosV4.designer(data,designerCategory)}<div class="hp-v4-design-floors"><h2>Floor & table designer</h2>${floor}${settings()}</div><div class="hp-v4-design-printers"><section class="panel hp-card"><h2>Printer station</h2><p>Manage the print queue and paired printers without leaving the designer.</p>${btn("printer-panel","Open printer station")}</section></div>${exports}${panel==="printer"?printerView():""}${variants?.render()||''}</div>`;
 
-   return `<div class="hp-shell hp-terminal ${immersive?"hp-immersive ":""}${o?'hp-order-open':'hp-floor-open'}" aria-busy="${busy}">${o?'<div class="hp-register-intro">':''}${switcher}${error?`<p role="alert">${esc(error)}</p>`:''}${recovery}<div class="hp-day-shortcut">${ledger?.active_day?`<span><strong>Trading day active</strong> · ${root.AkiPosLedger.money(ledger.summary?.active_cents,ctx.workspace.currency)}</span>`:`<span><strong>No trading day running</strong> · Start when your venue opens.</span>`}${!ledger?.active_day&&data.can_manage?btn('day-start','▶ Start trading day'):''}${btn('switch-view','Trading day / Lookup','data-id="ledger"')}</div><div class="hp-terminal-top"><div class="hp-toolbar">${o?btn('back','← All tables'):btn('open','+ Walk-in')}${o?`<strong class="hp-register-table">${esc(tableName(o))}</strong>`:''}${btn('printer-panel',`Print queue (${root.AkiPrinterStation.decorate(data.tickets,data.orders,data.recent).filter(t=>t.active&&t.status==='queued').length})`)}${btn('refresh','Refresh')}</div>${layout.mode==='restaurant'&&!o?`<nav class="hp-floor-tabs">${layout.pages.map(p=>btn('page',p.name,`data-id="${esc(p.id)}" aria-pressed="${p.id===page}"`)).join('')}</nav>`:''}</div>${o?'</div>':''}${o?`<div class="hp-terminal-body hp-register-menu">${catalogue}</div><aside class="hp-terminal-bill hp-register-ticket" aria-label="Active ticket">${quickBill}</aside>`:`<div class="hp-terminal-body">${tileFloor}${layout.mode==='till'?orders:''}</div>`}${panel==="printer"?printerView():panel==='courses'&&courseReview?root.AkiPosCourses.dialog(courseReview.order,o,courseReview.course,{blocked:busy||!!pending()||outstandingTaps()>0,staleConnection:Date.now()-snapshotAt>10000}):o&&panel?root.AkiPosDialogs.view(panel,o,{...data,currency:ctx.workspace.currency},panelLine,paymentAmount):""}</div>`;
+   return `<div class="hp-shell hp-terminal ${immersive?"hp-immersive ":""}${o?'hp-order-open':'hp-floor-open'}" aria-busy="${busy}">${o?'<div class="hp-register-intro">':''}${switcher}${error?`<p role="alert">${esc(error)}</p>`:''}${recovery}<div class="hp-day-shortcut">${ledger?.active_day?`<span><strong>Trading day active</strong> · ${root.AkiPosLedger.money(ledger.summary?.active_cents,ctx.workspace.currency)}</span>`:`<span><strong>No trading day running</strong> · Start when your venue opens.</span>`}${!ledger?.active_day&&data.can_manage?btn('day-start','▶ Start trading day'):''}${btn('switch-view','Trading day / Lookup','data-id="ledger"')}</div><div class="hp-terminal-top"><div class="hp-toolbar">${o?btn('back','← All tables'):btn('open','+ Walk-in')}${o?`<strong class="hp-register-table">${esc(tableName(o))}</strong>`:''}${btn('printer-panel',`Print queue (${root.AkiPrinterStation.decorate(data.tickets,data.orders,data.recent).filter(t=>t.active&&t.status==='queued').length})`)}${btn('refresh','Refresh')}</div>${layout.mode==='restaurant'&&!o?`<nav class="hp-floor-tabs">${layout.pages.map(p=>btn('page',p.name,`data-id="${esc(p.id)}" aria-pressed="${p.id===page}"`)).join('')}</nav>`:''}</div>${o?'</div>':''}${o?`<div class="hp-terminal-body hp-register-menu">${catalogue}</div><aside class="hp-terminal-bill hp-register-ticket" aria-label="Active ticket">${quickBill}</aside>`:`<div class="hp-terminal-body">${tileFloor}${layout.mode==='till'?orders:''}</div>`}${panel==="printer"?printerView():panel==='courses'&&courseReview?root.AkiPosCourses.dialog(courseReview.order,o,courseReview.course,{blocked:busy||!!pending()||outstandingTaps()>0,staleConnection:Date.now()-snapshotAt>10000}):o&&panel?root.AkiPosDialogs.view(panel,o,{...data,currency:ctx.workspace.currency},panelLine,paymentAmount):""}${variants?.render()||''}</div>`;
   }
   function tableName(o){return o.table_id?data.layout.tables.find(t=>t.id===o.table_id)?.name||o.table_id:o.label;}
   function settings(){const l=data.layout;return `<details class="panel hp-card"><summary>Floor settings</summary>${form('mode',select('PoS view','mode',[['till','Till only'],['restaurant','Restaurant / bar']],l.mode),`data-version="${data.layout_version}"`)}${form('page',input('New page name','name','','text','required maxlength="80"'),`data-version="${data.layout_version}"`)}${l.pages.map(p=>`<details><summary>Page: ${esc(p.name)}</summary>${form('page_edit',input('Page name','name',p.name,'text','required maxlength="80"')+select('Action','operation',[['rename','Rename'],['delete','Delete empty page']]),`data-id="${esc(p.id)}" data-version="${data.layout_version}"`)}</details>`).join('')}<h3>Tables</h3><p>Position and dimensions are percentages of the page. Names can be table numbers. Occupied tables cannot be deleted.</p>${l.pages.length?[...l.tables,{id:'',name:'',page:l.pages[0].id,shape:'rectangle',x:5,y:5,width:15,height:15,seats:4}].map(t=>`<details><summary>${esc(t.name||'Add table')}</summary>${form('table_edit',input('Number / name','name',t.name,'text','required maxlength="80"')+select('Page','page',l.pages.map(p=>[p.id,p.name]),t.page)+select('Shape','shape',[['rectangle','Rectangle'],['circle','Circle / oval'],['rounded','Rounded rectangle']],t.shape)+['x','y','width','height','seats'].map(k=>input(k,k,t[k],'number',`required min="${['x','y'].includes(k)?0:k==='seats'?1:5}" max="${k==='seats'?999:100}" step="1"`)).join('')+select('Action','operation',[['save','Save table'],['delete','Delete table']]),`data-id="${esc(t.id)}" data-version="${data.layout_version}"`)}</details>`).join(''):''}</details>`;}
@@ -259,6 +271,7 @@
    });
   }
   async function action(target){const a=target.dataset.action.slice(3);try{
+   if(a.startsWith('variant-')&&variants)return await variants.action(target);
    if(a.startsWith('kds-')&&kitchen)return await kitchen.action(target);
    if(['course-open','course-reload','course-choose'].includes(a)){
     if(!root.AkiPosCourses?.available(data))throw Error('Course controls require the matching database release.');
@@ -334,11 +347,12 @@
    let c={action:a,order_id:target.dataset.order,version:Number(target.dataset.version)};
    if(a==='open')c={action:'open',label:'Walk-in'};
    if(a==='table'){const t=data.layout.tables.find(t=>t.id===target.dataset.id);c={action:'open',table_id:t.id,label:`Table ${t.name}`};}
-   if(a==='add'){enqueueTap('product',target.dataset.order,target.dataset.id,1);return;}
+   if(a==='add'){if(variants&&root.AkiPosVariants.configured(data?.layout,target.dataset.id))return await variants.open(String(target.dataset.id),'choose',target.dataset.order);enqueueTap('product',target.dataset.order,target.dataset.id,1);return;}
    if(['claim','confirm','uncertain'].includes(a)){c={action:`${a}_ticket`,ticket_id:target.dataset.id};if(a==='claim'){printerSelected=target.dataset.id;}}
    await execute(c);if(['confirm','uncertain'].includes(a)){printTicket=null;refresh();}
   }catch(e){if(disposed)return;error=e.message;ctx.toast('PoS needs attention',error,'warning');refresh();}}
   async function submit(f){try{
+   if(f.dataset.form==='hp-variant-save'&&variants)return await variants.save();
    if(f.dataset.form.startsWith('hp-kds-')&&kitchen)return await kitchen.submit(f);
    if(f.dataset.form==='hp-course-fire'){
     const t=root.AkiPosCourses.text(),o=current(),v=new root.FormData(f);
@@ -426,7 +440,7 @@
     panelLine='';paymentAmount=null;refresh();
    }
   }catch(e){if(disposed)return;error=e.message;ctx.toast('PoS needs attention',error,'warning');refresh();}}
-  return {render,action,submit,dispose(){disposed=true;kitchen?.dispose();if(tapTimer!==null)root.clearTimeout(tapTimer);tapJobs.length=0;root.clearInterval(timer);floorEditor?.dispose();root.document.removeEventListener('input',markDirty);root.document.removeEventListener('keydown',escapePanel);root.document.removeEventListener('change',printerOnChange);root.document.removeEventListener('input',serviceInput);root.document.removeEventListener('change',serviceChange);productQuery='';favouritesOnly=false;serviceFilters={};serviceSelected='';courseReview=null;entryCourses={};data=null;printTicket=null;pairedDevice=null;printerDevices=[];}};
+  return {render,action,submit,dispose(){disposed=true;kitchen?.dispose();variants?.dispose();if(tapTimer!==null)root.clearTimeout(tapTimer);tapJobs.length=0;root.clearInterval(timer);floorEditor?.dispose();root.document.removeEventListener('input',markDirty);root.document.removeEventListener('keydown',escapePanel);root.document.removeEventListener('change',printerOnChange);root.document.removeEventListener('input',serviceInput);root.document.removeEventListener('change',serviceChange);productQuery='';favouritesOnly=false;serviceFilters={};serviceSelected='';courseReview=null;entryCourses={};data=null;printTicket=null;pairedDevice=null;printerDevices=[];}};
  }
  root.AkiHospitality={create,ticketHTML};
 })(typeof window==='undefined'?globalThis:window);

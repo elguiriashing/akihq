@@ -54,7 +54,7 @@ test('pre-bills mark held courses but do not instruct the kitchen to cook',()=>{
  const text=ticketText({id:'t',station:'receipt',kind:'prebill',payload:{order:{lines:[l]}}},48);assert.match(text,/HOLD \/ EN ESPERA: 2/);assert.doesNotMatch(text,/NEWLY FIRED/);
 });
 test('all changed course assets are versioned in both document and service-worker cache',()=>{
- for(const f of ['pos-courses.js?v=1','pos-courses.css?v=1','pos-service.js?v=3','pos-kds.js?v=2','pos-v4-dialogs.js?v=2','hospitality-pos.js?v=16']){assert(read('index.html').includes(f));assert(read('sw.js').includes(f));}
+ for(const f of ['pos-courses.js?v=1','pos-courses.css?v=1','pos-service.js?v=3','pos-kds.js?v=2','pos-v4-dialogs.js?v=2','hospitality-pos.js?v=17']){assert(read('index.html').includes(f));assert(read('sw.js').includes(f));}
 });
 test('course confirmation includes the reviewed bill version and explicit checkbox',()=>{
  const html=api.dialog(order,order,2);assert.match(html,/data-order="o" data-version="2" data-course="2"/);assert.match(html,/name="confirmed"/);assert.doesNotMatch(html,/name="confirmed"[^>]*checked/);

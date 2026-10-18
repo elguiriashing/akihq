@@ -37,7 +37,7 @@ jobs:
           NEXT_PUBLIC_AKISUITE_ROLE_SWAP: 'true'
         run: |
           node tools/build-product-release.mjs "$RUNNER_TEMP/akibusiness-kitchen-release"
-          node --input-type=module -e "import {readFileSync as read} from 'node:fs';const p=process.env.RUNNER_TEMP+'/akibusiness-kitchen-release/';const meta=JSON.parse(read(p+'release-source.json'));if(meta.product!=='AkiBusiness'||meta.sourceTreeDirty)throw Error('Release metadata mismatch');for(const name of ['pos-kds.js?v=2','pos-kds.css?v=1','hospitality-pos.js?v=16'])if(!read(p+'index.html','utf8').includes(name)||!read(p+'sw.js','utf8').includes(name))throw Error('Missing release asset '+name);if(!read(p+'sw.js','utf8').includes('akihq-v123'))throw Error('Wrong release cache');"
+          node --input-type=module -e "import {readFileSync as read} from 'node:fs';const p=process.env.RUNNER_TEMP+'/akibusiness-kitchen-release/';const meta=JSON.parse(read(p+'release-source.json'));if(meta.product!=='AkiBusiness'||meta.sourceTreeDirty)throw Error('Release metadata mismatch');for(const name of ['pos-kds.js?v=2','pos-kds.css?v=1','hospitality-pos.js?v=17'])if(!read(p+'index.html','utf8').includes(name)||!read(p+'sw.js','utf8').includes(name))throw Error('Missing release asset '+name);if(!read(p+'sw.js','utf8').includes('akihq-v125'))throw Error('Wrong release cache');"
   postgres-concurrency:
     runs-on: ubuntu-latest
     timeout-minutes: 10

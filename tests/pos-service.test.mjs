@@ -98,7 +98,7 @@ test('native POS navigation does not reuse cross-site or account menu actions',(
  const nav=service.navigation({view:'terminal',canManage:true});assert.match(nav,/data-pos-view/);assert.doesNotMatch(nav,/suite-app|signout|passport/);
 });
 test('new assets are versioned in both document and service worker',()=>{
- for(const asset of ['pos-service.js?v=3','pos-service.css?v=1','hospitality-pos.js?v=16','pos-v4.js?v=2']){
+ for(const asset of ['pos-service.js?v=3','pos-service.css?v=1','hospitality-pos.js?v=17','pos-v4.js?v=3']){
   assert.ok(read('index.html').includes(asset));assert.ok(read('sw.js').includes(asset));
  }
 });
