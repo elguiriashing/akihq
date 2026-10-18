@@ -3,11 +3,13 @@ on:
   pull_request:
     paths:
       - 'assets/*pos*'
-      - 'assets/pos-service/**'
+      - 'assets/akibusiness-brand.css'
+      - 'assets/styles.css'
       - 'tests/pos-*'
       - 'tests/fixtures/pos-*'
       - 'index.html'
       - 'sw.js'
+      - 'tools/operations-product-release.json'
       - '.github/workflows/pos-service-review.yml'
 permissions:
   contents: read
@@ -27,11 +29,21 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --prefix cloudflare
-      - name: Existing register regressions
+      - name: Service and existing register regressions
         run: |
+          node --check assets/pos-service.js
+          node --check assets/pos-v4.js
+          node --check assets/hospitality-pos.js
+          node --test tests/pos-service.test.mjs
           node tests/pos-v4-smoke.cjs
           node tests/pos-mobile-checkout.cjs
           node --test tests/pos-rapid-taps.test.mjs tests/pos-printer-station.test.mjs tests/pos-ledger.test.mjs
+      - name: Verify the actual AkiBusiness release transformation
+        env:
+          NEXT_PUBLIC_AKISUITE_ROLE_SWAP: 'true'
+        run: |
+          node tools/build-product-release.mjs "$RUNNER_TEMP/akibusiness-pos-release"
+          node --input-type=module -e "import {readFileSync as read} from 'node:fs';const p=process.env.RUNNER_TEMP+'/akibusiness-pos-release/';const meta=JSON.parse(read(p+'release-source.json'));if(meta.product!=='AkiBusiness'||meta.sourceTreeDirty||!read(p+'index.html','utf8').includes('pos-service.js?v=1')||!read(p+'sw.js','utf8').includes('akihq-v119'))throw Error('Release mismatch');"
       - name: Exact source review bundle
         if: always()
         run: |
@@ -45,3 +57,39 @@ jobs:
           path: artifacts/pos-service/
           retention-days: 3
           if-no-files-found: error
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: desktop
+            sizes: '1280x800,1024x768'
+          - id: tablet
+            sizes: '800x1280,768x1024'
+          - id: narrow
+            sizes: '650x900,360x800'
+          - id: short
+            sizes: '320x640,900x500'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install playwright==1.57.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Real Chromium layout and service interactions
+        env:
+          POS_BROWSER_SIZES: ${{ matrix.sizes }}
+        run: python tests/pos-service-browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pos-service-browser-${{ matrix.id }}-${{ github.event.pull_request.head.sha }}
+          path: artifacts/pos-service/
+          retention-days: 3
+          if-no-files-found: warn

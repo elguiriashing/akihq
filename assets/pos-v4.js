@@ -13,13 +13,21 @@ function groups(l,items){
  return [{id:"All",name:"All",color:"#8068ec"},...configured,...names.filter(x=>!configured.some(c=>c.id===x)).map(id=>({id,name:id,color:"#697eab"}))];
 }
 function items(l,all,selected){
- return all.filter(p=>{const m=meta(l,p);return !m.hidden&&(selected==="All"||String(m.category||base(p))===selected)}).sort((a,b)=>Number(meta(l,a).rank||999)-Number(meta(l,b).rank||999)||String(a.name).localeCompare(String(b.name)));
+ return all.filter(p=>{const m=meta(l,p);return p.active!==false&&!m.hidden&&(selected==="All"||String(m.category||base(p))===selected)}).sort((a,b)=>Number(meta(l,a).rank||999)-Number(meta(l,b).rank||999)||String(a.name).localeCompare(String(b.name)));
 }
 function categoryButtons(l,all,selected){
  return '<nav class="hp-category-grid" aria-label="Categories">'+groups(l,all).map(c=>'<button class="action-btn" type="button" data-action="hp-category" data-id="'+esc(c.id)+'" aria-pressed="'+(c.id===selected)+'" style="--pos-color:'+color(c.color)+'">'+esc(c.name)+'</button>').join("")+'</nav>';
 }
-function itemButtons(l,all,selected,o,currency){
- return '<div class="hp-product-scroll"><div class="hp-product-buttons">'+(items(l,all,selected).map(p=>{const m=meta(l,p);return '<button type="button" class="action-btn hp-v4-product" data-action="hp-add" data-order="'+esc(o.id)+'" data-version="'+esc(o.version)+'" data-id="'+esc(p.id)+'" style="--pos-color:'+color(m.color)+'"><span>'+esc(m.label||p.name)+'</span><small>'+esc(money(p.sale_price_cents,currency))+'</small></button>'}).join("")||'<p>No items in this category.</p>')+'</div></div>';
+function itemResults(l,all,selected,o,currency,options={}){
+ const service=root.AkiPosService,t=service?.text();
+ const visible=items(l,all,selected).filter(p=>(!options.favourites||meta(l,p).favourite===true)&&(!options.query||!service||service.matchesProduct(l,p,options.query)));
+ return (service&&(options.query||options.favourites)?'<p class="hp-search-result-count" role="status">'+visible.length+' '+esc(t.matches)+'</p>':'')+'<div class="hp-product-buttons">'+(visible.map(p=>{
+  const m=meta(l,p),low=p.on_hand!==null&&p.on_hand!==undefined&&Number.isFinite(Number(p.on_hand))&&Number(p.on_hand)<=0;
+  return '<button type="button" class="action-btn hp-v4-product" data-action="hp-add" data-order="'+esc(o.id)+'" data-version="'+esc(o.version)+'" data-id="'+esc(p.id)+'" style="--pos-color:'+color(m.color)+'"><span>'+esc(m.label||p.name)+'</span><small>'+esc(money(p.sale_price_cents,currency))+'</small>'+(m.favourite===true?'<span class="hp-product-favourite" aria-label="'+esc(t?.favourite||'Favourite')+'">★</span>':'')+(low&&service?'<small class="hp-stock-warning" title="'+esc(t.stockDetail)+'">'+esc(t.stock)+'</small>':'')+'</button>';
+ }).join('')||'<div class="hp-products-empty"><strong>'+esc(t?.noProducts||'No items in this category.')+'</strong>'+(t?'<p>'+esc(t.resetProducts)+'</p>':'')+'</div>')+'</div>';
+}
+function itemButtons(l,all,selected,o,currency,options={}){
+ return (root.AkiPosService?.searchToolbar(options.query||'',options.favourites)||'')+'<div class="hp-product-scroll" data-pos-scroll="products">'+itemResults(l,all,selected,o,currency,options)+'</div>';
 }
 function designer(data,active){
  const l=data.layout,all=groups(l,data.catalogue),chosen=all.find(x=>x.id===active)||all[0],configured=menu(l);
@@ -28,9 +36,9 @@ function designer(data,active){
  out+='<form class="hp-v4-inline-form" data-form="hp-menu-category"><label>New category<input name="name" maxlength="48" placeholder="Cocktails" required></label><label>Colour<input type="color" name="color" value="#826deb"></label><button type="submit" class="action-btn primary">Add category</button></form>';
  if(chosen.id!=="All")out+='<form class="hp-v4-inline-form" data-form="hp-menu-category-edit" data-id="'+esc(chosen.id)+'"><label>Selected category<input name="name" maxlength="48" required value="'+esc(chosen.name)+'"></label><label>Colour<input name="color" type="color" value="'+color(chosen.color)+'"></label><button type="submit" class="action-btn primary">Save category</button></form>';
  out+='</section><section class="hp-v4-section"><h3>Product buttons</h3><p>Display labels, button colour, category and visibility are stored on the shared PoS layout. Prices remain in Inventory.</p><div class="hp-v4-items">';
- out+=(data.catalogue||[]).map(p=>{const m=meta(l,p),category=m.category||base(p);return '<form class="hp-v4-product-row" data-form="hp-menu-product" data-id="'+esc(p.id)+'"><div class="hp-v4-swatch" style="--pos-color:'+color(m.color)+'"><strong>'+esc(m.label||p.name)+'</strong><small>'+esc(money(p.sale_price_cents))+'</small></div><label>Button name<input name="label" required maxlength="80" value="'+esc(m.label||p.name)+'"></label><label>Category<select name="category">'+all.filter(c=>c.id!=="All").map(c=>'<option value="'+esc(c.id)+'" '+(category===c.id?"selected":"")+'>'+esc(c.name)+'</option>').join("")+'</select></label><label>Colour<input type="color" name="color" value="'+color(m.color)+'"></label><label class="hp-v4-check"><input type="checkbox" name="hidden" '+(m.hidden?"checked":"")+'> Hide</label><button type="submit" class="action-btn primary">Apply</button></form>'}).join("")||'<p>Create products in Inventory to populate this menu.</p>';
+ out+=(data.catalogue||[]).map(p=>{const m=meta(l,p),category=m.category||base(p);return '<form class="hp-v4-product-row" data-form="hp-menu-product" data-id="'+esc(p.id)+'"><div class="hp-v4-swatch" style="--pos-color:'+color(m.color)+'"><strong>'+esc(m.label||p.name)+'</strong><small>'+esc(money(p.sale_price_cents))+'</small></div><label>Button name<input name="label" required maxlength="80" value="'+esc(m.label||p.name)+'"></label><label>Category<select name="category">'+all.filter(c=>c.id!=="All").map(c=>'<option value="'+esc(c.id)+'" '+(category===c.id?"selected":"")+'>'+esc(c.name)+'</option>').join("")+'</select></label><label>Colour<input type="color" name="color" value="'+color(m.color)+'"></label><div class="hp-product-flags"><label class="hp-v4-check"><input type="checkbox" name="favourite" '+(m.favourite===true?"checked":"")+'> '+esc(root.AkiPosService?.text().favourite||'Favourite')+'</label><label class="hp-v4-check"><input type="checkbox" name="hidden" '+(m.hidden?"checked":"")+'> Hide</label></div><button type="submit" class="action-btn primary">Apply</button></form>'}).join("")||'<p>Create products in Inventory to populate this menu.</p>';
  out+='</div></section><section class="hp-v4-section"><h3>Quick preparation notes</h3><p>Text-only instructions, not priced modifiers.</p><form class="hp-v4-inline-form" data-form="hp-menu-presets"><label>Comma-separated notes<input name="presets" maxlength="300" value="'+esc(configured.presets.join(", "))+'"></label><button class="action-btn primary" type="submit">Save notes</button></form></section></section>';
  return out;
 }
-root.AkiPosV4={esc,color,money,base,menu,meta,groups,items,categoryButtons,itemButtons,designer};
+root.AkiPosV4={esc,color,money,base,menu,meta,groups,items,categoryButtons,itemButtons,itemResults,designer};
 })(typeof window==="undefined"?globalThis:window);
