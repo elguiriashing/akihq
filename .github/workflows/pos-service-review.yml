@@ -1,0 +1,47 @@
+name: AkiBusiness POS service review
+on:
+  pull_request:
+    paths:
+      - 'assets/*pos*'
+      - 'assets/pos-service/**'
+      - 'tests/pos-*'
+      - 'tests/fixtures/pos-*'
+      - 'index.html'
+      - 'sw.js'
+      - '.github/workflows/pos-service-review.yml'
+permissions:
+  contents: read
+concurrency:
+  group: pos-service-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  service-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix cloudflare
+      - name: Existing register regressions
+        run: |
+          node tests/pos-v4-smoke.cjs
+          node tests/pos-mobile-checkout.cjs
+          node --test tests/pos-rapid-taps.test.mjs tests/pos-printer-station.test.mjs tests/pos-ledger.test.mjs
+      - name: Exact source review bundle
+        if: always()
+        run: |
+          mkdir -p artifacts/pos-service
+          git rev-parse HEAD > artifacts/pos-service/SOURCE_COMMIT.txt
+          git archive --format=tar.gz HEAD > artifacts/pos-service/source.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pos-service-review-${{ github.event.pull_request.head.sha }}
+          path: artifacts/pos-service/
+          retention-days: 3
+          if-no-files-found: error
