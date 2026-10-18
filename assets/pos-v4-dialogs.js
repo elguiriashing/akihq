@@ -13,6 +13,7 @@ function view(type,o,data,lineId,amount){
   title="Record payment";description="Cash collected or payment already completed externally. AkiHQ does not charge cards.";
   body='<div class="hp-v4-amount"><span>Outstanding</span><strong>'+E(cash(due,cur))+'</strong></div><div class="hp-v4-shortcuts">'+[["Full",due],["Half",Math.floor(due/2)],["Third",Math.floor(due/3)],["Quarter",Math.floor(due/4)]].map(([label,cents])=>'<button class="action-btn" type="button" data-action="hp-payment-amount" data-cents="'+cents+'">'+label+'<small>'+E(cash(cents,cur))+'</small></button>').join("")+'</div>';
   body+=form("payment",o,field("amount","Amount (€)",((amount??due)/100).toFixed(2),"number",'min="0.01" max="'+(due/100).toFixed(2)+'" step="0.01" required')+'<label>Payment method'+select("method",[["cash","Cash collected"],["card","External card terminal"],["other","Other external payment"]])+'</label>'+field("tendered","Cash tendered (€), optional","","number",'min="0.01" step="0.01" placeholder="Optional"')+field("reference","External terminal reference","","text",'maxlength="120" placeholder="Required for card / other"')+'<button type="submit" class="action-btn primary">Record payment</button>');
+  body+=(root.AkiPosCourses?.paymentWarning(o)||'');
   body+='<p class="hp-v4-warning">Operational payment record, not a fiscal invoice or an automatic bank charge.</p>';
  }else if(type==="split"){
   title="Split & move";description="Split remaining payment or move all or part of the order.";
@@ -25,7 +26,7 @@ function view(type,o,data,lineId,amount){
   const l=o.lines.find(x=>x.id===lineId);if(!l)return "";
   title="Edit "+l.name;description="Preparation instructions, seats and quantity.";
   body='<div class="hp-v4-shortcuts">'+m.presets.map(p=>'<button type="button" class="action-btn" data-action="hp-note-preset" data-note="'+E(p)+'">'+E(p)+'</button>').join("")+'</div>';
-  body+=form("line",o,field("quantity","Quantity",l.quantity,"number",'required min="0" max="999999" step="0.001"')+'<label>Preparation note<textarea name="note" maxlength="1000" rows="3">'+E(l.note||"")+'</textarea></label>'+field("seat","Seat",l.seat||"","text",'maxlength="30"')+'<label>Send to'+select("station",[["bar","Bar"],["kitchen","Kitchen"]],l.station||"bar")+'</label><button type="submit" class="action-btn primary">Save item</button>','data-line="'+E(l.id)+'"');
+  body+=form("line",o,(root.AkiPosCourses?.itemFields(l,o,data)||'')+field("quantity","Quantity",l.quantity,"number",'required min="0" max="999999" step="0.001"')+'<label>Preparation note<textarea name="note" maxlength="1000" rows="3">'+E(l.note||"")+'</textarea></label>'+field("seat","Seat",l.seat||"","text",'maxlength="30"')+'<label>Send to'+select("station",[["bar","Bar"],["kitchen","Kitchen"]],l.station||"bar")+'</label><button type="submit" class="action-btn primary">Save item</button>','data-line="'+E(l.id)+'"');
   body+='<p class="hp-v4-warning">Quick notes do not change price. Monetary modifiers must be created as products in Inventory.</p>';
  }else if(type==="order"){
   title="Order settings";description=o.label||"Active order";

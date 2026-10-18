@@ -43,7 +43,7 @@ jobs:
           NEXT_PUBLIC_AKISUITE_ROLE_SWAP: 'true'
         run: |
           node tools/build-product-release.mjs "$RUNNER_TEMP/akibusiness-pos-release"
-          node --input-type=module -e "import {readFileSync as read} from 'node:fs';const p=process.env.RUNNER_TEMP+'/akibusiness-pos-release/';const meta=JSON.parse(read(p+'release-source.json'));if(meta.product!=='AkiBusiness'||meta.sourceTreeDirty||!read(p+'index.html','utf8').includes('pos-service.js?v=2')||!read(p+'sw.js','utf8').includes('akihq-v121'))throw Error('Release mismatch');"
+          node --input-type=module -e "import {readFileSync as read} from 'node:fs';const p=process.env.RUNNER_TEMP+'/akibusiness-pos-release/';const meta=JSON.parse(read(p+'release-source.json'));if(meta.product!=='AkiBusiness'||meta.sourceTreeDirty||!read(p+'index.html','utf8').includes('pos-service.js?v=3')||!read(p+'sw.js','utf8').includes('akihq-v123'))throw Error('Release mismatch');"
       - name: Exact source review bundle
         if: always()
         run: |

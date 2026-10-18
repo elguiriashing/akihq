@@ -14,3 +14,7 @@ test-results/
 
 # Generated static product release artifact.
 dist-product/
+
+# Generated local and CI browser evidence.
+artifacts/
+__pycache__/

@@ -2,7 +2,7 @@ import {PGlite} from '../cloudflare/node_modules/@electric-sql/pglite/dist/index
 import {readFileSync,readdirSync} from 'node:fs';
 import test from 'node:test';import assert from 'node:assert/strict';
 const files=readdirSync(new URL('../supabase/migrations/',import.meta.url)).filter(f=>/^202609(23001|2513|2514|2515)/.test(f)).sort();
-files.push('20261018152924_pos_kitchen_display.sql');
+files.push('20261010221500_pos_print_destinations.sql','20261010223000_pos_trading_days_ledger.sql','20261018152924_pos_kitchen_display.sql','20261018184327_pos_course_control.sql');
 test('release installs on captured production column/types/constraints and serves login prerequisites',async()=>{
  const db=new PGlite();try{
  await db.exec(readFileSync(new URL('./production-schema-fixture.sql',import.meta.url),'utf8'));

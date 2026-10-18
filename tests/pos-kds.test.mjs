@@ -64,6 +64,6 @@ test('elapsed label explicitly means first send and never shows a negative age',
 });
 test('new assets are included in both source and offline shell manifests, not offline writes',()=>{
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8'),sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
- for(const file of ['pos-kds.js?v=1','pos-kds.css?v=1']){assert(html.includes(file));assert(sw.includes(file));}
- assert(html.indexOf('pos-kds.js?v=1')<html.indexOf('hospitality-pos.js?v=15'));
+ for(const file of ['pos-kds.js?v=2','pos-kds.css?v=1']){assert(html.includes(file));assert(sw.includes(file));}
+ assert(html.indexOf('pos-kds.js?v=2')<html.indexOf('hospitality-pos.js?v=16'));
 });

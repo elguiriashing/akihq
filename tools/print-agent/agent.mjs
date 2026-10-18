@@ -27,10 +27,11 @@ export function safeText(value){return String(value??'').normalize('NFKD').repla
 export function ticketText(ticket,columns=42){
  const p=ticket.payload||{},o=p.order||p.after||{},rows=[];
  const line=v=>{for(const l of safeText(v).split('\n')){if(!l.length)rows.push('');for(let n=0;n<l.length;n+=columns)rows.push(l.slice(n,n+columns));}};
- const list=ls=>{for(const l of ls||[]){line(`${l.quantity} x ${l.name}`);if(l.seat)line(`Seat: ${l.seat}`);if(l.note)line(`NOTE: ${l.note}`);}};
+ const list=ls=>{for(const l of ls||[]){line(`${l.quantity} x ${l.name}`);if(Number(l.course)>0)line(`${l.course_held?'HOLD / EN ESPERA':'COURSE / TIEMPO'}: ${l.course}`);if(l.seat)line(`Seat: ${l.seat}`);if(l.note)line(`NOTE: ${l.note}`);}};
  const amount=v=>`${(Number(v)/100).toFixed(2)} ${safeText(ticket.currency||'EUR')}`;
  line(ticket.business_name);line(`${ticket.station} / ${ticket.kind}`);if(p.copy_of)line('*** COPY / DUPLICADO ***');
  line(p.notice||'OPERATIONAL TICKET / NO ES FACTURA');line(p.instruction||'');line(o.label||'');line(o.note||'');
+ if(Array.isArray(p.released)){line('*** NEWLY FIRED / MARCHAR ***');line(`COURSE / TIEMPO: ${p.course}`);list(p.released);line('PREVIOUS / CURRENT ARE REFERENCE ONLY');}
  if(ticket.kind==='preparation'){line('PREVIOUS:');list(p.previous);line('CURRENT REQUIRED:');list(p.current);}else list(o.lines);
  if(p.destination?.id){line(`DESTINATION: ${p.destination.label||p.destination.table_id||'Walk-in'}`);list(p.destination.lines);}
  if(p.reason)line(p.reason);

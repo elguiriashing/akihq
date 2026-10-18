@@ -1,0 +1,114 @@
+name: AkiBusiness course control review
+on:
+  pull_request:
+    paths: ['assets/**', 'tests/**', 'supabase/**', 'tools/**', 'index.html', 'sw.js', '.github/workflows/pos-course-review.yml']
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+concurrency:
+  group: pos-courses-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  course-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix cloudflare
+      - name: Course commands, permissions, recovery, printing and regressions
+        run: |
+          node --check assets/pos-courses.js
+          node --check assets/hospitality-pos.js
+          node --check assets/pos-kds.js
+          node --check assets/pos-v4-dialogs.js
+          node --check tools/print-agent/agent.mjs
+          node --test tests/pos-courses-db.test.mjs tests/pos-courses.test.mjs tests/production-schema.test.mjs tests/pos-service.test.mjs tests/pos-kds.test.mjs
+          node tests/pos-v4-smoke.cjs
+          node tests/pos-mobile-checkout.cjs
+          node --test tests/pos-rapid-taps.test.mjs tests/pos-printer-station.test.mjs tests/pos-ledger.test.mjs
+      - name: Verify exact-head AkiBusiness release and cache integration
+        env:
+          NEXT_PUBLIC_AKISUITE_ROLE_SWAP: 'true'
+        run: |
+          node tools/build-product-release.mjs "$RUNNER_TEMP/akibusiness-course-release"
+          node --input-type=module -e "import {readFileSync as read} from 'node:fs';const p=process.env.RUNNER_TEMP+'/akibusiness-course-release/';const meta=JSON.parse(read(p+'release-source.json'));if(meta.product!=='AkiBusiness'||meta.sourceTreeDirty)throw Error('Release metadata mismatch');for(const name of ['pos-courses.js?v=1','pos-courses.css?v=1','hospitality-pos.js?v=16','pos-service.js?v=3','pos-kds.js?v=2','pos-v4-dialogs.js?v=2'])if(!read(p+'index.html','utf8').includes(name)||!read(p+'sw.js','utf8').includes(name))throw Error('Missing release asset '+name);if(!read(p+'sw.js','utf8').includes('akihq-v123'))throw Error('Wrong release cache');"
+  postgres-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: pos_courses_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: local-test-only
+      PGDATABASE: pos_courses_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install only synthetic data in the isolated PostgreSQL service
+        run: |
+          node tests/pos-courses-postgres-schema.mjs > "$RUNNER_TEMP/courses-schema.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/courses-schema.sql" > "$RUNNER_TEMP/courses-schema.log"
+      - name: Concurrent firing, waiter edits, retries, normal Send and final payment
+        run: python3 tests/pos-courses-postgres.py
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: desktop
+            sizes: '1280x800,1024x768'
+          - id: tablet
+            sizes: '800x1280,768x1024'
+          - id: narrow
+            sizes: '650x900,360x800'
+          - id: short
+            sizes: '320x640,900x500'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install playwright==1.57.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Fullscreen geometry, rapid course entry, native recovery and accessibility
+        env:
+          POS_BROWSER_SIZES: ${{ matrix.sizes }}
+        run: python tests/pos-courses-browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pos-courses-browser-${{ matrix.id }}-${{ github.event.pull_request.head.sha }}
+          path: artifacts/pos-courses/
+          retention-days: 7
+          if-no-files-found: warn
