@@ -1,0 +1,55 @@
+name: POS course candidate materialization
+on:
+  push:
+    branches: [dev/pos-course-materializer-20261018]
+    paths: ['.github/workflows/pos-course-materialize.yml']
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify and apply the exact locally reviewed patch on its pinned base
+        run: |
+          cp -r tools/course-candidate "$RUNNER_TEMP/course-candidate"
+          python - <<'PY'
+          import base64,hashlib,lzma,os,pathlib
+          d=pathlib.Path(os.environ['RUNNER_TEMP'])/'course-candidate'
+          raw=base64.b64decode(''.join((d/f'part{n}.b64').read_text() for n in range(1,5)),validate=True)
+          assert hashlib.sha256(raw).hexdigest()=='b9cccb005fadeb3aaa01a6e97fb2c81db807547c968c4c6973a4d33ee32bcf9e'
+          (d/'candidate.patch').write_bytes(lzma.decompress(raw))
+          PY
+          git reset --hard d653c121b461f683a1d639e8c7057118b25c0a37
+          git apply --index --unidiff-zero "$RUNNER_TEMP/course-candidate/candidate.patch"
+          test "$(git write-tree)" = c4c9a865305c2334abf81de75158de7bb862ac76
+          git diff --cached --check
+          git diff --cached --stat
+      - run: npm ci --prefix cloudflare
+      - name: Repository-wide checks before creating candidate objects
+        run: |
+          mkdir -p "$RUNNER_TEMP/course-evidence"
+          npm run check --prefix cloudflare 2>&1 | tee "$RUNNER_TEMP/course-evidence/check.log"
+          node tests/pos-v4-smoke.cjs
+          node tests/pos-mobile-checkout.cjs
+      - name: Create verified Git objects without updating any branch or deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python "$RUNNER_TEMP/course-candidate/objects.py"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pos-course-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/course-evidence/
+          retention-days: 3
+          if-no-files-found: warn
