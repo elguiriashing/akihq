@@ -171,6 +171,22 @@ try {
             exact: true,
           })
           .waitFor();
+        await page.getByLabel("Aki Apps").click();
+        const settings = page.getByRole("link", {
+          name: locale === "es" ? "Ajustes" : "Settings",
+          exact: true,
+        });
+        assert.equal(
+          await settings.getAttribute("href"),
+          `https://akipasa.com/${locale}/account`,
+        );
+        await page
+          .getByRole("button", {
+            name: locale === "es" ? "Cerrar sesión" : "Log out",
+            exact: true,
+          })
+          .waitFor();
+        await page.keyboard.press("Escape");
         await page
           .getByRole("button", {
             name:

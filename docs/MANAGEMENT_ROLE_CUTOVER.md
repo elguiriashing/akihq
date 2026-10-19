@@ -1,6 +1,6 @@
 # Management role cutover candidate
 
-This repository remains `elguiriashing/AkiBusiness` and retains historical
+This management source now lives in `elguiriashing/akihq` and retains historical
 business routes, database/entitlement keys and the `AKIHQ_GATEWAY` binding.
 `NEXT_PUBLIC_AKISUITE_ROLE_SWAP=true` builds its public management identity as
 AkiHQ at `https://akihq.app`; the operations destination becomes AkiBusiness at

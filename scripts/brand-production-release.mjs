@@ -11,11 +11,11 @@ import ts from "typescript";
 
 const releases = {
   hq: {
-    repository: "elguiriashing/AkiBusiness",
+    repository: "elguiriashing/akihq",
     branch: "main",
     worker: "akihq-management-preview",
     hostname: "akihq.app",
-    sourceName: "akibusiness-preview",
+    sourceName: "akihq-management-preview",
   },
   pasa: {
     repository: "elguiriashing/akipasa",
@@ -125,7 +125,7 @@ if (action === "prepare") {
     appendFileSync(process.env.GITHUB_ENV, `${name}=${value}\n`);
   }
   console.log(
-    `Verified ${spec.hostname} Worker bindings and release source ${commit}`,
+    `Verified ${spec.hostname} Worker bindings and independent AkiHQ source ${commit}`,
   );
 } else if (action === "config") {
   const parsed = ts.parseConfigFileTextToJson(

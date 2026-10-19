@@ -28,6 +28,14 @@ const result = spawnSync(process.execPath, [cli, action], {
   stdio: "inherit",
   env: {
     ...process.env,
+    NEXT_PUBLIC_AKISUITE_ROLE_SWAP:
+      process.env.NEXT_PUBLIC_AKISUITE_ROLE_SWAP || "true",
+    NEXT_PUBLIC_PRODUCT_NAME: process.env.NEXT_PUBLIC_PRODUCT_NAME || "AkiHQ",
+    NEXT_PUBLIC_SITE_URL:
+      process.env.NEXT_PUBLIC_SITE_URL || "https://akihq.app",
+    NEXT_PUBLIC_BUSINESS_URL:
+      process.env.NEXT_PUBLIC_BUSINESS_URL || "https://akibusiness.com",
+    NEXT_PUBLIC_CRM_URL: process.env.NEXT_PUBLIC_CRM_URL || "https://akihq.app",
     NEXT_PUBLIC_DATA_PROVIDER: "hybrid",
   },
 });

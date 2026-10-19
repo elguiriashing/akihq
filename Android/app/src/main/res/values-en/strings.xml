@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AkiHQ</string>
+    <string name="offline_title">You’re offline</string>
+    <string name="offline_message">Check your connection and try again.</string>
+    <string name="retry">Try again</string>
+    <string name="download_started">Download started</string>
+    <string name="cannot_open_link">This link cannot be opened</string>
+</resources>

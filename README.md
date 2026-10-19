@@ -8,11 +8,11 @@ This repository holds the independently buildable Next.js AkiHQ management appli
 
 Use Node 22+, `npm ci`, then `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. Shared Supabase project configuration comes from private Cloudflare environment bindings / ignored `.env.local`, not source code. Build/test can use disposable public placeholders; real authenticated tenancy testing requires the existing production backend in an isolated preview.
 
-The role-swap switch `NEXT_PUBLIC_AKISUITE_ROLE_SWAP=true` activates the AkiHQ management identity. `wrangler.jsonc` is scoped to the existing management Worker, `akihq-management-preview`, with no custom production domain hardcoded. This application does not depend on a sibling GitHub checkout or proxy frontend to AkiPasa.
+The AkiHQ identity is the repository default. Local test/build wrappers set `NEXT_PUBLIC_AKISUITE_ROLE_SWAP=true` and safe disposable provider values when no environment is supplied; production packaging loads and validates the existing public provider bindings from Cloudflare before compiling. `wrangler.jsonc` is scoped to the existing management Worker, `akihq-management-preview`, with no custom production domain hardcoded. This application does not depend on a sibling GitHub checkout or proxy frontend to AkiPasa.
 
 ## Deployment separation
 
-Target: Cloudflare Worker **akihq-management-preview** currently serving **akihq.app**. Cloudflare builds must be reconnected to this repository's `main` **only after** checks pass and the existing production binding/secrets are retained. The existing Worker currently builds from another repository; changing source prematurely may break production.
+Target: Cloudflare Worker **akihq-management-preview** currently serving **akihq.app**. The main-only production workflow verifies the canonical binding, imports existing non-secret public configuration for the build, preserves runtime bindings/secrets, stamps the exact Git commit and smoke-tests the canonical release before reporting success.
 
 AkiBusiness PoS/operations is maintained separately in `elguiriashing/AkiBusiness`. Shared identity and API backend are intentional; each product owns its own web build, domain, internal routes and deployment.
 
