@@ -12,7 +12,7 @@ The AkiHQ identity is the repository default. Local test/build wrappers set `NEX
 
 ## Deployment separation
 
-Target: Cloudflare Worker **akihq-management-preview** currently serving **akihq.app**. The main-only production workflow verifies the canonical binding, imports existing non-secret public configuration for the build, preserves runtime bindings/secrets, stamps the exact Git commit and smoke-tests the canonical release before reporting success.
+Target: Cloudflare Worker **akihq-management-preview** currently serving **akihq.app**. Cloudflare Workers Builds owns automatic production releases from this repository's `main` branch, preserves the Worker's runtime bindings and secrets, and stamps the exact Git commit. The GitHub Actions production workflow is a manual fallback; it verifies the canonical binding, imports existing non-secret public configuration for the build, and fails closed unless a scoped `CLOUDFLARE_API_TOKEN` repository secret is configured.
 
 AkiBusiness PoS/operations is maintained separately in `elguiriashing/AkiBusiness`. Shared identity and API backend are intentional; each product owns its own web build, domain, internal routes and deployment.
 

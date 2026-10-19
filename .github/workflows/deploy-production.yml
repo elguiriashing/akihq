@@ -1,8 +1,6 @@
-name: Deploy independent AkiHQ production
+name: Manual AkiHQ production fallback
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
