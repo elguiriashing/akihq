@@ -3,7 +3,7 @@ import { managementProduct, roleSwapEnabled } from "../lib/product-roles";
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   return {
     // Preserve the installed management application identity across releases.
-    id: "/akibusiness",
+    id: "/akihq",
     name: managementProduct.name,
     short_name: managementProduct.name,
     description: `Gestiona locales, alojamientos y flotas con ${managementProduct.name}.`,

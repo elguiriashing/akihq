@@ -87,7 +87,7 @@ describe("coordinated management role release", () => {
       const manifest = (await import("../src/app/manifest")).default;
       expect(await manifest()).toMatchObject({
         name: managementProduct.name,
-        id: "/akibusiness",
+        id: "/akihq",
         start_url: "/es/business",
       });
       const { safeAuthDestinationForOrigin } = await import(
