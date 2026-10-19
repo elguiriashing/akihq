@@ -1,0 +1,33 @@
+name: One-time standalone source extraction
+on:
+  push:
+    branches:
+      - migration/standalone-akihq-management-20261019
+    paths:
+      - .github/workflows/one-time-extract.yml
+permissions:
+  contents: write
+jobs:
+  extract:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Bring source into its independently owned repository
+        env:
+          TARGET_BRANCH: migration/standalone-akihq-management-20261019
+          EXPECTED_SOURCE_SHA: 721363e34f357d65a032e70e5b5807ab04611850
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "$TARGET_BRANCH"
+          git clone --depth 1 --branch "main" "https://github.com/elguiriashing/AkiBusiness.git" /tmp/aki-source
+          test "$(git -C /tmp/aki-source rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA" || { echo 'Source advanced; refusing stale copy'; exit 1; }
+          test -f "/tmp/aki-source/src/app/page.tsx"
+          rsync -a --delete --exclude='/.git/' --exclude='/.github/' --exclude='/Android/' --exclude='/.env.local' --exclude='/.dev.vars' /tmp/aki-source/ ./
+          git add -A
+          if ! git diff --cached --quiet; then
+            git -c user.name='AkiSuite migration' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Stage independently owned AkiBusiness application in akihq"
+            git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          fi
