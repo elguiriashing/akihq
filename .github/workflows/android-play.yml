@@ -1,7 +1,7 @@
 name: AkiHQ Android bundle
 on:
   pull_request:
-    paths: ['Android/**', '.github/workflows/android-play.yml']
+    paths: ["Android/**", ".github/workflows/android-play.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
       - name: Android SDK
         run: |
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
@@ -26,7 +26,7 @@ jobs:
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.5.0'
+          gradle-version: "9.5.0"
       - run: gradle --no-daemon test lint bundleRelease
       - uses: actions/upload-artifact@v4
         with:
