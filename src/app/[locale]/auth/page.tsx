@@ -45,7 +45,7 @@ export default async function AuthPage({
     : "signin";
   const modeHref = (target: string) => {
     const search = new URLSearchParams({ mode: target });
-    if (query.next) search.set("next", query.next);
+    if (query.next) search.set("next", next);
     return `/${locale}/auth?${search.toString()}`;
   };
   const authError = query.error

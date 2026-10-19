@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   businessRoute,
@@ -152,6 +153,13 @@ describe("independent business boundary", () => {
           safeAuthDestinationForOrigin(locale, bad, "https://akihq.app"),
         ).toBe(`/${locale}/business`);
     }
+  });
+  it("never reserializes an unsanitized auth destination into mode links", () => {
+    const authPage = readFileSync("src/app/[locale]/auth/page.tsx", "utf8");
+    expect(authPage).toContain('if (query.next) search.set("next", next);');
+    expect(authPage).not.toContain(
+      'if (query.next) search.set("next", query.next);',
+    );
   });
 });
 

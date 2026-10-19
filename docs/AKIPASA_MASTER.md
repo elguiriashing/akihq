@@ -1112,3 +1112,18 @@ AKISUITE_ORGANISATIONS_READY gate remains false pending migration20261016030000
 and live acceptance. Paginated lists have explicit bounds. Name/request identity
 is retained on conflicts and unavailable retries. Source revert/closedgate rolls
 back presentation without deleting legitimate companies or mappings.
+
+## 2026-10-20 | AkiHQ auth-mode destination sanitization
+
+AkiHQ auth forms and OAuth/recovery callbacks already submitted only the bounded,
+same-locale management destination. The auth-mode links (sign in, signup, magic
+link and recovery) incorrectly copied the raw incoming `next` query into their
+own internal URLs. An external destination could not pass the server action or
+callback sanitizer, but its text and nested credential-looking parameters could
+remain visible while changing auth mode. Mode links now serialize the same
+sanitized destination used by the forms. Valid AkiHQ business tasks remain intact;
+external, protocol-relative, encoded-path and backslash destinations resolve to
+the locale business home. No session, Supabase identity, provider configuration,
+database row, role, subscription or cross-product cookie changes. Rollback is a
+source revert. Production OAuth initiation and exact callback destinations require
+post-deploy EN/ES verification; completing a real provider login remains separate.

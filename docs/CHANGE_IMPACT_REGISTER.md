@@ -1605,3 +1605,10 @@ back presentation without deleting legitimate companies or mappings.
 - Requires additive team/pagination migration 20261016050000 before accommodation readiness.
 - Fixes standalone rental browser fixture environment definitions after shared role imports;
   all existing browser assertions remain in place. No production configuration changed.
+
+## 2026-10-20 | AkiHQ auth-mode destination sanitization
+
+- **Observed:** production EN/ES Google OAuth correctly initiated through the shared Supabase provider and returned to `https://akihq.app/{locale}/auth/callback?next=/{locale}/business`. A crafted recovery URL could not become a callback destination because forms use `safeAuthDestination`, but the mode-switch links copied the raw `query.next` value into their internal hrefs.
+- **Change:** mode links now serialize the already sanitized `next` value. Valid locale-scoped management and recovery tasks are preserved; external, protocol-relative, encoded-path and backslash values become the locale business-home fallback before appearing in the next auth URL.
+- **Dependencies:** AkiHQ EN/ES sign-in, signup, magic link, recovery, Google OAuth initiation and password recovery continuity. Server actions, Supabase Auth, callback exchange, terms, host-scoped sessions and global post-reset revocation are unchanged. No database, role, identity, email send, subscription, billing or Cloudflare configuration mutation.
+- **Evidence/rollback:** product-routing regression asserts the rendered source cannot reintroduce raw `query.next` serialization alongside the existing destination/callback cases. Run format, lint, types, complete tests, Next/OpenNext builds, browser auth-mode navigation and exact-source production smoke. Roll back with an application-source revert; no data restoration is required. A real provider account login and real recovery email remain separate acceptance gates.
