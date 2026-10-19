@@ -16,12 +16,12 @@ describe("independent business boundary", () => {
       const { NextRequest } = await import("next/server");
       const { middleware } = await import("../src/middleware");
       const source = new URL(
-        `https://akibusiness.com/${locale}/account/subscription?lang=${locale}&q=Malaga&start=2027-01-01&end=2027-01-04&utm_source=instagram`,
+        `https://akihq.app/${locale}/account/subscription?lang=${locale}&q=Malaga&start=2027-01-01&end=2027-01-04&utm_source=instagram`,
       );
       source.searchParams.set("next", "/en/auth/callback?code=qa-dummy");
       source.searchParams.set("context", '{"\\u0063ode":"qa-dummy"}');
       const response = await middleware(
-        new NextRequest(source, { headers: { host: "akibusiness.com" } }),
+        new NextRequest(source, { headers: { host: "akihq.app" } }),
       );
       expect(response.status).toBe(307);
       const target = new URL(response.headers.get("location")!);
@@ -46,8 +46,8 @@ describe("independent business boundary", () => {
       const { NextRequest } = await import("next/server");
       const { middleware } = await import("../src/middleware");
       const source = new NextRequest(
-        `https://akibusiness.com/${locale}/auth/callback?code=qa-dummy&state=qa-state`,
-        { headers: { host: "akibusiness.com" } },
+        `https://akihq.app/${locale}/auth/callback?code=qa-dummy&state=qa-state`,
+        { headers: { host: "akihq.app" } },
       );
       const response = await middleware(source);
       expect(response.headers.get("location")).toBeNull();
@@ -108,11 +108,11 @@ describe("independent business boundary", () => {
     expect(
       publicRequestOrigin(
         new Headers({
-          host: "akibusiness.com",
+          host: "akihq.app",
           "x-forwarded-host": "evil.test",
         }),
       ),
-    ).toBe("https://akibusiness.com");
+    ).toBe("https://akihq.app");
     expect(publicRequestOrigin(new Headers({ host: "localhost:3012" }))).toBe(
       "http://localhost:3012",
     );
@@ -125,7 +125,7 @@ describe("independent business boundary", () => {
     ).toBe("https://business.example.workers.dev");
     expect(
       publicRequestOrigin(new Headers({ host: "evil.example.workers.dev" })),
-    ).toBe("https://akibusiness.com");
+    ).toBe("https://akihq.app");
     delete process.env.AKISUITE_ALLOWED_PREVIEW_ORIGINS;
   });
   it("preserves local tasks and recovery without cross-domain cookie transfer", () => {
@@ -138,7 +138,7 @@ describe("independent business boundary", () => {
         taskFromAuthCallback(
           locale,
           `/${locale}/auth/recover?next=${encodeURIComponent(next)}`,
-          "https://akibusiness.com",
+          "https://akihq.app",
         ),
       ).toBe(next);
       for (const bad of [
@@ -149,7 +149,7 @@ describe("independent business boundary", () => {
         `/${locale}/business\\evil`,
       ])
         expect(
-          safeAuthDestinationForOrigin(locale, bad, "https://akibusiness.com"),
+          safeAuthDestinationForOrigin(locale, bad, "https://akihq.app"),
         ).toBe(`/${locale}/business`);
     }
   });
@@ -186,7 +186,8 @@ describe("existing identity security contracts", () => {
     expect(hasSupabaseAuthCookie([{ name: "sb-project-unrelated" }])).toBe(
       false,
     );
-    expect(isTrustedBusinessHost("akibusiness.com")).toBe(true);
+    expect(isTrustedBusinessHost("akihq.app")).toBe(true);
+    expect(isTrustedBusinessHost("akibusiness.com")).toBe(false);
     expect(isTrustedBusinessHost("attacker.test")).toBe(false);
   });
 });
