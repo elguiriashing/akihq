@@ -1,22 +1,40 @@
-name: Verify AkiHQ
+name: Verify AkiHQ management
 on:
   pull_request:
+    branches: [main]
   push:
-    branches: [main, 'audit/**']
+    branches: [main, 'migration/**']
 permissions:
   contents: read
+concurrency:
+  group: akihq-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  check:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-disposable-placeholder
+      NEXT_PUBLIC_AKISUITE_ROLE_SWAP: 'true'
+      NEXT_PUBLIC_PRODUCT_NAME: AkiHQ
+      NEXT_PUBLIC_SITE_URL: https://akihq.app
+      NEXT_PUBLIC_BUSINESS_URL: https://akibusiness.com
+      NEXT_PUBLIC_CRM_URL: https://akihq.app
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '22'
           cache: npm
-          cache-dependency-path: cloudflare/package-lock.json
-      - run: npm ci
-        working-directory: cloudflare
-      - run: npm run check
-        working-directory: cloudflare
+      - name: Install pinned dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Build independently
+        run: npm run build
