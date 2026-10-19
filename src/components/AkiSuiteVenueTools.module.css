@@ -1,0 +1,132 @@
+.root {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.root header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.root h2,
+.root h3 {
+  margin: 0.3rem 0;
+}
+.badge {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+}
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+.columns > div {
+  min-width: 0;
+}
+.columns ul {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+.columns li {
+  display: flex;
+  gap: 0.5rem;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 0.8rem 0;
+}
+.stats article {
+  display: grid;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 0.8rem;
+  min-width: 0;
+}
+.stats strong {
+  font-size: 1.8rem;
+}
+.fine {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.form {
+  display: flex;
+  align-items: end;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+.form label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+.form input,
+.form select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+.form input[type="checkbox"] {
+  width: auto;
+  min-height: 24px;
+}
+.eventTools {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+.eventTools details {
+  border: 1px solid var(--line);
+  padding: 0.8rem;
+  border-radius: 0.75rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.eventTools summary,
+.root summary {
+  min-height: 44px;
+  cursor: pointer;
+}
+@media (max-width: 740px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+  .form {
+    align-items: stretch;
+  }
+  .form button {
+    width: 100%;
+  }
+}
+
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: 1rem;
+}
+.tableWrap th,
+.tableWrap td {
+  text-align: start;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}

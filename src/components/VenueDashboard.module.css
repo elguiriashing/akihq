@@ -1,0 +1,1545 @@
+.dashboard {
+  width: min(100% - 2rem, 72rem);
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 1rem 0 2rem;
+  overflow-x: clip;
+  color: var(--ink);
+}
+.dashboard[data-active-section="fleet"] {
+  width: min(100% - 2rem, 96rem);
+  min-height: 100dvh;
+}
+.dashboard svg {
+  flex-shrink: 0;
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+.back svg {
+  transform: rotate(180deg);
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.6rem 0 1.15rem;
+}
+.venueMark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 3.25rem;
+  height: 3.25rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--line));
+  border-radius: 1rem;
+  color: var(--primary-text, var(--primary));
+  background: var(--primary-soft);
+}
+.venueMark svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.identity {
+  flex: 1;
+  min-width: 0;
+}
+.eyebrow {
+  color: var(--primary-text, var(--primary));
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.identity h1 {
+  margin: 0.15rem 0 0.3rem;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.status span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.status svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--teal);
+}
+.status i {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.status i[data-published="true"] {
+  background: var(--teal);
+}
+.publicLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.35rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface-alt) 65%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.tabs button {
+  display: inline-flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  background: var(--primary-soft);
+  color: var(--ink);
+}
+.tabs button[aria-selected="true"] svg {
+  color: var(--primary-text, var(--primary));
+}
+.section {
+  min-width: 0;
+  padding-top: 1.15rem;
+}
+.section[hidden] {
+  display: none;
+}
+.sectionHeading {
+  margin-bottom: 1rem;
+}
+.sectionHeading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+}
+.sectionHeading p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.tools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.tool {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.tool:hover {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary-soft) 50%, var(--surface));
+}
+.toolTop {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  color: var(--primary-text, var(--primary));
+}
+.toolTop svg:last-child {
+  color: var(--muted);
+  width: 1rem;
+}
+.tool strong {
+  font-size: 1rem;
+}
+.toolDescription {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.toolDetail {
+  margin-top: 0.6rem;
+  color: var(--ink);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.feedback {
+  margin: 0.85rem 0 0;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--primary-soft);
+  font-size: 0.85rem;
+}
+
+/* Keep the existing server forms, with sizes scoped to this dashboard. */
+
+.dashboard .section,
+.dashboard .section :global(.panel),
+.dashboard .section :global(.stack),
+.dashboard .section form,
+.dashboard .section fieldset,
+.dashboard .section details,
+.dashboard .section > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dashboard .section :is(input, select, textarea) {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.dashboard .section :global(.two-col) > *,
+.dashboard .section :global(.venue-form-columns) > *,
+.dashboard .section :global(.venue-tool-columns) > *,
+.dashboard .section :global(.event-editor) > * {
+  min-width: 0;
+}
+
+.dashboard .section :global(.inline-form) > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dashboard .section :global(.panel) {
+  min-width: 0;
+  margin: 0 0 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  box-shadow: none;
+}
+.dashboard .section :global(.panel .panel) {
+  padding: 0.8rem;
+  background: transparent;
+}
+.dashboard .section h2 {
+  font-size: 1.05rem;
+}
+.dashboard .section h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.dashboard .section p {
+  margin: 0.4rem 0 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.dashboard .section :global(.stack) {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.8rem;
+}
+.dashboard .section :global(.two-col) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  min-width: 0;
+}
+.dashboard .section label {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.dashboard .section :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface-alt) 55%, transparent);
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 400;
+  box-shadow: none;
+}
+.dashboard .section input[type="hidden"] {
+  display: none;
+}
+.dashboard .section textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+}
+.dashboard .section label:has(> input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  color: var(--ink);
+}
+.dashboard .section input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: 0;
+  flex: 0 0 auto;
+  accent-color: var(--primary-text, var(--primary));
+}
+.dashboard .section :global(.button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  justify-self: start;
+  min-width: 0;
+  width: auto;
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  overflow: visible;
+  border-radius: 999px;
+  background: linear-gradient(115deg, var(--primary), var(--teal));
+  color: #181e2b;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  font-weight: 750;
+  text-transform: none;
+  letter-spacing: normal;
+  box-shadow: none;
+}
+.dashboard .section :global(.button.secondary) {
+  border: 1px solid var(--line);
+  background: var(--surface-alt);
+  color: var(--ink);
+}
+.dashboard .section :global(.button.danger) {
+  background: #9f2d2d;
+  color: #fff;
+}
+.dashboard .section :global(.button)::after {
+  content: none;
+}
+.dashboard .section :global(.text-button) {
+  min-height: 44px;
+  color: var(--primary-text, var(--primary));
+}
+.dashboard .section details {
+  margin: 0.6rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: transparent;
+}
+.dashboard .section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 46px;
+  padding: 0.65rem 0.85rem;
+  list-style: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+}
+.dashboard .section summary::-webkit-details-marker {
+  display: none;
+}
+.dashboard .section summary::after {
+  content: "";
+  flex: 0 0 0.45rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.2rem;
+  border-right: 2px solid var(--primary);
+  border-bottom: 2px solid var(--primary);
+  background: none;
+  transform: rotate(45deg);
+}
+.dashboard .section details[open] > summary {
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+.dashboard .section details[open] > summary::after {
+  transform: rotate(225deg);
+}
+.dashboard .section details > :not(summary) {
+  margin-inline: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+.dashboard .section details:global(.panel) > summary {
+  padding: 0;
+}
+.dashboard .section details:global(.panel) > :not(summary) {
+  margin-inline: 0;
+}
+.dashboard .section :global(.managed-row) {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 0;
+  padding: 0.8rem 0;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.dashboard .section :global(.managed-row) > div {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.dashboard .section :global(.managed-row) :is(strong, span) {
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}
+.dashboard .section :global(.managed-row) > select {
+  width: auto;
+}
+.dashboard .section :global(.managed-list) {
+  gap: 0;
+}
+.dashboard .section :global(.reward-card-list) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+}
+.dashboard .section :global(.stamp-card) {
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: transparent;
+  box-shadow: none;
+}
+.dashboard .section :global(.status-pill) {
+  padding: 0.25rem 0.5rem;
+  min-height: 0;
+  font-size: 0.65rem;
+}
+.dashboard .section :global(.stamp-card h3) {
+  margin-top: 0.5rem;
+}
+.dashboard .section :global(.check-in-qr) {
+  display: block;
+  width: 180px;
+  height: 180px;
+  max-width: 100%;
+  margin: 1rem auto;
+  border-radius: 0.7rem;
+  box-shadow: none;
+}
+.dashboard .section :global(.inline-form) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+.dashboard .section :global(.inline-form) input:not([type="hidden"]) {
+  flex: 1 1 12rem;
+  width: auto;
+}
+.dashboard .section :global(.redemption-form) {
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.dashboard .section :global(.event-heading) {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.dashboard .section :global(.event-heading) small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.dashboard .section :global(.event-editor) {
+  display: grid;
+  gap: 0.5rem;
+}
+.dashboard .section :global(.event-editor) > details {
+  margin: 0;
+}
+.dashboard .section :global(.danger-zone) {
+  border-color: color-mix(in srgb, #d26e60 40%, var(--line));
+}
+.dashboard :is(button, a, summary, input, select, textarea):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.tabs button:focus-visible {
+  outline-offset: -3px;
+}
+
+.dashboard .section :global(.event-create-action) {
+  margin-bottom: 0.8rem;
+}
+.dashboard .section :global(.venue-form-columns > .stack) {
+  margin-top: 0;
+  align-content: start;
+}
+.dashboard .section :global(.venue-form-columns),
+.dashboard .section :global(.venue-tool-columns) {
+  display: grid;
+  gap: 1rem;
+}
+@media (min-width: 800px) {
+  .dashboard .section :global(.venue-form-columns),
+  .dashboard .section :global(.venue-tool-columns),
+  .dashboard .section :global(.event-editor) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .dashboard .section :global(.event-editor > details[open]) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard .section :global(.two-col),
+  .dashboard .section :global(.venue-form-columns),
+  .dashboard .section :global(.venue-tool-columns),
+  .dashboard .section :global(.event-editor) {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dashboard .section :global(.inline-form) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard .section :global(.inline-form) > *,
+  .dashboard .section :global(.inline-form) input:not([type="hidden"]),
+  .dashboard .section :global(.managed-row) > select {
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard {
+    width: calc(100% - 1.25rem);
+    padding-top: 0.35rem;
+  }
+  .header {
+    flex-wrap: wrap;
+    gap: 0.65rem;
+  }
+  .publicLink {
+    margin-left: auto;
+    font-size: 0.75rem;
+  }
+  .tools {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+  .tool {
+    padding: 0.85rem;
+  }
+  .toolDescription {
+    font-size: 0.75rem;
+  }
+  .dashboard .section :global(.panel) {
+    padding: 0.85rem;
+  }
+  .dashboard .section :global(.button) {
+    width: 100%;
+  }
+  .dashboard .section :global(.reward-card-list) {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 380px) {
+  .venueMark {
+    display: none;
+  }
+  .dashboard .section :global(.two-col) {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Keep venue management dense and comfortable on both pointer and touch screens. */
+.dashboard {
+  padding-top: 0.5rem;
+}
+.header {
+  padding-block: 0.35rem 0.8rem;
+}
+.tabs {
+  position: sticky;
+  top: calc(var(--business-header-height, 0px) + 0.5rem);
+  z-index: 4;
+  padding: 0.25rem;
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--surface-alt) 92%, transparent);
+  backdrop-filter: blur(14px);
+}
+.tabs button {
+  min-height: 40px;
+  padding: 0.45rem 0.65rem;
+}
+.section {
+  padding-top: 0.8rem;
+}
+.sectionHeading {
+  margin-bottom: 0.7rem;
+}
+.tool {
+  padding: 0.9rem;
+  border-radius: 0.85rem;
+}
+.dashboard .section :global(.panel) {
+  padding: 0.85rem;
+  border-radius: 0.8rem;
+}
+@media (max-width: 600px) {
+  .dashboard {
+    width: calc(100% - 1rem);
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .header {
+    gap: 0.5rem;
+    padding-block: 0.2rem 0.65rem;
+  }
+  .identity h1 {
+    font-size: clamp(1.3rem, 6vw, 1.8rem);
+  }
+  .status {
+    font-size: 0.68rem;
+  }
+  .publicLink {
+    min-height: 38px;
+    padding-inline: 0.65rem;
+  }
+  .tabs {
+    top: calc(var(--business-header-height, 0px) + 0.25rem);
+    justify-content: flex-start;
+    gap: 0.15rem;
+    scroll-snap-type: x proximity;
+  }
+  .tabs button {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding-inline: 0.65rem;
+    scroll-snap-align: start;
+  }
+  .sectionHeading h2 {
+    font-size: 1.1rem;
+  }
+  .sectionHeading p {
+    font-size: 0.78rem;
+  }
+  .dashboard .section :global(.panel) {
+    padding: 0.75rem;
+  }
+  .dashboard .section :global(.venue-form-columns),
+  .dashboard .section :global(.venue-tool-columns) {
+    gap: 0.65rem;
+  }
+  .dashboard .section :global(.venue-form-columns > .stack) {
+    gap: 0.6rem;
+  }
+  .dashboard .section :global(.button) {
+    min-height: 42px;
+  }
+}
+
+/* AkiBusiness workspace rework: each tool behaves like a small focused app. */
+.section {
+  --workspace-accent: var(--primary);
+  position: relative;
+}
+.section[data-section="events"] {
+  --workspace-accent: #ff7a1a;
+}
+.section[data-section="catalogue"] {
+  --workspace-accent: #ffd34d;
+}
+.section[data-section="rewards"] {
+  --workspace-accent: #f4b942;
+}
+.section[data-section="checkin"] {
+  --workspace-accent: #31c48d;
+}
+.section[data-section="bookings"] {
+  --workspace-accent: #8b7cf6;
+}
+.section[data-section="team"] {
+  --workspace-accent: #4bb7e8;
+}
+.section[data-section="profile"] {
+  --workspace-accent: #ff8a3d;
+}
+
+.section:not([data-section="overview"]) {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1.2rem;
+  background:
+    radial-gradient(
+      circle at 100% 0,
+      color-mix(in srgb, var(--workspace-accent) 10%, transparent),
+      transparent 34%
+    ),
+    color-mix(in srgb, var(--surface) 82%, transparent);
+}
+.section:not([data-section="overview"]) .sectionHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: -0.1rem 0 1rem;
+  padding: 0 0.15rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.section:not([data-section="overview"]) .sectionHeading h2 {
+  font-size: clamp(1.25rem, 2vw, 1.55rem);
+}
+.section:not([data-section="overview"]) .sectionHeading h2::before {
+  content: "";
+  display: inline-block;
+  width: 0.48rem;
+  height: 0.95rem;
+  margin-right: 0.55rem;
+  border-radius: 999px;
+  background: var(--workspace-accent);
+  vertical-align: -0.06rem;
+}
+
+.dashboard .section:not([data-section="overview"]) :global(.panel) {
+  border-color: color-mix(in srgb, var(--workspace-accent) 16%, var(--line));
+  background: color-mix(in srgb, var(--surface-alt) 72%, transparent);
+}
+.dashboard
+  .section:not([data-section="overview"])
+  :is(input, select, textarea) {
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
+}
+.dashboard
+  .section:not([data-section="overview"])
+  :is(input, select, textarea):focus {
+  border-color: color-mix(in srgb, var(--workspace-accent) 72%, var(--line));
+  outline: 2px solid
+    color-mix(in srgb, var(--workspace-accent) 18%, transparent);
+  outline-offset: 1px;
+}
+.dashboard .section:not([data-section="overview"]) :global(.button) {
+  background: var(--workspace-accent);
+  color: #111827;
+}
+.dashboard .section:not([data-section="overview"]) summary::after {
+  border-color: var(--workspace-accent);
+}
+
+/* Profile behaves like a settings app, not one endless form. */
+.section[data-section="profile"] :global(.venue-form-columns) {
+  grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
+}
+.section[data-section="profile"] :global(.venue-form-columns > .stack) {
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+}
+.section[data-section="profile"] textarea[name="description"] {
+  min-height: 9rem;
+}
+.section[data-section="profile"] details:global(.panel) {
+  margin-top: 0.9rem;
+}
+
+/* Events gets a proper management workbench with a visible publishing state. */
+.section[data-section="events"] > div > :global(.event-create-action) {
+  margin-bottom: 1rem;
+  box-shadow: 0 10px 28px
+    color-mix(in srgb, var(--workspace-accent) 18%, transparent);
+}
+.section[data-section="events"] details[data-event-card] {
+  overflow: clip;
+  margin-bottom: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 18%, var(--line));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface-alt) 76%, transparent);
+}
+.section[data-section="events"] details[data-event-card] > summary {
+  min-height: 64px;
+  padding: 0.8rem 1rem;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--workspace-accent) 9%, transparent),
+    transparent 38%
+  );
+}
+.section[data-section="events"] :global(.event-heading strong) {
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+.section[data-section="events"] :global(.event-workflow) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 0 0 0.8rem !important;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+.section[data-section="events"] :global(.event-workflow form) {
+  margin-left: auto;
+}
+.section[data-section="events"] :global(.event-workflow .button) {
+  min-height: 38px;
+  padding: 0.48rem 0.8rem;
+}
+.section[data-section="events"] :global(.event-workflow-note) {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.section[data-section="events"] :global(.status-pill[data-status="published"]) {
+  background: color-mix(in srgb, #31c48d 18%, var(--surface));
+  color: #31c48d;
+}
+.section[data-section="events"] :global(.status-pill[data-status="pending"]) {
+  background: color-mix(in srgb, #f4b942 18%, var(--surface));
+  color: #f4b942;
+}
+.section[data-section="events"] :global(.status-pill[data-status="draft"]),
+.section[data-section="events"] :global(.status-pill[data-status="archived"]) {
+  background: color-mix(in srgb, var(--muted) 14%, var(--surface));
+}
+.section[data-section="events"] :global(.event-editor) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.section[data-section="events"] :global(.event-editor > details) {
+  overflow: hidden;
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--surface) 42%, transparent);
+}
+.section[data-section="events"] :global(.event-editor > details[open]) {
+  grid-column: 1 / -1;
+}
+.section[data-section="events"]
+  :global(.event-editor > details[open] > summary) {
+  background: color-mix(in srgb, var(--workspace-accent) 8%, transparent);
+}
+.section[data-section="events"]
+  :global(.event-editor > details[open] form.stack) {
+  max-width: 52rem;
+}
+.section[data-section="events"]
+  :global(.event-editor > details[open] form.stack > label:has(textarea))
+  textarea {
+  min-height: 7rem;
+}
+
+/* Catalogue stays roomy so the menu editor can breathe. */
+.section[data-section="catalogue"] {
+  padding-bottom: 1.2rem;
+}
+.section[data-section="catalogue"] > :global(.panel) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Loyalty becomes a card deck with controls underneath. */
+.section[data-section="rewards"] :global(.reward-card-list) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.section[data-section="rewards"] :global(.stamp-card) {
+  min-height: 8.5rem;
+  padding: 1rem;
+  border-color: color-mix(in srgb, var(--workspace-accent) 26%, var(--line));
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--workspace-accent) 12%, transparent),
+      transparent 58%
+    ),
+    color-mix(in srgb, var(--surface) 54%, transparent);
+}
+.section[data-section="rewards"] :global(.loyalty-workbench > details) {
+  background: color-mix(in srgb, var(--surface) 38%, transparent);
+}
+
+/* Check-in is deliberately operational: QR on the left, redemption on the right. */
+.section[data-section="checkin"] :global(.venue-tool-columns) {
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(20rem, 1.1fr);
+}
+.section[data-section="checkin"] :global(.check-in-qr) {
+  width: min(220px, 80vw);
+  height: auto;
+  padding: 0.65rem;
+  background: #fff;
+}
+
+/* Bookings reads like an inbox rather than a settings dump. */
+.section[data-section="bookings"] :global(.booking-workbench) > details {
+  background: color-mix(in srgb, var(--surface) 42%, transparent);
+}
+.section[data-section="bookings"] :global(.managed-list) {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  overflow: hidden;
+}
+.section[data-section="bookings"] :global(.managed-row) {
+  padding-inline: 0.8rem;
+}
+.section[data-section="bookings"] :global(.managed-row:last-child) {
+  border-bottom: 0;
+}
+
+/* Team is a clean people/permissions console. */
+.section[data-section="team"] :global(.managed-row) {
+  padding: 0.85rem;
+  margin-bottom: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--surface) 44%, transparent);
+}
+.section[data-section="team"] :global(.danger-zone) {
+  margin-top: 1rem;
+  background: color-mix(in srgb, #9f2d2d 6%, var(--surface));
+}
+
+@media (min-width: 980px) {
+  .dashboard {
+    display: grid;
+    grid-template-columns: 12.5rem minmax(0, 1fr);
+    column-gap: 1.1rem;
+    align-items: start;
+    width: min(100% - 2rem, 82rem);
+  }
+  .back,
+  .header {
+    grid-column: 1 / -1;
+  }
+  .feedback {
+    grid-column: 2;
+  }
+  .tabs {
+    grid-column: 1;
+    grid-row: 3 / span 2;
+    position: sticky;
+    top: calc(var(--business-header-height, 0px) + 0.75rem);
+    flex-direction: column;
+    align-self: start;
+    overflow: visible;
+    padding: 0.45rem;
+    border-radius: 1rem;
+  }
+  .tabs button {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    width: 100%;
+    padding: 0.65rem 0.75rem;
+  }
+  .section {
+    grid-column: 2;
+    grid-row: 3;
+    padding-top: 0;
+  }
+  .section:not([data-section="overview"]) {
+    min-height: 34rem;
+  }
+  .section[data-section="overview"] {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .section:not([data-section="overview"]) {
+    padding: 0.75rem;
+    border-radius: 0.95rem;
+  }
+  .section:not([data-section="overview"]) .sectionHeading {
+    display: block;
+  }
+  .section[data-section="events"] :global(.event-editor),
+  .section[data-section="checkin"] :global(.venue-tool-columns),
+  .section[data-section="profile"] :global(.venue-form-columns) {
+    grid-template-columns: 1fr;
+  }
+  .section[data-section="rewards"] :global(.reward-card-list) {
+    grid-template-columns: 1fr;
+  }
+  .section[data-section="events"] :global(.event-workflow form) {
+    width: 100%;
+    margin-left: 0;
+  }
+  .section[data-section="events"] :global(.event-workflow .button) {
+    width: 100%;
+  }
+}
+
+/* Human-first venue tools: show decisions and summaries before forms. */
+.dashboard .section :global(.workspace-inline-heading) {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+.dashboard .section :global(.workspace-inline-heading h2),
+.dashboard .section :global(.workspace-inline-heading h3) {
+  margin: 0.12rem 0 0;
+  font-size: 1.12rem;
+  letter-spacing: -0.03em;
+}
+.dashboard .section :global(.workspace-inline-heading p) {
+  margin: 0.22rem 0 0;
+}
+.dashboard .section :global(.summary-icon) {
+  display: grid;
+  flex: 0 0 auto;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  color: var(--workspace-accent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--workspace-accent) 12%, var(--surface));
+}
+.dashboard .section :global(.summary-icon svg) {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.dashboard .section :global(details.workspace-action-card) {
+  margin: 0;
+  overflow: clip;
+  border: 1px solid var(--line);
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--surface) 48%, transparent);
+}
+.dashboard .section :global(details.workspace-action-card > summary) {
+  min-height: 4.4rem;
+  padding: 0.78rem 0.9rem;
+  background: transparent;
+}
+.dashboard .section :global(details.workspace-action-card[open] > summary) {
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--workspace-accent) 7%, transparent);
+}
+.dashboard .section :global(details.workspace-action-card > :not(summary)) {
+  margin: 0;
+}
+.dashboard .section :global(.workspace-action-summary) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.72rem;
+  min-width: 0;
+}
+.dashboard .section :global(.workspace-action-summary > span:last-child) {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.dashboard .section :global(.workspace-action-summary strong) {
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+.dashboard .section :global(.workspace-action-summary small) {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard .section :global(.compact-action-form) {
+  padding: 0.9rem;
+  margin: 0 !important;
+}
+.dashboard .section :global(.form-grid-two),
+.dashboard .section :global(.form-grid-three) {
+  display: grid;
+  gap: 0.7rem;
+}
+.dashboard .section :global(.form-grid-two) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.dashboard .section :global(.form-grid-three) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Profile: read first, edit second. */
+.dashboard .section :global(.profile-hub),
+.dashboard .section :global(.profile-media-hub) {
+  display: grid;
+  gap: 0.9rem;
+}
+.dashboard .section :global(.profile-summary-grid) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.dashboard .section :global(.profile-summary-card) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 48%, transparent);
+}
+.dashboard .section :global(.profile-summary-card > div) {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+.dashboard .section :global(.profile-summary-card small) {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.dashboard .section :global(.profile-summary-card strong) {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard .section :global(.profile-summary-card div > span) {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.dashboard .section :global(.profile-editor-form) {
+  margin: 0 !important;
+  padding: 0.9rem;
+}
+.dashboard .section :global(.profile-editor-grid) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.dashboard .section :global(.form-card) {
+  display: grid;
+  align-content: start;
+  gap: 0.72rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface-alt) 48%, transparent);
+}
+.dashboard .section :global(.form-card-heading) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--line);
+}
+.dashboard .section :global(.form-card-heading > div) {
+  display: grid;
+  gap: 0.08rem;
+}
+.dashboard .section :global(.form-card-heading strong) {
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+.dashboard .section :global(.form-card-heading small) {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.dashboard .section :global(.form-save-bar) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding-top: 0.15rem;
+}
+.dashboard .section :global(.form-save-bar > span) {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.dashboard .section :global(.photo-upload-grid) {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.1fr) minmax(12rem, 1fr) auto;
+  align-items: end;
+  gap: 0.7rem;
+  padding: 0.9rem;
+}
+.dashboard .section :global(.photo-upload-grid .button) {
+  align-self: end;
+}
+.dashboard .section :global(.media-row-list) {
+  display: grid;
+  gap: 0.45rem;
+}
+.dashboard .section :global(details.media-row) {
+  margin: 0;
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--surface) 40%, transparent);
+}
+.dashboard .section :global(details.media-row > summary > span) {
+  display: grid;
+  gap: 0.08rem;
+}
+.dashboard .section :global(details.media-row > summary small) {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+.dashboard .section :global(.media-edit-grid) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6rem auto;
+  align-items: end;
+  gap: 0.65rem;
+  padding: 0.75rem 0;
+}
+
+/* Rewards: four clear jobs instead of a field wall. */
+.dashboard .section :global(.reward-hub) {
+  display: grid;
+  gap: 0.9rem;
+}
+.dashboard .section :global(.reward-action-grid) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.dashboard .section :global(.reward-action-card[open]) {
+  grid-column: 1 / -1;
+}
+.dashboard .section :global(.compact-managed-list) {
+  display: grid;
+  gap: 0;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--line);
+}
+
+/* Bookings: status first, configuration on demand. */
+.dashboard .section :global(.booking-hub) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.dashboard .section :global(.booking-status-strip) {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(2, minmax(0, 0.75fr));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+}
+.dashboard .section :global(.booking-status-strip article) {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  border-right: 1px solid var(--line);
+}
+.dashboard .section :global(.booking-status-strip article:last-child) {
+  border-right: 0;
+}
+.dashboard .section :global(.booking-status-strip small) {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.dashboard .section :global(.booking-status-strip strong) {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard .section :global(.booking-action-grid) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.dashboard .section :global(.booking-action-grid > details[open]) {
+  grid-column: 1 / -1;
+}
+.dashboard .section :global(.booking-mode-grid) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.dashboard .section :global(.booking-mode-card) {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem !important;
+  min-height: 5rem !important;
+  padding: 0.7rem;
+  color: var(--ink) !important;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--surface) 42%, transparent);
+  cursor: pointer;
+}
+.dashboard .section :global(.booking-mode-card input) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.dashboard .section :global(.booking-mode-card:has(input:checked)) {
+  border-color: color-mix(in srgb, var(--workspace-accent) 65%, var(--line));
+  background: color-mix(in srgb, var(--workspace-accent) 10%, var(--surface));
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--workspace-accent) 24%, transparent);
+}
+.dashboard .section :global(.booking-mode-card > span:last-child) {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+.dashboard .section :global(.booking-mode-card strong) {
+  font-size: 0.82rem;
+}
+.dashboard .section :global(.booking-mode-card small) {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.dashboard .section :global(.booking-options-row) {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(10rem, 0.65fr);
+  gap: 0.65rem;
+}
+.dashboard .section :global(.toggle-card) {
+  display: flex !important;
+  align-items: center;
+  gap: 0.65rem !important;
+  min-height: 4.4rem !important;
+  padding: 0.7rem;
+  color: var(--ink) !important;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--surface) 42%, transparent);
+}
+.dashboard .section :global(.toggle-card > span) {
+  display: grid;
+  gap: 0.08rem;
+}
+.dashboard .section :global(.toggle-card strong) {
+  font-size: 0.82rem;
+}
+.dashboard .section :global(.toggle-card small) {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+.dashboard .section :global(.booking-inbox) {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+.dashboard .section :global(.booking-request-row) {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto minmax(8rem, auto) auto;
+}
+
+/* Team: people cards first, invite form second. */
+.dashboard .section :global(.team-hub) {
+  display: grid;
+  gap: 0.9rem;
+}
+.dashboard .section :global(.team-member-grid) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+.dashboard .section :global(.team-member-card) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--surface) 44%, transparent);
+}
+.dashboard .section :global(.team-avatar) {
+  display: grid;
+  width: 2.3rem;
+  height: 2.3rem;
+  place-items: center;
+  color: #14213d;
+  border-radius: 50%;
+  background: var(--workspace-accent);
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+.dashboard .section :global(.team-member-card > span:nth-child(2)) {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+.dashboard .section :global(.team-member-card strong) {
+  overflow: hidden;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard .section :global(.team-member-card small) {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+.dashboard .section :global(.compact-action-form label > small) {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+@media (max-width: 880px) {
+  .dashboard .section :global(.profile-summary-grid) {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dashboard .section :global(.profile-summary-card:first-child) {
+    grid-column: 1 / -1;
+  }
+  .dashboard .section :global(.form-grid-three),
+  .dashboard .section :global(.booking-mode-grid) {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dashboard .section :global(.form-grid-three > :last-child),
+  .dashboard .section :global(.booking-mode-grid > :last-child) {
+    grid-column: 1 / -1;
+  }
+  .dashboard .section :global(.photo-upload-grid) {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dashboard .section :global(.photo-upload-grid .button) {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard .section :global(.profile-summary-grid),
+  .dashboard .section :global(.profile-editor-grid),
+  .dashboard .section :global(.reward-action-grid),
+  .dashboard .section :global(.booking-action-grid),
+  .dashboard .section :global(.booking-mode-grid),
+  .dashboard .section :global(.booking-options-row),
+  .dashboard .section :global(.team-member-grid),
+  .dashboard .section :global(.form-grid-two),
+  .dashboard .section :global(.form-grid-three),
+  .dashboard .section :global(.photo-upload-grid),
+  .dashboard .section :global(.media-edit-grid) {
+    grid-template-columns: 1fr;
+  }
+  .dashboard .section :global(.profile-summary-card:first-child),
+  .dashboard .section :global(.form-grid-three > :last-child),
+  .dashboard .section :global(.booking-mode-grid > :last-child),
+  .dashboard .section :global(.photo-upload-grid .button) {
+    grid-column: auto;
+  }
+  .dashboard .section :global(.booking-status-strip) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .dashboard .section :global(.booking-status-strip article) {
+    padding-inline: 0.65rem;
+  }
+  .dashboard .section :global(.booking-request-row) {
+    grid-template-columns: 1fr;
+  }
+  .dashboard .section :global(.booking-request-row > select),
+  .dashboard .section :global(.booking-request-row > .button) {
+    width: 100%;
+  }
+  .dashboard .section :global(.form-save-bar),
+  .dashboard .section :global(.workspace-inline-heading) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .dashboard .section :global(.form-save-bar .button) {
+    width: 100%;
+  }
+}
+
+.translationAssist {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: -0.25rem 0 0.85rem;
+  padding: 0.7rem 0.8rem;
+  color: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 24%, var(--line));
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--workspace-accent) 7%, transparent);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+.translationAssist svg {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.08rem;
+  color: var(--workspace-accent);
+}
+.translationAssist strong {
+  color: var(--ink);
+}

@@ -1,0 +1,50 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  white-space: nowrap;
+  line-height: 1;
+}
+.logo img {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+.wordmark {
+  font-family: "Avenir Next", "Montserrat", "Inter", "Segoe UI", sans-serif;
+  color: var(--ink);
+  font-size: clamp(18px, 2vw, 24px);
+  font-weight: 650;
+  letter-spacing: -0.055em;
+}
+.wordmark i {
+  font-style: normal;
+}
+.business .wordmark span,
+.business .wordmark i {
+  color: #a778ff;
+}
+.pasa .wordmark span {
+  color: #f26b1d;
+}
+.pasa .wordmark i {
+  color: #ffbe2e;
+}
+.duermo .wordmark span,
+.duermo .wordmark i {
+  color: #08735e;
+}
+.hq .wordmark span,
+.hq .wordmark i {
+  color: #ffc533;
+}
+.coches .wordmark span,
+.coches .wordmark i {
+  color: #ff3047;
+}
+
+:global(html[data-theme="dark"]) .duermo .wordmark span,
+:global(html[data-theme="dark"]) .duermo .wordmark i {
+  color: #6be1c8;
+}

@@ -1,0 +1,351 @@
+/* Brightness and owner themes compose on html; body inherits one palette. */
+:root {
+  --stamp-bronze: #d6a174;
+  --stamp-silver: #c5d3e1;
+  --stamp-gold: #f0ce71;
+  --stamp-platinum: #a4dadf;
+  --stamp-holo: #d0bbff;
+  --passport-ink: #e8edf6;
+  --passport-muted: #b1c5d5;
+  --passport-surface: #172b40;
+  --passport-panel: #172a3d;
+  --passport-line: #4c6579;
+  --passport-canvas:
+    radial-gradient(ellipse at 10% 85%, #5ce0e420, transparent 70%),
+    linear-gradient(135deg, #071525, #102b43 49%, #0a1b2c);
+  --passport-page:
+    radial-gradient(ellipse at 90% 0%, #315c7c44, transparent 65%),
+    linear-gradient(115deg, #0d263b, #102b43 54%, #0a1d30);
+  --passport-rail: #0d24384d;
+  --passport-selected: #1b3a52;
+}
+html[data-theme="light"] {
+  --stamp-bronze: #875127;
+  --stamp-silver: #536779;
+  --stamp-gold: #805500;
+  --stamp-platinum: #23676e;
+  --stamp-holo: #6943a8;
+  --passport-ink: #14213d;
+  --passport-muted: #4d6076;
+  --passport-surface: #ffffff;
+  --passport-panel: #f1f5f8;
+  --passport-line: #bccbd5;
+  --passport-canvas:
+    radial-gradient(ellipse at 85% 5%, #ffd9b866, transparent 65%),
+    radial-gradient(ellipse at 10% 85%, #b8e9e866, transparent 70%),
+    linear-gradient(135deg, #faf7f2, #edf4f7);
+  --passport-page:
+    radial-gradient(ellipse at 95% 0%, #ffead588, transparent 65%),
+    linear-gradient(115deg, #faf7f2, #f4f8fa 54%, #eaf2f6);
+  --passport-rail: #ffffff66;
+  --passport-selected: #ffead6;
+}
+
+/* Six themes, each with its own light and dark surfaces and ambient canvas. */
+html[data-owner-background="default"] {
+  --surface-alt: #102537;
+  --surface: #1d3648;
+  --sand: #284659;
+  --ink: #f5f8fc;
+  --muted: #bccbd7;
+  --line: #486071;
+  --owner-canvas:
+    radial-gradient(ellipse at 95% 0%, #d778382e, transparent 55%),
+    radial-gradient(ellipse at 0% 90%, #38bac529, transparent 55%),
+    linear-gradient(145deg, #102537, #18394a);
+}
+html[data-owner-background="aurora"] {
+  --surface-alt: #171b35;
+  --surface: #272b47;
+  --sand: #343953;
+  --ink: #f8f6ff;
+  --muted: #c7c4de;
+  --line: #535873;
+  --owner-canvas:
+    radial-gradient(ellipse at 15% 10%, #dc813836, transparent 45%),
+    radial-gradient(ellipse at 90% 5%, #8e5bff45, transparent 50%),
+    radial-gradient(ellipse at 55% 90%, #ec5fa52b, transparent 50%), #171b35;
+}
+html[data-owner-background="midnight"] {
+  --surface-alt: #080f20;
+  --surface: #17253b;
+  --sand: #22344d;
+  --ink: #f1f6ff;
+  --muted: #b9c8dc;
+  --line: #425972;
+  --owner-canvas:
+    radial-gradient(ellipse at 85% 0%, #2467ff3b, transparent 55%),
+    radial-gradient(ellipse at 0% 90%, #24dac925, transparent 55%), #080f20;
+}
+html[data-owner-background="synthwave"] {
+  --surface-alt: #190e2a;
+  --surface: #2d203e;
+  --sand: #3c2b50;
+  --ink: #fff5fc;
+  --muted: #d5bfdc;
+  --line: #6b517b;
+  --owner-canvas:
+    repeating-linear-gradient(0deg, #ff41b310 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(90deg, #4ee5ff10 0 1px, transparent 1px 48px),
+    radial-gradient(ellipse at 90% 0%, #08a6bc45, transparent 65%),
+    radial-gradient(ellipse at 0% 0%, #b32b9759, transparent 70%), #190e2a;
+}
+html[data-owner-background="paper"] {
+  --surface-alt: #14242c;
+  --surface: #243740;
+  --sand: #31464f;
+  --ink: #f1f8fa;
+  --muted: #bed0d5;
+  --line: #506c76;
+  --owner-canvas:
+    repeating-linear-gradient(0deg, #79b2bc12 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, #79b2bc12 0 1px, transparent 1px 24px),
+    #14242c;
+}
+html[data-owner-background="none"] {
+  --surface-alt: #14213d;
+  --surface: #1c2d4b;
+  --sand: #263a59;
+  --ink: #faf7f2;
+  --muted: #b4bfd1;
+  --line: #4b5c78;
+  --owner-canvas: #14213d;
+}
+html[data-theme="light"][data-owner-background="default"] {
+  --surface-alt: #f6f1e9;
+  --surface: #fffdf9;
+  --sand: #eae2d7;
+  --ink: #182b3d;
+  --muted: #536274;
+  --line: #bbbfc3;
+  --owner-canvas:
+    radial-gradient(ellipse at 95% 0%, #f4c69c70, transparent 60%),
+    radial-gradient(ellipse at 0% 90%, #b4dfe078, transparent 60%), #f6f1e9;
+}
+html[data-theme="light"][data-owner-background="aurora"] {
+  --surface-alt: #f2eef9;
+  --surface: #fffcff;
+  --sand: #e5def0;
+  --ink: #27223e;
+  --muted: #615570;
+  --line: #bfb4ce;
+  --owner-canvas:
+    radial-gradient(ellipse at 10% 0%, #ffd9b866, transparent 60%),
+    radial-gradient(ellipse at 95% 0%, #d9c7ff88, transparent 60%),
+    radial-gradient(ellipse at 50% 90%, #f7cddd66, transparent 60%), #f2eef9;
+}
+html[data-theme="light"][data-owner-background="midnight"] {
+  --surface-alt: #eaf0f9;
+  --surface: #f9fcff;
+  --sand: #dce6f2;
+  --ink: #14263f;
+  --muted: #4e627c;
+  --line: #acbdd2;
+  --owner-canvas:
+    radial-gradient(ellipse at 85% 0%, #b8d0ff88, transparent 65%),
+    radial-gradient(ellipse at 0% 90%, #b5e4df66, transparent 65%), #eaf0f9;
+}
+html[data-theme="light"][data-owner-background="synthwave"] {
+  --surface-alt: #f5eefa;
+  --surface: #fffbff;
+  --sand: #e9ddf0;
+  --ink: #32223e;
+  --muted: #675373;
+  --line: #c6afd0;
+  --owner-canvas:
+    repeating-linear-gradient(0deg, #c7338d0d 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(90deg, #027d960d 0 1px, transparent 1px 48px),
+    radial-gradient(ellipse at 100% 0%, #b8eff480, transparent 65%),
+    radial-gradient(ellipse at 0% 0%, #fac8e766, transparent 65%), #f5eefa;
+}
+html[data-theme="light"][data-owner-background="paper"] {
+  --surface-alt: #f4f7f5;
+  --surface: #ffffff;
+  --sand: #e4ece8;
+  --ink: #173038;
+  --muted: #4e656b;
+  --line: #adbfbd;
+  --owner-canvas:
+    repeating-linear-gradient(0deg, #0e757c14 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, #0e757c14 0 1px, transparent 1px 24px),
+    #f4f7f5;
+}
+html[data-theme="light"][data-owner-background="none"] {
+  --surface-alt: #faf7f2;
+  --surface: #ffffff;
+  --sand: #eee9e1;
+  --ink: #14213d;
+  --muted: #58657b;
+  --line: #b9bdc5;
+  --owner-canvas: #faf7f2;
+}
+
+html[data-owner-background] {
+  --surface-card: var(--surface);
+  --surface-muted: var(--surface-alt);
+  --background: var(--surface-alt);
+  --consumer-line: var(--line);
+  --passport-ink: var(--ink);
+  --passport-muted: var(--muted);
+  --passport-surface: var(--surface);
+  --passport-panel: var(--surface);
+  --passport-line: var(--line);
+  --passport-canvas: var(--owner-canvas);
+  --passport-page: transparent;
+  --passport-rail: color-mix(in srgb, var(--surface) 35%, transparent);
+  --passport-selected: var(--primary-soft);
+}
+html[data-owner-background] body {
+  background: var(--owner-canvas);
+  background-attachment: fixed;
+  color: var(--ink);
+}
+html[data-owner-background] .app-shell {
+  background: transparent;
+}
+html[data-owner-background][data-owner-custom-background="true"] body {
+  background-image:
+    linear-gradient(#080f2099, #080f20bb), var(--owner-background-image);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+html[data-theme="light"][data-owner-custom-background="true"] body {
+  background-image:
+    linear-gradient(#ffffffd9, #ffffffdb), var(--owner-background-image);
+}
+html[data-owner-background] .owner-console-page .owner-hero {
+  background: linear-gradient(
+    135deg,
+    var(--surface),
+    color-mix(in srgb, var(--surface) 85%, var(--primary))
+  );
+  color: var(--ink);
+}
+html[data-owner-background] .owner-hero h2 {
+  color: var(--ink);
+}
+html[data-owner-background]
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    select,
+    textarea
+  ) {
+  color: var(--ink);
+  background-color: var(--surface);
+  border-color: var(--line);
+}
+html[data-owner-background] :is(input, textarea)::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+html[data-owner-background] .owner-verified-pill {
+  color: var(--primary-text);
+}
+html[data-owner-glass="true"]
+  :is(
+    .panel,
+    .topbar,
+    .workspace-section-heading,
+    .workspace-page-heading,
+    .filters-shell
+  ) {
+  background-color: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+/* Accent colours keep readable text separate from bright action fills. */
+html[data-owner-accent="orange"] {
+  --primary-text: #ffae80;
+  --teal: #ffae80;
+  --primary-contrast: #14213d;
+}
+html[data-owner-accent="teal"] {
+  --primary-text: #75ead2;
+  --teal: #75ead2;
+  --primary-contrast: #14213d;
+}
+html[data-owner-accent="violet"] {
+  --primary-text: #d4beff;
+  --teal: #d4beff;
+  --primary-contrast: #14213d;
+}
+html[data-owner-accent="pink"] {
+  --primary-text: #ffabd0;
+  --teal: #ffabd0;
+  --primary-contrast: #14213d;
+}
+html[data-owner-accent="gold"] {
+  --primary-text: #f5d687;
+  --teal: #f5d687;
+  --primary-contrast: #14213d;
+}
+html[data-theme="light"][data-owner-accent="orange"] {
+  --primary-text: #a63e08;
+  --teal: #a63e08;
+}
+html[data-theme="light"][data-owner-accent="teal"] {
+  --primary-text: #006c5c;
+  --teal: #006c5c;
+}
+html[data-theme="light"][data-owner-accent="violet"] {
+  --primary-text: #6037b0;
+  --teal: #6037b0;
+}
+html[data-theme="light"][data-owner-accent="pink"] {
+  --primary-text: #ad215f;
+  --teal: #ad215f;
+}
+html[data-theme="light"][data-owner-accent="gold"] {
+  --primary-text: #805000;
+  --teal: #805000;
+}
+.app-shell--passport {
+  background: var(--passport-canvas);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-owner-motion="true"] body {
+    animation: none;
+  }
+}
+
+/* Action fills stay bright even when an accent's text colour is darker. */
+html[data-owner-background] .button-strong {
+  color: var(--primary-contrast);
+  background: linear-gradient(
+    115deg,
+    var(--primary),
+    color-mix(in srgb, var(--primary) 80%, white)
+  );
+}
+html[data-owner-background]
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    select,
+    textarea
+  ) {
+  border-color: color-mix(in srgb, var(--ink) 55%, var(--surface));
+}
+.owner-swatch input:focus-visible + i,
+.owner-accent input:focus-visible + i {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+}
+html[data-theme="dark"] .owner-swatch-paper i {
+  background: repeating-linear-gradient(
+    0deg,
+    #243740,
+    #243740 8px,
+    #506c76 9px
+  );
+}
+html[data-theme="light"] .owner-swatch-default i {
+  background: linear-gradient(135deg, #f4c69c, #b4dfe0);
+}
+html[data-theme="light"] .owner-swatch-aurora i {
+  background: linear-gradient(135deg, #ffd9b8, #d9c7ff, #f7cddd);
+}
+html[data-theme="light"] .owner-swatch-midnight i {
+  background: linear-gradient(135deg, #b8d0ff, #b5e4df);
+}
+html[data-theme="light"] .owner-swatch-synthwave i {
+  background: linear-gradient(135deg, #fac8e7, #b8eff4);
+}

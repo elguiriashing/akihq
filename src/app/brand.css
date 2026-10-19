@@ -1,0 +1,77 @@
+/* AkiPasa — sunset orange / navy. Shared across public and workspace routes. */
+:root {
+  --brand-orange: #f26b1d;
+  --brand-navy: #14213d;
+  --brand-yellow: #ffbe2e;
+  --brand-cream: #faf7f2;
+  --surface-muted: var(--surface-alt);
+  --text: var(--ink);
+  --text-soft: var(--muted);
+  --primary-contrast: #14213d;
+}
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  white-space: nowrap;
+  line-height: 1;
+}
+.brand-pin {
+  display: block;
+  width: 2rem;
+  height: 2.4rem;
+  flex: 0 0 auto;
+}
+.brand-wordmark {
+  color: var(--ink);
+  font-family: "Avenir Next", "Montserrat", "Inter", "Segoe UI", sans-serif;
+  font-size: 1.65rem;
+  font-weight: 650;
+  letter-spacing: -0.055em;
+}
+.brand-pasa {
+  color: var(--brand-orange);
+}
+.brand-spark {
+  color: var(--brand-yellow);
+}
+.workspace-mark {
+  background: transparent;
+  box-shadow: none;
+}
+.workspace-mark .brand-pin {
+  width: 1.85rem;
+  height: 2.2rem;
+}
+/* Quiet surfaces keep the orange actions and yellow spark in focus. */
+html body,
+html[data-theme="dark"] body,
+body.theme-dark {
+  background: var(--surface-alt);
+}
+::selection {
+  background: var(--brand-yellow);
+  color: var(--brand-navy);
+}
+:focus-visible {
+  outline-color: var(--primary);
+}
+@media (max-width: 760px) {
+  .app-topbar-mobile .brand-pin {
+    width: 1.5rem;
+    height: 1.85rem;
+  }
+  .app-topbar-mobile .brand-wordmark {
+    font-size: 1.4rem;
+  }
+  .app-topbar-mobile .brand-logo {
+    gap: 0.4rem;
+  }
+}
+
+.global-support-trigger,
+.app-rail-cta,
+.chip-active {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}

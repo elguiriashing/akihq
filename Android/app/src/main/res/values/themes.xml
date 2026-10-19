@@ -1,0 +1,1 @@
+<resources><style name="Theme.AkiPasa" parent="android:style/Theme.Material.Light.NoActionBar"><item name="android:statusBarColor">@color/akipasa_primary</item><item name="android:navigationBarColor">@color/akipasa_background</item><item name="android:windowBackground">@color/akipasa_background</item></style></resources>

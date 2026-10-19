@@ -1,0 +1,251 @@
+/* Host-scoped identity: the AkiPasa consumer palette and screens stay intact. */
+body[data-product="akiduermo"] {
+  --primary: #2fc2a5;
+  --primary-dark: #27ad92;
+  --primary-soft: #2fc2a51a;
+  --primary-text: #08735e;
+  --primary-contrast: #143c43;
+  --teal: #2fc2a5;
+  --brand-orange: #2fc2a5;
+  --brand-yellow: #b3f4cd;
+  background: var(--surface-alt);
+}
+html[data-theme="dark"] body[data-product="akiduermo"] {
+  --primary-text: #6be1c8;
+}
+body[data-product="akibusiness"] {
+  --primary: #ffd447;
+  --primary-dark: #e9ba20;
+  --primary-soft: #ffd44724;
+  --primary-text: #876000;
+  --primary-contrast: #192b48;
+}
+body[data-product="akiconduzco"] {
+  --primary: #f04455;
+  --primary-dark: #d92d3e;
+  --primary-soft: #f044551f;
+  --primary-text: #f04455;
+  --primary-contrast: #08090b;
+  --brand-orange: #f04455;
+  --brand-yellow: #f6f4f1;
+  background: #08090b;
+}
+html[data-theme="dark"] body[data-product="akibusiness"] {
+  --primary-text: #ffd447;
+}
+.akibusiness-host .akibusiness-topbar {
+  min-height: 68px;
+  padding: 10px clamp(12px, 3vw, 40px);
+  background: var(--surface);
+  gap: 8px;
+}
+/* Keep legacy Business/auth selectors from changing the shared controls. */
+:is(
+    .akibusiness-host .akibusiness-topbar,
+    .akiduermo-auth-header,
+    body[data-product="akiduermo"]
+  )
+  nav.portal-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+:is(
+    .akibusiness-host .akibusiness-topbar,
+    .akiduermo-auth-header,
+    body[data-product="akiduermo"]
+  )
+  nav.portal-header-tools
+  > :is(.language, .theme-toggle),
+.portal-product-menu > summary {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+}
+.portal-header-tools > .theme-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+.portal-product-menu {
+  position: relative;
+}
+.portal-product-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.portal-product-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.portal-product-popover {
+  position: absolute;
+  z-index: 100;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 230px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+:is(
+    .akibusiness-host .akibusiness-topbar,
+    .akiduermo-auth-header,
+    body[data-product="akiduermo"]
+  )
+  nav.portal-header-tools
+  .portal-product-popover
+  a {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface-alt);
+  text-decoration: none;
+}
+.portal-product-popover a:hover {
+  background: var(--primary-soft);
+}
+.portal-header-tools :is(a, button, summary):focus-visible {
+  outline: 2px solid var(--primary-text, var(--primary));
+  outline-offset: 3px;
+}
+.portal-product-actions {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.portal-product-actions form button {
+  width: 100%;
+  min-height: 44px;
+}
+.akibusiness-host .business-workspace .workspace-page-heading {
+  padding: 16px 20px;
+  min-height: 0;
+  margin-bottom: 16px;
+}
+.akibusiness-host .business-workspace .workspace-page-heading h1 {
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.15;
+}
+.akibusiness-host .business-workspace .workspace-page-heading > p {
+  display: none;
+}
+.akibusiness-host .business-workspace .workspace-mobile-trigger {
+  min-height: 54px;
+}
+.akibusiness-host
+  .business-workspace
+  .workspace-brand
+  .brand-pin
+  path:first-child {
+  fill: #ffd447;
+}
+.akibusiness-host
+  .business-workspace
+  .workspace-brand
+  .brand-pin
+  path:last-child {
+  fill: #f26b1d;
+}
+.akiduermo-auth-header {
+  position: relative;
+  z-index: 75;
+}
+.akiduermo-auth-brand {
+  text-decoration: none;
+}
+.akiduermo-auth-brand > span {
+  display: inline-flex;
+  width: auto;
+  height: auto;
+  background: transparent;
+}
+.akiduermo-auth-host {
+  background: var(--surface-alt);
+}
+.akiduermo-auth-host .auth-theme-stay {
+  --auth-brand: #2fc2a5;
+  --auth-brand-soft: #2fc2a51a;
+  --auth-brand-ink: #143c43;
+}
+.akiduermo-auth-host .auth-theme-stay .auth-intro {
+  background: linear-gradient(145deg, #143c43, #192b48);
+}
+.akiduermo-auth-host .auth-theme-stay .auth-intro :is(.eyebrow, a) {
+  color: #b3f4cd;
+}
+.akiduermo-auth-host .auth-theme-stay .auth-intro::before {
+  background: #b3f4cd;
+  box-shadow: -40px -12px 0 5px #143c43;
+}
+.akiduermo-auth-host .auth-theme-stay input:not([type="checkbox"]):focus {
+  border-color: #2fc2a5;
+  outline-color: #2fc2a540;
+}
+@media (max-width: 380px) {
+  .akibusiness-host .akibusiness-topbar {
+    padding-inline: 10px;
+  }
+}
+
+.akibusiness-host .akibusiness-brand > span:last-child {
+  display: inline-flex;
+  line-height: 1;
+}
+
+/* Unified five-product switcher: icon colours are per product, not inherited. */
+.portal-apps-heading {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 800;
+  padding: 4px 6px;
+}
+.portal-product-popover {
+  width: 280px;
+}
+.portal-product-popover a {
+  border: 1px solid transparent !important;
+  position: relative;
+}
+.portal-product-popover a:hover,
+.portal-product-popover a:focus-visible {
+  border-color: var(--app-accent) !important;
+  background: color-mix(
+    in srgb,
+    var(--app-accent) 11%,
+    var(--surface-alt)
+  ) !important;
+}
+.portal-product-popover a[aria-current="page"] {
+  border-color: var(--app-accent) !important;
+}
+.portal-product-popover .portal-current-app {
+  font-size: 10px;
+  font-weight: 750;
+  margin-left: auto;
+  color: var(--muted);
+}

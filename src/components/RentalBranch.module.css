@@ -1,0 +1,146 @@
+.profile {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  width: 100%;
+  min-height: 0;
+}
+.profileFields,
+.location {
+  display: grid;
+  align-content: start;
+  gap: 13px;
+  min-width: 0;
+}
+.profile label,
+.upload label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.profile input,
+.profile textarea,
+.profile select,
+.mediaStudio input {
+  width: 100%;
+  border: 1px solid var(--desk-border, #ffffff25);
+  border-radius: 10px;
+  background: var(--desk-panel, #151d2c);
+  color: inherit;
+  padding: 10px;
+  font: inherit;
+  min-height: 40px;
+}
+.profile button,
+.mediaStudio button {
+  border: 1px solid var(--desk-border, #ffffff25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--accent, #f04455);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 40px;
+}
+.profile p,
+.profile small,
+.upload small {
+  font-size: 11px;
+  color: var(--desk-muted);
+  line-height: 1.5;
+}
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.map {
+  height: 230px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #182438;
+}
+.suggestions {
+  display: grid;
+  gap: 4px;
+  max-height: 190px;
+  overflow: auto;
+}
+.suggestions button {
+  background: var(--desk-panel);
+  color: inherit;
+  text-align: left;
+}
+.mediaStudio {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+.upload {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: end;
+  border: 1px dashed var(--desk-border);
+  padding: 16px;
+  border-radius: 14px;
+}
+.upload small {
+  grid-column: 1/-1;
+}
+.mediaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.mediaGrid article {
+  border: 1px solid var(--desk-border);
+  border-radius: 12px;
+  padding: 9px;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+.mediaGrid img,
+.mediaGrid article > div {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.mediaGrid span {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mediaGrid button {
+  font-size: 10px;
+  background: var(--desk-panel);
+  color: inherit;
+  width: 100%;
+}
+.pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+.pager button:disabled {
+  opacity: 0.4;
+}
+@media (max-width: 760px) {
+  .profile {
+    grid-template-columns: 1fr;
+  }
+  .mediaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .upload {
+    grid-template-columns: 1fr;
+  }
+  .map {
+    height: 210px;
+  }
+}
