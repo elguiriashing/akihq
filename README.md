@@ -17,3 +17,7 @@ Target: Cloudflare Worker **akihq-management-preview** currently serving **akihq
 AkiBusiness PoS/operations is maintained separately in `elguiriashing/AkiBusiness`. Shared identity and API backend are intentional; each product owns its own web build, domain, internal routes and deployment.
 
 Release gates: CI, Worker dry-run, Google login/callback and password recovery, owner vs non-owner permissions, claims, venue/rooms/fleet tools, media, navigation, English/Spanish/mobile, secrets and rollback. Keep existing users, records and billing untouched. No automatic merge/cutover without checks.
+
+## Isolated Cloudflare Worker staging
+
+Cloudflare worker `akihq-selfowned-staging` is connected to this GitHub repository and this staging branch, **not** to production `akihq.app`. It builds a Node 22 Next.js/OpenNext management app with test-only placeholder Supabase access (the actual production credential is deliberately NOT reused), so authenticated tests will not succeed in this preview until securely configured. Never attach `akihq.app` to this preview worker. To ship production, verify and preserve the separate existing `akihq-management-preview` worker's real private bindings and coordinate the source switch with the AkiBusiness release.
