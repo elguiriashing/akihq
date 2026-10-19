@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, 'migration/**']
+    branches: [main, "migration/**"]
 permissions:
   contents: read
 concurrency:
@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_TELEMETRY_DISABLED: "1"
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-disposable-placeholder
-      NEXT_PUBLIC_AKISUITE_ROLE_SWAP: 'true'
+      NEXT_PUBLIC_AKISUITE_ROLE_SWAP: "true"
       NEXT_PUBLIC_PRODUCT_NAME: AkiHQ
       NEXT_PUBLIC_SITE_URL: https://akihq.app
       NEXT_PUBLIC_BUSINESS_URL: https://akibusiness.com
@@ -26,10 +26,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
       - name: Install pinned dependencies
         run: npm ci --no-audit --no-fund
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: akihq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: akihq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+      - name: Format
+        run: npm run format:check
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -38,3 +45,26 @@ jobs:
         run: npm test
       - name: Build independently
         run: npm run build
+      - name: Package and dry-run the Cloudflare Worker
+        run: |
+          npm run build:cloudflare
+          npx wrangler deploy --dry-run --outdir .wrangler/dry-run
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Anonymous identity and responsive acceptance
+        run: |
+          npm run start -- --hostname 127.0.0.1 --port 3013 > /tmp/akihq-next.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          node --input-type=module -e 'for (let i=0;i<60;i++){try{const r=await fetch("http://127.0.0.1:3013/api/health");if(r.ok)process.exit(0)}catch{}await new Promise(r=>setTimeout(r,1000))}process.exit(1)'
+          npm run test:e2e
+      - name: Disposable authenticated management acceptance
+        run: npm run test:e2e:management
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: akihq-verification
+          path: |
+            .wrangler/dry-run
+            test-results/business
+            test-results/independent-management
