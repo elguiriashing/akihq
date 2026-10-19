@@ -171,7 +171,7 @@ try {
             exact: true,
           })
           .waitFor();
-        await page.getByLabel("Aki Apps").click();
+        await page.getByLabel("Aki Apps", { exact: true }).click();
         const settings = page.getByRole("link", {
           name: locale === "es" ? "Ajustes" : "Settings",
           exact: true,
