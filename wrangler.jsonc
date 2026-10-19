@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "akihq-management-preview",
+  "name": "akihq-selfowned-staging",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-07-22",
   "compatibility_flags": ["nodejs_compat"],
@@ -15,6 +15,7 @@
     "NEXT_PUBLIC_BUSINESS_URL": "https://akibusiness.com",
     "NEXT_PUBLIC_CRM_URL": "https://akihq.app",
     "NEXT_PUBLIC_AKISUITE_ROLE_SWAP": "true",
+    "AKISUITE_ALLOWED_PREVIEW_ORIGINS": "https://akihq-selfowned-staging.alexashing1.workers.dev",
     "NEXT_PUBLIC_DATA_PROVIDER": "hybrid",
     "NEXT_PUBLIC_GOOGLE_AUTH_ENABLED": "true",
     "NEXT_PUBLIC_MAP_STYLE_URL": "https://tiles.openfreemap.org/styles/liberty",
