@@ -1,0 +1,72 @@
+{
+  "name": "akibusiness",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/maplibre-attribution-patch.mjs --check && next dev",
+    "build": "node scripts/maplibre-attribution-patch.mjs --check && next build",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --environment node tests/rental-actions.test.ts tests/rental-branch-api.test.ts tests/rental-desk.test.tsx tests/product-routing.test.ts tests/cross-product-query.test.ts tests/business-team-access.test.ts tests/business-onboarding.test.ts tests/business-packages.test.ts tests/business-event-workspace.test.ts tests/claim-submission-details.test.ts tests/claim-venue.test.ts tests/roles.test.ts tests/business-team-home.test.tsx tests/business-team-refresh.test.tsx tests/venue-dashboard.test.tsx tests/booking-manager.test.tsx tests/akiduermo-manager.test.tsx tests/accommodation-inventory-contract.test.ts tests/auth-recovery-continuity.test.ts tests/product-roles.test.ts tests/private-location-onboarding.test.ts tests/independent-accommodation-api.test.ts tests/independent-accommodation-manager.test.tsx tests/independent-accommodation-media.test.tsx tests/organisation-management.test.tsx tests/independent-accommodation-media-api.test.ts tests/independent-accommodation-terms.test.ts",
+    "test:watch": "vitest --environment node tests/product-routing.test.ts",
+    "build:cloudflare": "node scripts/maplibre-attribution-patch.mjs --check && node scripts/run-cloudflare.mjs build",
+    "preview:cloudflare": "npm run build:cloudflare && opennextjs-cloudflare preview",
+    "deploy:cloudflare": "npm run build:cloudflare && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "postinstall": "node scripts/maplibre-attribution-patch.mjs",
+    "test:e2e": "node scripts/test-business-browser.mjs",
+    "predev": "node scripts/generate-brand-icons.mjs",
+    "prebuild": "node scripts/generate-brand-icons.mjs",
+    "prebuild:cloudflare": "node scripts/generate-brand-icons.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.7.0",
+    "@supabase/supabase-js": "2.110.8",
+    "clsx": "2.1.1",
+    "maplibre-gl": "5.12.0",
+    "next": "15.5.28",
+    "pdfjs-dist": "5.4.296",
+    "qrcode": "1.5.4",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
+    "zod": "3.25.28"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "@opennextjs/cloudflare": "^1.20.2",
+    "@playwright/test": "1.61.1",
+    "@tailwindcss/postcss": "4.1.7",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "22.15.21",
+    "@types/qrcode": "1.5.5",
+    "@types/react": "19.1.5",
+    "@types/react-dom": "19.1.5",
+    "eslint": "9.27.0",
+    "eslint-config-next": "15.5.28",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "26.1.0",
+    "postgres": "^3.4.7",
+    "prettier": "3.5.3",
+    "prettier-plugin-tailwindcss": "0.6.11",
+    "tailwindcss": "4.1.7",
+    "typescript": "5.8.3",
+    "vitest": "3.2.7",
+    "wrangler": "^4.113.0"
+  },
+  "overrides": {
+    "postcss": {
+      ".": "8.5.23",
+      "nanoid": "3.3.18",
+      "source-map-js": "1.2.2"
+    },
+    "sharp": "0.35.5"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

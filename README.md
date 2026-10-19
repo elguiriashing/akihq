@@ -1,141 +1,76 @@
-> Release status (23 September 2026): see [suite compliance](docs/SUITE-COMPLIANCE.md) and [deployment gates](docs/RELEASE-2026-09-23.md). This branch is not a legally certified invoicing or payroll product; fiscal issuance is blocked.
+# AkiBusiness
 
-> Stale company/workspace edits use the finite `PT409` application-conflict
-> contract; see [conflict recovery](docs/PT409-CONFLICT-RECOVERY-2026-10-14.md).
+Independent AkiSuite management application extracted from `elguiriashing/akipasa`
+master `080ea0ffb2dd6612436acd04c25b4daf8ff71129`. Canonical domain:
+`https://akibusiness.com`. This source does not modify or replace AkiPasa.
 
-# AkiHQ
+The application preserves the complete venue workspace (claims, profile/media,
+menus, events, promotions, analytics, roles and teams), AkiDuermo property inventory,
+room-night rates/reservations and AkiCoches rental-company/fleet management.
+Historical `akiconduzco` database/function identifiers remain compatible.
 
-**AkiHQ is an original, database-backed business operating system.** It combines CRM, projects, inbox, calendar, stock, invoicing, marketing, internal collaboration, reporting and integration management in one browser app.
+## Development
 
-This repository contains a **working alpha**, not a mock-up and not a prompt for another AI to build later. It runs without npm, Docker or a VPS.
+Use Node 22+, `npm ci`, copy `.env.example` to an ignored `.env.local` and supply
+shared Supabase public configuration securely. Run `npm run dev` and visit
+`http://localhost:3000/es/business` or `/en/business`. `npm run check` runs lint,
+TypeScript, scoped regression suites and production compilation. Dependencies are
+pinned in package-lock; no imports point into another checkout. The MapLibre
+security backport is verified during postinstall and every build.
 
-![AkiHQ dashboard](docs/screenshots/dashboard.png)
+`GET /api/health` exposes product liveness without database/customer details.
+Public placeholder Supabase configuration permits build-only verification; it
+cannot establish login, real provider integration or production readiness.
 
-## Start it
+## Application boundary
 
-### Windows — easiest
+The business application runs on canonical, localhost and preview hosts without
+relying on the legacy hostname. Middleware permits business, authentication,
+terms/privacy and the management API allowlist. Consumer/account/membership links
+return to AkiPasa with locale/query preserved. Unknown mutation routes and unrelated
+APIs return 404. Every workspace retains server-side authorization and shared RLS.
+No staff/admin UI, consumer discovery, public booking API or Stripe webhook is
+exposed. All responses are noindex; private responses are not cached.
 
-1. Extract the ZIP.
-2. Double-click `start-windows.bat`.
-3. A browser opens at `http://127.0.0.1:8080`.
+The same Supabase project retains user IDs, memberships, ownership and billing
+identities. Sessions use host-only cookies. Each domain signs into the same user
+account independently; this extraction does not pretend cookies can be shared
+between root domains or implement seamless cross-domain SSO. Before release,
+allowlist exact EN/ES callback and recovery URLs in Supabase and verify OAuth,
+password sign-in/out, magic link, recovery and expired sessions on the actual host.
+Register exact preview origins in `AKISUITE_ALLOWED_PREVIEW_ORIGINS`; arbitrary
+forwarded-host/Origin headers cannot redirect callbacks to another application.
 
-Python 3 is the only requirement for the local web server. You can also double-click `index.html`; nearly everything still works, but installable-PWA and service-worker features need `http://` or `https://`.
+## Deployment and ownership
 
-### macOS or Linux
+`npm run build:cloudflare` packages a clean committed source and stamps its SHA;
+`npx wrangler deploy --dry-run` validates bindings without provider writes.
+`wrangler.jsonc` targets **akibusiness-preview** with workers.dev and no production
+custom domains. Configure shared Supabase public vars and secrets securely first.
+The existing `AKIHQ_GATEWAY` service binding must be available in the target account.
+CI independently verifies this repository and never deploys on a push.
 
-```bash
-chmod +x start.sh
-./start.sh
-```
+No cron handler/schedule, billing webhook, subscription renewal or queue dispatcher
+is copied into the deployment. AkiPasa remains their single operational owner.
+Immediate existing action-driven mail behavior remains gated by existing provider
+credentials; no mail, payment or database operations were run during extraction.
+Shared migration history is reference-only: **never run a reset, seed or blanket
+migration from this repository against the existing project**.
 
-Or run:
+After preview deployment, perform authenticated EN/ES owner/editor/other-tenant,
+claims, media, menu/event, property inventory/request and fleet workflows; verify
+AkiHQ authorization, subscription gates, mobile/desktop, certificates and source SHA.
+Only then attach the canonical domain, verify it and redirect legacy domains.
+Keep the existing business hostname serving AkiPasa throughout acceptance. Rollback
+removes new routing/redirects or restores the prior new Worker version; it requires
+no deletion or rewriting of users, venue ownership, billing or shared database data.
 
-```bash
-python3 -m http.server 8080 --bind 127.0.0.1
-```
+Shared source is copied initially for deploy independence. Track updates against
+the recorded upstream SHA and move stable auth, permissions, catalogue and UI into
+reviewed versioned packages with contract tests before further products diverge.
+See `docs/EXTRACTION.md` for verification and release gates.
 
-Then visit `http://127.0.0.1:8080`.
-
-## What already works
-
-- Dashboard metrics, activity, tasks, revenue and pipeline summaries
-- CRM deals, leads, contacts and companies
-- Social CRM for Facebook Pages, Instagram professional accounts and TikTok metrics
-- Multiple pipelines, Kanban drag-and-drop, list view and record drawers
-- Lead conversion into contact, company and deal records
-- Shared inbox with database-backed conversations and replies
-- Tenant-gated Customer Support tickets, approved-answer AI, private notes and human handover (requires [activation](docs/SUPPORT.md))
-- Tasks, projects, board/list views, deadlines and work timer
-- Calendar events and month navigation
-- Product catalogue, warehouses and stock adjustments
-- Quotes and invoices with printable documents
-- Campaigns, audiences and marketing performance
-- Landing-page and form records
-- Automation-rule records and enable/disable controls
-- Team feed, posts, comments and reactions
-- Employee directory and HR-lite records
-- Knowledge-base articles with Markdown rendering
-- Live personalisation, recommendation, catalogue, CRM and funnel analytics
-- Integration marketplace and connection configuration
-- JSON backup/restore, CSV export and Bitrix24 CSV migration
-- Global search, command palette (`Ctrl/Cmd + K`), notifications and themes
-- English/Spanish interface setting, responsive layout and offline app shell
-- Required Supabase staff sign-in, RLS-protected persistence and realtime workspace sync
-- Encrypted Cloudflare credential vault and server-side social OAuth/token handling
-
-## Data model and privacy
-
-Supabase is the authoritative store for workspace records. Browser memory is only a temporary render cache; Calendar, Knowledge and the other CRM modules are committed to the shared `workspace_snapshots` row and synchronized with authenticated staff sessions.
-
-Use **Dashboard → Backup** for portable recovery exports. Clearing browser storage no longer deletes workspace business records.
-
-Personalisation analytics are returned through an administrator-only aggregate RPC. The dashboard does not expose individual visitor histories or precise location data.
-
-## Deploy with no VPS
-
-### Cloudflare Pages
-
-Upload this whole folder to a Cloudflare Pages project, or connect the repository to Pages. It is a static app, so there is no build command and the output directory is the repository root.
-
-Suggested settings:
-
-```text
-Framework preset: None
-Build command:     (leave blank)
-Output directory:  /
-```
-
-The included `_headers` file adds sensible browser security headers.
-
-### Required Supabase database
-
-1. Create a Supabase project.
-2. Use the ordered migrations and prerequisite checks in `docs/RELEASE-2026-09-23.md`. The old `supabase/schema.sql` bootstrap is deliberately disabled.
-3. Enable Email/Password authentication.
-4. Put the project URL and anon key in `config.js`.
-5. Sign in with a moderator or administrator account.
-
-The publishable key is expected to be visible in a browser app. Row Level Security and staff-role policies protect the shared workspace.
-
-### Optional Cloudflare integration gateway
-
-The `cloudflare/` folder contains a deployable Worker for integrations that cannot safely expose secrets in a browser. It currently includes authenticated endpoints for:
-
-- Resend email
-- Slack notifications
-- Discord notifications
-- Telegram bot messages
-- Twilio SMS
-- Incoming provider-webhook storage in Supabase
-- Allow-listed generic outgoing webhooks
-
-See `docs/DEPLOY.md` and `docs/INTEGRATIONS.md`.
-
-## Integration honesty department
-
-AkiHQ contains configuration screens and a provider catalogue for the major CRM/business integrations. External OAuth services do not become live just because their logo appears on a card. Gmail, Microsoft, Meta, Stripe, Zoom and similar services require your own developer application, credentials, approval scopes, callback URLs and provider-specific code.
-
-The browser app, import/export flows, database-backed modules, Supabase realtime sync and included Worker endpoints are implemented. The remaining provider cards are clearly marked as setup/adapters rather than pretending to be connected. No smoke, mirrors or tiny salesman living in the ZIP.
-
-## Project structure
-
-```text
-assets/                 App JavaScript, CSS and logo
-cloudflare/             Optional secret-holding integration Worker
-supabase/migrations/    Versioned database changes
-docs/                   Architecture, features, deployment and test notes
-config.js               Public Supabase and gateway configuration
-index.html              App entry point
-manifest.webmanifest    Installable PWA metadata
-sw.js                   Offline shell service worker
-```
-
-## Current scope
-
-AkiHQ is a database-backed alpha and a strong base for a hosted product. It is not yet a drop-in replacement for every Bitrix24 enterprise feature. Complete mail ingestion, voice/video calling, payroll, accounting compliance and every third-party OAuth adapter still require further backend work and provider credentials.
-
-See `docs/FEATURES.md` for the precise implemented/adapter/planned split.
-
-## Licence
-
-Apache License 2.0. See `LICENSE`.
+Incoming remote migration groundwork (`aa672aa`) has been merged with unrelated
+local extraction ancestry preserved. Its auth allowlist contract is retained in
+[docs/SUPABASE_AUTH_REDIRECTS.md](docs/SUPABASE_AUTH_REDIRECTS.md). Hosted settings
+remain unverified and must preserve the existing Site URL/redirect entries.

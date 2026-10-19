@@ -1,0 +1,41 @@
+begin;
+
+revoke all on function create_owned_venue(uuid,text,text,text,text,text,double precision,double precision) from public;
+revoke all on function create_event_with_occurrence(uuid,uuid,text,text,text,text,text,integer,text,timestamptz,timestamptz) from public;
+revoke all on function create_owned_venue_in_spain(text,text,text,text,text,text,text,double precision,double precision) from public;
+revoke all on function submit_community_event(text,text,text,text,timestamptz,timestamptz,text) from public;
+revoke all on function submit_report(text,uuid,report_reason,text) from public;
+revoke all on function moderate_item(text,uuid,text,text,uuid) from public;
+revoke all on function resolve_report(uuid,report_state,text) from public;
+revoke all on function expire_finished_events(timestamptz) from public;
+revoke all on function set_platform_role(uuid,app_role,text) from public;
+revoke all on function check_in_by_token(uuid,uuid) from public;
+revoke all on function request_reward_redemption(uuid) from public;
+revoke all on function confirm_reward_redemption(uuid) from public;
+revoke all on function duplicate_owned_event(uuid,text) from public;
+revoke all on function add_owned_event_occurrence(uuid,timestamptz,timestamptz) from public;
+revoke all on function add_venue_member(uuid,uuid,venue_member_role) from public;
+revoke all on function venue_analytics(uuid,timestamptz) from public;
+revoke all on function set_owned_event_recurrence(uuid,timestamptz,timestamptz,text,integer,integer) from public;
+revoke all on function record_analytics(analytics_action,uuid,uuid,jsonb) from public;
+
+grant execute on function create_owned_venue(uuid,text,text,text,text,text,double precision,double precision) to authenticated;
+grant execute on function create_event_with_occurrence(uuid,uuid,text,text,text,text,text,integer,text,timestamptz,timestamptz) to authenticated;
+grant execute on function create_owned_venue_in_spain(text,text,text,text,text,text,text,double precision,double precision) to authenticated;
+grant execute on function submit_community_event(text,text,text,text,timestamptz,timestamptz,text) to authenticated;
+grant execute on function submit_report(text,uuid,report_reason,text) to authenticated;
+grant execute on function moderate_item(text,uuid,text,text,uuid) to authenticated;
+grant execute on function resolve_report(uuid,report_state,text) to authenticated;
+grant execute on function expire_finished_events(timestamptz) to authenticated;
+grant execute on function set_platform_role(uuid,app_role,text) to authenticated;
+grant execute on function check_in_by_token(uuid,uuid) to authenticated;
+grant execute on function request_reward_redemption(uuid) to authenticated;
+grant execute on function confirm_reward_redemption(uuid) to authenticated;
+grant execute on function duplicate_owned_event(uuid,text) to authenticated;
+grant execute on function add_owned_event_occurrence(uuid,timestamptz,timestamptz) to authenticated;
+grant execute on function add_venue_member(uuid,uuid,venue_member_role) to authenticated;
+grant execute on function venue_analytics(uuid,timestamptz) to authenticated;
+grant execute on function set_owned_event_recurrence(uuid,timestamptz,timestamptz,text,integer,integer) to authenticated;
+grant execute on function record_analytics(analytics_action,uuid,uuid,jsonb) to anon,authenticated;
+
+commit;

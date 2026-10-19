@@ -1,0 +1,41 @@
+.accommodation-booking-workspace .stay-reservation-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.accommodation-booking-workspace .stay-reservation-card > strong,
+.accommodation-booking-workspace .stay-reservation-card > span:not(.badge),
+.accommodation-booking-workspace .stay-reservation-card > small {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.accommodation-booking-workspace .stay-reservation-card > .badge {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+}
+
+.accommodation-booking-workspace .stay-reservation-card > form {
+  grid-column: 1 / -1;
+}
+
+.accommodation-booking-workspace .stay-reservation-card .button-row {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 420px) {
+  .accommodation-booking-workspace .stay-reservation-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .accommodation-booking-workspace .stay-reservation-card > .badge {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+}

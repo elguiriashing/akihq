@@ -1,13 +1,33 @@
-.DS_Store
-Thumbs.db
-.dev.vars
-cloudflare/.dev.vars
-.wrangler/
 node_modules/
-*.log
-supabase/.temp/
+.next/
+.open-next/
+.wrangler/
+.wrangler-config/
+.wrangler-config */
+.release-snapshot-*/
+.task-logs/
+.npm-cache-recovery/
+coverage/
+playwright-report/
 test-results/
+.env*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+cloudflare-env.d.ts
+backups/
+automation/.dev.vars
+automation/worker-configuration.d.ts
+supabase/.temp
+.vercel/
+dist/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.pem
+*.p12
+*.key
+.DS_Store
 
-# Print-agent pairing credentials and crash journals belong outside the website.
-**/akihq-printer.local.json*
-**/*.printer-secret.json*
+# Generated AkiHQ v2 icon assets, from the canonical SVGs
+/public/brand/hq-v2-*.png

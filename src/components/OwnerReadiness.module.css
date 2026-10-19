@@ -1,0 +1,178 @@
+.overview {
+  display: grid;
+  gap: 1rem;
+}
+.readiness,
+.results {
+  padding: clamp(1rem, 2.5vw, 1.35rem);
+  border: 1px solid var(--line);
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--surface-alt) 72%, transparent);
+}
+.readinessHeader,
+.resultsHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.readinessHeader h2,
+.resultsHeader h2 {
+  margin: 0.15rem 0 0;
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+  letter-spacing: -0.035em;
+}
+.readinessHeader > strong {
+  font-size: 1.45rem;
+  letter-spacing: -0.05em;
+}
+.eyebrow {
+  color: var(--primary-text, var(--primary));
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.progress {
+  height: 0.42rem;
+  margin: 0.85rem 0 1rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 78%, transparent);
+}
+.progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--teal));
+  transition: width 0.25s ease;
+}
+.taskGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.task {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 4.25rem;
+  padding: 0.72rem 0.8rem;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 52%, transparent);
+  text-decoration: none;
+}
+.task:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--line));
+  background: color-mix(in srgb, var(--primary-soft) 30%, var(--surface));
+}
+.task[data-done="true"] {
+  border-color: color-mix(in srgb, var(--teal) 34%, var(--line));
+}
+.task > span:nth-child(2) {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+.task strong {
+  font-size: 0.86rem;
+}
+.task small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task > svg {
+  width: 0.95rem;
+  color: var(--muted);
+}
+.taskIcon {
+  display: grid;
+  width: 2.2rem;
+  height: 2.2rem;
+  place-items: center;
+  color: var(--primary-text, var(--primary));
+  border-radius: 0.72rem;
+  background: var(--primary-soft);
+  font-weight: 900;
+}
+.task[data-done="true"] .taskIcon {
+  color: var(--teal);
+  background: color-mix(in srgb, var(--teal) 13%, var(--surface));
+}
+.taskIcon svg {
+  width: 1rem;
+  height: 1rem;
+}
+.hint,
+.footnote {
+  margin: 0.8rem 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+.metric {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.12rem 0.55rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--surface) 48%, transparent);
+}
+.metric > span {
+  grid-row: 1 / span 2;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  color: var(--primary-text, var(--primary));
+  border-radius: 0.65rem;
+  background: var(--primary-soft);
+}
+.metric svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.metric strong {
+  overflow: hidden;
+  font-size: 1.15rem;
+  letter-spacing: -0.04em;
+  text-overflow: ellipsis;
+}
+.metric small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .taskGrid {
+    grid-template-columns: 1fr;
+  }
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 430px) {
+  .readinessHeader {
+    align-items: start;
+  }
+  .metricGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

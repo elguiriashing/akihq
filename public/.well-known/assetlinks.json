@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.akipasa",
+      "sha256_cert_fingerprints": [
+        "D8:0C:2C:B9:D2:D6:F2:A8:20:C8:0F:EE:40:25:CB:63:2A:D1:6B:10:B2:EA:D5:34:30:01:E3:B9:46:62:82:EB"
+      ]
+    }
+  }
+]

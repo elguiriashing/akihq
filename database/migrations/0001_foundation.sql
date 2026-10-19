@@ -1,0 +1,22 @@
+begin;
+create extension if not exists postgis;
+create type content_status as enum ('draft','pending','published','rejected','archived');
+create type occurrence_status as enum ('scheduled','cancelled','postponed','sold_out');
+create table cities (id uuid primary key, slug text unique not null, name_es text not null, name_en text, center geography(point,4326) not null, timezone text not null default 'Europe/Madrid');
+create table venues (id uuid primary key, city_id uuid not null references cities, slug text unique not null, name text not null, description_es text not null, description_en text, address text not null, location geography(point,4326) not null, verified boolean not null default false, accessibility jsonb not null default '{}', status content_status not null default 'draft', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create index venues_location_gix on venues using gist(location);
+create table categories (id uuid primary key, slug text unique not null, name_es text not null, name_en text not null);
+create table events (id uuid primary key, venue_id uuid not null references venues, slug text unique not null, title_es text not null, title_en text, description_es text not null, description_en text, category_id uuid not null references categories, price_cents integer not null default 0 check(price_cents>=0), currency char(3) not null default 'EUR', source text not null check(source in ('verified_venue','community')), sponsored boolean not null default false, booking_url text, status content_status not null default 'draft', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table event_occurrences (id uuid primary key, event_id uuid not null references events on delete cascade, starts_at timestamptz not null, ends_at timestamptz not null, status occurrence_status not null default 'scheduled', booking_url text, constraint occurrence_time_valid check(ends_at>starts_at));
+create index event_occurrences_discovery_idx on event_occurrences(status,starts_at,ends_at);
+create table recurrence_rules (event_id uuid primary key references events on delete cascade, rrule text not null, timezone text not null, generation_horizon_days integer not null default 120 check(generation_horizon_days between 1 and 366));
+create table offers (id uuid primary key, venue_id uuid not null references venues on delete cascade, title_es text not null, title_en text, terms_es text not null, terms_en text, starts_at timestamptz not null, ends_at timestamptz not null, status content_status not null default 'draft', check(ends_at>starts_at));
+
+alter table cities enable row level security;
+alter table venues enable row level security;
+alter table categories enable row level security;
+alter table events enable row level security;
+alter table event_occurrences enable row level security;
+alter table recurrence_rules enable row level security;
+alter table offers enable row level security;
+commit;

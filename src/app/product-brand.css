@@ -1,0 +1,38 @@
+/* AkiHQ free-management brand. Loaded after shared legacy styles. */
+:root {
+  --brand-navy: #0a1530;
+  --brand-blue: #1686ff;
+  --brand-blue-light: #25d4ff;
+  --brand-gold: #ffce3b;
+  --brand-yellow: #ffce3b;
+  --brand-orange: #1686ff;
+  --primary: #1686ff;
+  --primary-text: #58b8ff;
+  --primary-dark: #135cda;
+  --primary-soft: rgba(22, 134, 255, 0.15);
+  --primary-contrast: #ffffff;
+  --accent: #ffce3b;
+  --teal: #1686ff;
+  --teal-dark: #135cda;
+}
+html[data-theme="light"] {
+  --primary: #135cda;
+  --primary-text: #1254ac;
+  --primary-dark: #0e4388;
+  --primary-soft: rgba(19, 92, 218, 0.11);
+  --primary-contrast: #fff;
+  --accent: #bb8300;
+}
+.akibusiness-brand,
+.workspace-brand,
+.app-rail-brand {
+  --brand-blue: #1686ff;
+}
+:where(.akibusiness-topbar, .workspace-topbar, .workspace-shell)
+  :focus-visible {
+  outline-color: var(--brand-blue);
+}
+::selection {
+  background: #ffce3b;
+  color: #0a1530;
+}

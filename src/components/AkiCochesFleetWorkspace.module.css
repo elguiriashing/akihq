@@ -1,0 +1,199 @@
+.workspace {
+  display: grid;
+  gap: 18px;
+}
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: clamp(20px, 3vw, 34px);
+  border-radius: 24px;
+  color: #fff;
+  background: linear-gradient(125deg, #15151b, #571a25 62%, #e43b4b);
+}
+.hero span {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.hero h3 {
+  font-size: clamp(26px, 4vw, 42px);
+  margin: 8px 0;
+}
+.hero p {
+  max-width: 650px;
+  margin: 0;
+  line-height: 1.55;
+  color: #fffdfdce;
+}
+.metric {
+  display: grid;
+  place-content: center;
+  text-align: center;
+  min-width: 100px;
+}
+.metric strong {
+  font-size: 44px;
+  line-height: 1;
+}
+.metric small {
+  margin-top: 6px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.4fr);
+  gap: 18px;
+}
+.create,
+.list {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--border, #d9dce4);
+  border-radius: 20px;
+  background: var(--panel, #fff);
+}
+.create h3,
+.list h3 {
+  margin: 0;
+}
+.create label {
+  display: grid;
+  gap: 6px;
+  font-weight: 750;
+}
+.create input,
+.create select,
+.vehicle select {
+  min-height: 44px;
+  border: 1px solid #b9bec9;
+  border-radius: 10px;
+  padding: 0 10px;
+  background: inherit;
+  color: inherit;
+}
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.vehicle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel, #fff) 92%, #e43b4b 8%);
+}
+.vehicle strong,
+.vehicle small {
+  display: block;
+}
+.vehicle small {
+  margin-top: 4px;
+  opacity: 0.72;
+}
+.vehicle form {
+  display: flex;
+  gap: 8px;
+}
+.vehicle button {
+  border: 0;
+  border-radius: 9px;
+  padding: 0 12px;
+  background: #e43b4b;
+  color: #fff;
+  font-weight: 800;
+}
+.empty {
+  padding: 38px;
+  border: 2px dashed #e43b4b66;
+  border-radius: 24px;
+}
+.empty span {
+  color: #d9273c;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.empty h3 {
+  font-size: 28px;
+  margin: 8px 0;
+}
+.empty p {
+  max-width: 680px;
+  line-height: 1.55;
+}
+@media (max-width: 760px) {
+  .hero,
+  .vehicle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .metric {
+    place-content: start;
+    text-align: left;
+  }
+  .vehicle form {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .two {
+    grid-template-columns: 1fr;
+  }
+}
+.edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+.edit label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+  min-width: 95px;
+}
+.edit input,
+.edit select {
+  max-width: 160px;
+  min-width: 90px;
+}
+.request {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel, #fff) 94%, #e43b4b 6%);
+}
+.request small {
+  opacity: 0.7;
+}
+.request form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.request button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #e43b4b;
+  border-radius: 10px;
+  color: #e43b4b;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+}
+.request button[value="confirmed"] {
+  background: #e43b4b;
+  color: #fff;
+}
+.list > p {
+  margin: 0;
+  line-height: 1.5;
+}
