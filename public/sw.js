@@ -1,4 +1,4 @@
-const CACHE = "akibusiness-shell-v1";
+const CACHE = "akihq-shell-v1";
 const SHELL = ["/offline.html", "/pwa/business-192.png"];
 
 self.addEventListener("install", (event) => {

@@ -68,9 +68,12 @@ try {
         const manifest = await context.request.get(
           `${base}/manifest.webmanifest`,
         );
-        assert.equal((await manifest.json()).name, managementName);
+        const manifestBody = await manifest.json();
+        assert.equal(manifestBody.name, managementName);
+        assert.equal(manifestBody.short_name, managementName);
+        assert.equal(manifestBody.id, "/akihq");
         const health = await context.request.get(`${base}/api/health`);
-        assert.equal((await health.json()).product, "akibusiness");
+        assert.equal((await health.json()).product, "akihq");
         const blocked = await context.request.post(
           `${base}/api/stripe/webhook`,
           { data: {} },

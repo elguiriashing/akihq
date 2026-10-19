@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export function GET() {
   return Response.json(
     {
-      product: "akibusiness",
+      product: "akihq",
       role: "management",
       publicProduct: managementProduct.name,
       roleSwapEnabled,
