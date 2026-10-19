@@ -15,7 +15,7 @@ await mkdir("test-results/business", { recursive: true });
 let cases = 0;
 try {
   for (const locale of ["en", "es"])
-    for (const width of [390, 1440])
+    for (const width of [390, 820, 1440])
       for (const theme of ["light", "dark"]) {
         const context = await browser.newContext({
           viewport: { width, height: 900 },
