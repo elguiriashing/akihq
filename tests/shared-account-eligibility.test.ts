@@ -1,3 +1,4 @@
+import { accountTaskResume } from "../src/lib/account-task-resume";
 const state = vi.hoisted(() => ({
   status: "pending",
   from: vi.fn(),
@@ -100,3 +101,43 @@ it("does not confuse an existing underage demographic with loss of account acces
   expect(await accountFeaturesAllowed(db)).toBe(true);
   expect(await accountTrackingAllowed(db, "self")).toBe(false);
 });
+
+it("retains the exact allowlisted task in the fixed central completion envelope", () => {
+  const completion = new URL(
+    accountCompletionUrl("en", "/account?next=https://evil.test&token=secret"),
+  );
+  const next = completion.searchParams.get("next")!;
+  expect(completion.origin).toBe("https://akipasa.com");
+  expect(next).toContain("/en/account-resume?");
+  expect(next).not.toContain("evil");
+  expect(next).not.toContain("secret");
+});
+
+it.each(["en", "es"] as const)(
+  "resumes the canonical %s passports route and rejects the old singular path",
+  (locale) => {
+    expect(accountTaskResume("pasa", locale, `/${locale}/passports`)?.url).toBe(
+      `https://akipasa.com/${locale}/passports`,
+    );
+    expect(accountTaskResume("pasa", locale, `/${locale}/passport`)?.url).toBe(
+      `https://akipasa.com/${locale}/account`,
+    );
+  },
+);
+
+it.each(["en", "es"] as const)(
+  "retains actual %s rental vehicle/date and booking-page task keys",
+  (locale) => {
+    const result = accountTaskResume(
+      "coches",
+      locale,
+      `/${locale}/rentals/sol?vehicle=car-123&start=2026-10-21&end=2026-10-23&page=2&next=https://evil.invalid`,
+    )!;
+    const url = new URL(result.url);
+    expect(url.searchParams.get("vehicle")).toBe("car-123");
+    expect(url.searchParams.get("start")).toBe("2026-10-21");
+    expect(url.searchParams.get("end")).toBe("2026-10-23");
+    expect(url.searchParams.get("page")).toBe("2");
+    expect(url.searchParams.has("next")).toBe(false);
+  },
+);

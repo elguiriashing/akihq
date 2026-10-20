@@ -58,7 +58,7 @@ export async function GET(
         !/^\/(en|es)\/auth\/recover(?:\?|$)/.test(next) &&
         !(await accountFeaturesAllowed(supabase))
       )
-        return NextResponse.redirect(accountCompletionUrl(safeLocale));
+        return NextResponse.redirect(accountCompletionUrl(safeLocale, next));
       return NextResponse.redirect(new URL(next, publicOrigin));
     }
   }

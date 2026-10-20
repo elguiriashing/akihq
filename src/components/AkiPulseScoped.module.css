@@ -1,0 +1,35 @@
+.root {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.root select,
+.root button,
+.root summary {
+  min-height: 44px;
+}
+.root summary {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.root nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.root nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.25rem 0.5rem;
+}
+.root :is(button, select, a, summary):focus-visible {
+  outline: 3px solid var(--primary, #f26b1d);
+  outline-offset: 3px;
+}
+
+.root table {
+  min-width: 32rem;
+  overflow-wrap: normal;
+}

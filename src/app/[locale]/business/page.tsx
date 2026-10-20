@@ -22,6 +22,12 @@ import { Icon } from "@/components/Icons";
 import { ClaimVenuePicker } from "@/components/ClaimVenuePicker";
 import { BusinessHome } from "@/components/BusinessHome";
 import { BusinessGrowthOverview } from "@/components/BusinessGrowthOverview";
+import { AkiPulseScoped } from "@/components/AkiPulseScoped";
+import {
+  pulseScopeQuery,
+  readPulseScopedReport,
+  type PulseScope,
+} from "@/lib/akipulse-scoped";
 import { AkiPulse } from "@/components/AkiPulse";
 import { pulsePeriod, pulseFromEvents } from "@/lib/akipulse";
 import {
@@ -276,6 +282,41 @@ export default async function BusinessPage({
     (item) => selectedLocation === "all" || item.id === selectedLocation,
   );
   const periodEnd = new Date();
+  const scopedPulseEnabled =
+    pulseEnabled &&
+    pulseView &&
+    process.env.AKIPULSE_SCOPED_BOOKINGS_READY === "true";
+  const scopedPulseQuery = pulseScopeQuery.parse(query);
+  const scopeList = scopedPulseEnabled
+    ? await supabase.rpc("akipulse_scopes", {
+        p_kind: scopedPulseQuery.pulseKind,
+        p_limit: 51,
+        p_offset: scopedPulseQuery.pulsePage * 50,
+      })
+    : { data: [], error: null };
+  const pulseScopes: PulseScope[] = (scopeList.data || []).slice(0, 50);
+  // A selection is never a permission grant: the aggregate RPC rechecks all underlying scopes.
+  const pulseResource =
+    scopedPulseQuery.pulseResource || pulseScopes[0]?.id || "";
+  const scopeResult =
+    scopedPulseEnabled && pulseResource && !scopeList.error
+      ? await supabase.rpc("akipulse_scope_analytics", {
+          p_kind: scopedPulseQuery.pulseKind,
+          p_id: pulseResource,
+          p_days: days,
+          p_until: periodEnd.toISOString(),
+        })
+      : { data: null, error: null };
+  const scopedPulseReport = scopeResult.data
+    ? readPulseScopedReport(
+        scopeResult.data,
+        scopedPulseQuery.pulseKind,
+        pulseResource,
+        days,
+        periodEnd.toISOString(),
+      )
+    : null;
+
   const analytics = pulseView
     ? await Promise.all(
         (pulseEnabled ? scopedLocations.slice(0, 20) : scopedLocations).map(
@@ -873,6 +914,24 @@ export default async function BusinessPage({
               ))}
             </div>
           </section>
+        )}
+
+        {scopedPulseEnabled && (
+          <AkiPulseScoped
+            locale={locale}
+            kind={scopedPulseQuery.pulseKind}
+            selected={pulseResource}
+            scopes={pulseScopes}
+            report={scopedPulseReport}
+            unavailable={Boolean(
+              scopeList.error ||
+                scopeResult.error ||
+                (pulseResource && !scopedPulseReport),
+            )}
+            page={scopedPulseQuery.pulsePage}
+            hasMore={(scopeList.data || []).length > 50}
+            days={days}
+          />
         )}
 
         {pulseView && pulseEnabled && (

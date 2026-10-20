@@ -147,7 +147,7 @@ export async function signUpWithPassword(formData: FormData) {
     );
   if (data.session) {
     if (!(await accountFeaturesAllowed(supabase)))
-      redirect(accountCompletionUrl(locale));
+      redirect(accountCompletionUrl(locale, next));
     redirect(next);
   }
   redirect(
@@ -184,7 +184,7 @@ export async function signInWithPassword(formData: FormData) {
       await authReturnUrl(locale, "signin", formData, { error: "signin" }),
     );
   if (!(await accountFeaturesAllowed(supabase)))
-    redirect(accountCompletionUrl(locale));
+    redirect(accountCompletionUrl(locale, next));
   redirect(next);
 }
 

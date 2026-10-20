@@ -1194,3 +1194,16 @@ media with the authenticated member session. Shared migration173552 belongs to
 AkiPasa, defaults strictfalse, and requires both deployed products plus actual
 Storage acceptance before activation. See ENFORCED_LISTING_UPLOADS.md. Existing
 independent property uploader remains gated until its actual schema exists.
+
+## 2026-10-20 | AkiHQ scoped booking observations
+
+A gated AkiPulse amendment adds management-only venue, listing-linked property,
+independent rental-branch and explicitly linked organisation observations.
+Booking cohorts are based on request creation and current status, not payment or
+confirmation time. Organisation access does not bypass individual location
+management; unmapped or inaccessible coverage is disclosed. No source customer
+contact data is returned. Existing consent-dependent actions remain distinct from
+commercial acquisition and verified billing; missing linkage is unavailable.
+Shared read-only RPC migration, exact-head acceptance and query plans must be
+verified before activating `AKIPULSE_SCOPED_BOOKINGS_READY`. Details and rollback:
+`docs/AKIPULSE_MISSION_PROGRESS.md`. No production mutation or activation here.
