@@ -17,7 +17,12 @@ await build({
   loader: { ".module.css": "local-css" },
   tsconfig: "tsconfig.json",
 });
-const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"><style>:root{--line:#c4cad5;--surface:#fff;--muted:#4e5667;--primary:#f26b1d;color-scheme:light;background:#f7f8fa;color:#172238;font-family:system-ui}html[data-theme=dark]{--line:#45546c;--surface:#1c2d4b;--muted:#b4bfd1;color-scheme:dark;background:#14213d;color:#faf7f2}*{box-sizing:border-box}body{margin:0;padding:1rem;max-width:85rem;margin-inline:auto}button{padding:.65rem;border-radius:.6rem;border:1px solid var(--line);background:var(--surface);color:inherit;font:inherit}a{color:inherit}p{line-height:1.5}</style></head><body><main id="fixture"></main><script type="module" src="/fixture.js"></script></body></html>`;
+// Use the actual shared parent rule, with a sibling so :only-child cannot mask a missing span.
+const dashboardCSS = (await fs.readFile("src/app/globals.css", "utf8")).match(
+  /^\.dashboard-grid\s*\{[^}]+\}/m,
+)?.[0];
+assert(dashboardCSS, "Production dashboard grid rule must be available");
+const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"><style>${dashboardCSS}:root{--line:#c4cad5;--surface:#fff;--muted:#4e5667;--primary:#f26b1d;color-scheme:light;background:#f7f8fa;color:#172238;font-family:system-ui}html[data-theme=dark]{--line:#45546c;--surface:#1c2d4b;--muted:#b4bfd1;color-scheme:dark;background:#14213d;color:#faf7f2}*{box-sizing:border-box}body{margin:0;padding:1rem;max-width:85rem;margin-inline:auto}button{padding:.65rem;border-radius:.6rem;border:1px solid var(--line);background:var(--surface);color:inherit;font:inherit}a{color:inherit}p{line-height:1.5}</style></head><body><main id="fixture"></main><script type="module" src="/fixture.js"></script></body></html>`;
 const server = http.createServer(async (req, res) => {
   const name = new URL(req.url, "http://localhost").pathname;
   if (name === "/") {
@@ -61,6 +66,17 @@ try {
           const url = `http://127.0.0.1:${server.address().port}/?${new URLSearchParams({ locale, theme, kind })}`;
           await page.goto(url);
           await page.locator("table").waitFor();
+          const gridBox = await page
+            .locator("[data-fixture-dashboard]")
+            .boundingBox();
+          const panelBox = await page
+            .locator('[aria-labelledby="pulse-booking-title"]')
+            .boundingBox();
+          assert(
+            gridBox && panelBox && Math.abs(panelBox.width - gridBox.width) < 2,
+            "Scoped panel must span the complete production dashboard grid",
+          );
+
           assert(
             await page.evaluate(
               () => document.documentElement.scrollWidth <= innerWidth + 1,

@@ -70,17 +70,20 @@ const data: PulseScopedReport = {
 createRoot(document.getElementById("fixture")!).render(
   <>
     <p>Synthetic QA fixture · no real customer records or provider calls</p>
-    <AkiPulseScoped
-      locale={locale}
-      kind={kind}
-      selected={id}
-      scopes={[{ id, name: "Synthetic authorised business" }]}
-      report={params.get("denied") ? null : data}
-      unavailable={params.has("denied")}
-      page={1}
-      hasMore
-      days={7}
-    />
+    <div className="dashboard-grid" data-fixture-dashboard>
+      <AkiPulseScoped
+        locale={locale}
+        kind={kind}
+        selected={id}
+        scopes={[{ id, name: "Synthetic authorised business" }]}
+        report={params.get("denied") ? null : data}
+        unavailable={params.has("denied")}
+        page={1}
+        hasMore
+        days={7}
+      />
+      <aside>Adjacent dashboard panel · synthetic fixture</aside>
+    </div>
   </>,
 );
 document.addEventListener("submit", (event) => event.preventDefault());
