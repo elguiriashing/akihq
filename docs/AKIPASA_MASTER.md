@@ -1207,3 +1207,13 @@ commercial acquisition and verified billing; missing linkage is unavailable.
 Shared read-only RPC migration, exact-head acceptance and query plans must be
 verified before activating `AKIPULSE_SCOPED_BOOKINGS_READY`. Details and rollback:
 `docs/AKIPULSE_MISSION_PROGRESS.md`. No production mutation or activation here.
+
+## 2026-10-20 | PostGIS reference-table client privileges
+
+The shared PostGIS spatial_ref_sys table is extension-owned and retained without
+RLS changes. A narrow mirrored migration revokes PUBLIC/anon/authenticated table
+capabilities and restores only client SELECT, preserving other explicit role
+grants, extension ownership and existing reference rows. Effective table/column
+postconditions reject silent no-op/inherited-grant repairs transactionally.
+See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
+geography acceptance and safe rollback. No live application is claimed by CI.

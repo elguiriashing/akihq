@@ -1694,3 +1694,13 @@ Cross-app booking sources retain original IDs and ownership. Unknown commercial
 attribution and organisation links remain unavailable. SQL/UI regressions cover
 cross-tenant denial, revocation, scope fanout, cohort boundaries and missing data.
 Production/authenticated preview and realistic query plans are not yet verified.
+
+## 2026-10-20 | PostGIS reference-table client privileges
+
+The shared PostGIS spatial_ref_sys table is extension-owned and retained without
+RLS changes. A narrow mirrored migration revokes PUBLIC/anon/authenticated table
+capabilities and restores only client SELECT, preserving other explicit role
+grants, extension ownership and existing reference rows. Effective table/column
+postconditions reject silent no-op/inherited-grant repairs transactionally.
+See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
+geography acceptance and safe rollback. No live application is claimed by CI.
