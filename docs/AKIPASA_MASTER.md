@@ -1217,3 +1217,17 @@ grants, extension ownership and existing reference rows. Effective table/column
 postconditions reject silent no-op/inherited-grant repairs transactionally.
 See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
 geography acceptance and safe rollback. No live application is claimed by CI.
+
+### Standalone listing template and media consumer
+
+HQ consumes AkiPasa's default-disabled233027 library contract, retaining current
+HQ organisation, identity, rental and operations boundaries. Canonical template/
+folder/shared-media controls use server-authoritative listing entitlements and
+current source/target venue plus CRM memberships. Template reuse creates drafts
+without dates; existing data and exact licensed placements survive downgrade.
+Library readiness does not enable the old broad billing bundle. Shared database
+migrations remain AkiPasa-owned; see LISTING_PREMIUM_LIBRARY.md for gates/rollback.
+
+Library usage refinement: upload allowance counts actual owned and locally placed
+assets, not every pickable organisation image. Referenced IDs without a preview
+still count. Server quota/entitlement guards remain authoritative.

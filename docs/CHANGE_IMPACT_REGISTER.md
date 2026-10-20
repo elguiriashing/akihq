@@ -1704,3 +1704,19 @@ grants, extension ownership and existing reference rows. Effective table/column
 postconditions reject silent no-op/inherited-grant repairs transactionally.
 See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
 geography acceptance and safe rollback. No live application is claimed by CI.
+
+## Standalone listing library consumer
+
+Adds the shared gated EN/ES template panel and connects existing folder/picker
+controls to the standalone listing library RPCs. Source/target and organisation
+membership plus current listing Premium are server-authoritative. Existing HQ
+consumer-domain upgrade links and all HQ-specific identity/location/rental code
+are preserved by narrow patches. No duplicate database migration, production
+activation, operating subscription or customer data changes. Focused UI/owner
+regression, type and lint evidence accompany the amendment; shared database and
+provider/concurrency acceptance remain explicit gates in LISTING_PREMIUM_LIBRARY.md.
+
+Library picker usage: counts own media IDs plus actual slot/header/event uses,
+not all available workspace assets; deduplicates and retains unavailable-preview
+references. Per-venue component keys reset scope during navigation. Focused
+usage/template/owner tests and types pass; database gates remain disabled.

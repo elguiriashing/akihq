@@ -542,8 +542,9 @@ export async function updateEvent(formData: FormData) {
     mediaId ? [mediaId] : [],
   );
   const allowedRows =
-    process.env.AKISUITE_FEATURES_READY === "true" &&
-    process.env.AKISUITE_SUBSCRIPTIONS_READY === "true"
+    process.env.AKISUITE_LISTING_LIBRARY_READY === "true" ||
+    (process.env.AKISUITE_FEATURES_READY === "true" &&
+      process.env.AKISUITE_SUBSCRIPTIONS_READY === "true")
       ? (
           await Promise.all(
             selectedMediaIds.map((mediaId) =>
@@ -1036,8 +1037,9 @@ export async function removeVenueImage(formData: FormData) {
   // The shared bin may feed multiple public venue/event surfaces. Never
   // remove a file that is still referenced by a placement.
   const sharedReady =
-    process.env.AKISUITE_FEATURES_READY === "true" &&
-    process.env.AKISUITE_SUBSCRIPTIONS_READY === "true";
+    process.env.AKISUITE_LISTING_LIBRARY_READY === "true" ||
+    (process.env.AKISUITE_FEATURES_READY === "true" &&
+      process.env.AKISUITE_SUBSCRIPTIONS_READY === "true");
   const usage = sharedReady
     ? await supabase.rpc("akisuite_media_in_use", {
         p_media: parsed.data.mediaId,
