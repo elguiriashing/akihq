@@ -56,7 +56,10 @@ const data: PulseScopedReport = {
       total: 2,
     },
   ],
-  interactions: [],
+  interactions:
+    kind === "fleet"
+      ? []
+      : [{ action: "booking_click", current: 7, previous: 3 }],
   commercial_funnel: {
     available: false,
     reason: "no_scoped_verified_attribution_adapter",

@@ -6,8 +6,14 @@ create index if not exists pulse_rental_scope_time on public.car_rental_bookings
 
 create function public.akipulse_scopes(p_kind text,p_limit integer default 51,p_offset integer default 0)
 returns table(id uuid,name text) language plpgsql stable security definer set search_path='' as $$
+declare v_account_allowed boolean;
 begin
  if (select auth.uid()) is null then raise exception 'Authentication required' using errcode='42501'; end if;
+ -- Staged shared identity gate: existing/exempt accounts and absent rollout schema retain access.
+ if pg_catalog.to_regprocedure('public.account_features_allowed()') is not null then
+  execute 'select public.account_features_allowed()' into v_account_allowed;
+  if v_account_allowed is distinct from true then raise exception 'Account completion required' using errcode='42501'; end if;
+ end if;
  if p_kind is null or p_kind not in ('venue','property','fleet','organisation') or p_limit is null or p_limit not between 1 and 101 or p_offset is null or p_offset not between 0 and 10000 then raise exception 'Invalid scope page' using errcode='22023'; end if;
  if p_kind in ('venue','property') then
   return query select v.id,v.name from public.venues v where
@@ -27,9 +33,14 @@ returns jsonb language plpgsql stable security definer set search_path='' as $$
 declare
  v_venues uuid[]:='{}'; v_name text; v_from timestamptz; v_previous timestamptz;
  v_bookings jsonb; v_interactions jsonb:='[]'; v_excluded integer:=0; v_total integer;
- v_units integer:=null; v_vehicles integer:=null;
+ v_units integer:=null; v_vehicles integer:=null; v_account_allowed boolean;
 begin
  if (select auth.uid()) is null then raise exception 'Authentication required' using errcode='42501'; end if;
+ -- Staged shared identity gate: existing/exempt accounts and absent rollout schema retain access.
+ if pg_catalog.to_regprocedure('public.account_features_allowed()') is not null then
+  execute 'select public.account_features_allowed()' into v_account_allowed;
+  if v_account_allowed is distinct from true then raise exception 'Account completion required' using errcode='42501'; end if;
+ end if;
  if p_id is null or p_kind is null or p_kind not in ('venue','property','fleet','organisation') or p_days is null or p_days not in (7,30,90)
  or p_until is null or p_until>now()+interval '1 minute' or p_until<now()-interval '10 years' then raise exception 'Invalid report range' using errcode='22023'; end if;
  -- Exact elapsed UTC windows match the existing Pulse action comparison contract.

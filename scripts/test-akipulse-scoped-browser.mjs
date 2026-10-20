@@ -75,6 +75,13 @@ try {
               JSON.stringify({ locale, kind, box }),
             );
           }
+          await page.locator("summary").first().click();
+          if (kind !== "fleet")
+            assert(
+              (await page.locator("body").innerText()).includes(
+                locale === "es" ? "Clics de reserva" : "Booking clicks",
+              ),
+            );
           await page.locator("summary").last().click();
           assert(
             (await page.locator("body").innerText()).includes(

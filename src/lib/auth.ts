@@ -29,7 +29,7 @@ export async function requireUser(locale: Locale, next = `/${locale}/account`) {
   } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/auth?next=${encodeURIComponent(next)}`);
   if (!(await accountFeaturesAllowed(supabase)))
-    redirect(accountCompletionUrl(locale));
+    redirect(accountCompletionUrl(locale, next));
   const { data: profile } = await supabase
     .from("profiles")
     .select("terms_version")

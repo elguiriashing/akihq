@@ -10,7 +10,7 @@
 | Accurate listing readiness                   | Implemented and tested                                              | Five content/publication checks,20 points each. Missing source field prevents a score; no growth prediction.                  |
 | Correct free hub / paid operations handoff   | Implemented                                                         | removed historic misleading €14.99 AkiBusiness listing upsell; neutral bilingual handoff                                      |
 | Advanced operational reporting               | Blocked                                                             | exact current tool entitlements, billing and operational data adapter acceptance required; data not fabricated                |
-| Organisation/property/fleet analytics        | Scoped implementation and tests; incomplete mapping excluded        | 13 PGlite tests cover source ownership; independent property/org-fleet mapping still lacks a verified adapter                 |
+| Organisation/property/fleet analytics        | Scoped implementation and tests; incomplete mapping excluded        | 15 PGlite tests cover source ownership; independent property/org-fleet mapping still lacks a verified adapter                 |
 | Booking confirmations and acquisition funnel | Booking-created cohorts implemented; commercial attribution blocked | bounded booking aggregates implemented; no verified scoped commercial attribution source                                      |
 | Wider business health scoring                | Partial                                                             | Listing completeness implemented; engagement, confirmed bookings and operational components require measured source adapters. |
 | Cross-suite contextual CTAs/demos            | Implemented for discovery details and rental home                   | AkiPasa#211, AkiDuermo#23, AkiCoches#27; neutral paid handoff avoids unverified ownership/entitlement inference.              |
@@ -89,7 +89,7 @@ validation rejects a different resource/kind/period, malformed totals and invent
 revenue availability. Errors withhold figures rather than using cached values or
 substituting a zero. No browser cache stores report data.
 
-Initial local verification: 13 real PGlite SQL tests and 6 new UI/schema contract
+Initial local verification: 15 real PGlite SQL tests and 6 new UI/schema contract
 cases passed, with the existing 6 Pulse cases unchanged. Full product verification,
 exact-head hosted CI, authenticated preview acceptance and realistic query plans
 remain release gates. No migration was applied or feature flag activated.
@@ -98,4 +98,14 @@ Rollback: disable `AKIPULSE_SCOPED_BOOKINGS_READY`; the original Pulse view rema
 Revert source if needed. Retain compatible read-only indexes/RPCs, or remove execute
 grants with a reviewed forward migration. Never remove bookings or ownership data.
 
-Validation checkpoint: full product suite284 Vitest +13 PGlite +23 navigation tests;64 real-component browser combinations passed (all four scope kinds, EN/ES, light/dark, phone/tablet portrait/tablet landscape/desktop). Full lint/typecheck and independent Next production build passed. Screenshots are labelled synthetic fixtures, not live customer or authenticated production acceptance.
+Validation checkpoint: full product suite284 Vitest +15 PGlite +23 navigation tests;64 real-component browser combinations passed (all four scope kinds, EN/ES, light/dark, phone/tablet portrait/tablet landscape/desktop). Full lint/typecheck and independent Next production build passed. Screenshots are labelled synthetic fixtures, not live customer or authenticated production acceptance.
+
+Shared identity intersection: both new authenticated read RPCs additionally call the staged caller-only `account_features_allowed()` helper when present. Pending/underage accounts fail before scope lookup; helper absence preserves the pre-enrolment rollout. Direct-RPC denial and absent-helper compatibility are tested. No onboarding activation or legal policy changes occur here.
+
+Amendment tracking: [AkiHQ PR58](https://github.com/elguiriashing/akihq/pull/58), draft pending exact-head hosted verification.
+
+Integrated AkiHQ57 shared account-task resume source1dc7a42fcd2e767a688a3e4ac24693c0375ee16a before final verification; both feature histories are retained. The shared AkiPasa destination allowlist uses the canonical plural `/passports` route; EN/ES regressions reject the obsolete singular path.
+
+Final integrated validation:287 Vitest cases,15 PGlite cases and23 navigation checks all pass; formatting, lint and typecheck pass. The final label/account-guard amendment and integrated resume source require the new exact-head hosted package/build gate; no additional local full OpenNext build is claimed for this final integration. Previously verified scope component matrix remains64/64.
+
+Canonical completion-resume contract sync includes the four existing vehicle/start/end/page task keys needed by rental detail and booking pagination. Bounded values and unknown/secret key rejection are retained; EN/ES regression covers these real task parameters. Shared module SHA25629d8ac9669e9f4b1a7ea1c13ab15437a54093d7d6fe7a8d51cd0968841838cba matches the other consumers.

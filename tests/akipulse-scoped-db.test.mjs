@@ -25,6 +25,7 @@ async function report(kind = "venue", id = venue, days = 7, end = until) {
 }
 before(async () => {
   await db.exec(`create role anon; create role authenticated;create schema auth;create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+ create function public.account_features_allowed() returns boolean language sql stable as $$ select current_setting('test.account_allowed',true) is distinct from 'false' $$;
  create type public.venue_member_role as enum('owner','manager','editor');
  create table venues(id uuid primary key,name text,discovery_vertical text);
  create table venue_members(venue_id uuid,profile_id uuid,role venue_member_role);
@@ -58,6 +59,7 @@ beforeEach(async () => {
     "reset role; truncate venues,venue_members,car_rental_companies,car_rental_vehicles,operating_organisations,operating_organisation_locations,crm_workspaces,booking_requests,accommodation_reservations,car_rental_bookings,accommodation_units,analytics_events restart identity;",
   );
   await actor();
+  await db.query("select set_config('test.account_allowed','true',false)");
   await db.exec(`insert into venues values('${venue}','Owned venue','activities'),('${foreign}','Private foreign','activities'),('${property}','Owned property','accommodation');
  insert into venue_members values('${venue}','${owner}','owner'),('${property}','${owner}','manager'),('${foreign}','${other}','owner');
  insert into car_rental_companies values('${fleet}','Owned rental','${owner}'),('${foreignFleet}','Private rental','${other}');
@@ -221,4 +223,23 @@ test("multiple explicit workspaces for one listing never duplicate its bookings"
     r.bookings.reduce((sum, row) => sum + row.total, 0),
     3,
   );
+});
+
+test("staged account completion restricts direct report and selector access", async () => {
+  await db.query("select set_config('test.account_allowed','false',false)");
+  await assert.rejects(report(), /Account completion required/);
+  await assert.rejects(
+    db.query("select * from akipulse_scopes('venue',51,0)"),
+    /Account completion required/,
+  );
+});
+test("absent onboarding rollout helper preserves existing authorised access", async () => {
+  await db.exec("drop function public.account_features_allowed()");
+  try {
+    assert.equal((await report()).coverage.measured_venues, 1);
+  } finally {
+    await db.exec(
+      "create function public.account_features_allowed() returns boolean language sql stable as $$ select current_setting('test.account_allowed',true) is distinct from 'false' $$;",
+    );
+  }
 });

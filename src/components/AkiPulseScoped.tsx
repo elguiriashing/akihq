@@ -40,6 +40,22 @@ export function AkiPulseScoped({
     fleet: es ? "Sucursales de alquiler" : "Rental branches",
     organisation: es ? "Organizaciones" : "Organisations",
   };
+  const actions: Record<string, string> = {
+    venue_view: es ? "Visitas a la ficha" : "Listing views",
+    event_view: es ? "Visitas a eventos" : "Event views",
+    booking_click: es ? "Clics de reserva" : "Booking clicks",
+    directions_click: es ? "Cómo llegar" : "Directions clicks",
+    share: es ? "Compartidos" : "Shares",
+    event_saved: es ? "Eventos guardados" : "Saved events",
+    venue_followed: es ? "Seguimientos del local" : "Listing follows",
+    check_in_accepted: es
+      ? "Visitas registradas aceptadas"
+      : "Accepted check-ins",
+    check_in_rejected: es
+      ? "Visitas registradas rechazadas"
+      : "Rejected check-ins",
+    promotion_requested: es ? "Solicitudes de promoción" : "Promotion requests",
+  };
   const statuses: Record<string, string> = {
     requested: es ? "Solicitada" : "Requested",
     confirmed: es ? "Confirmada" : "Confirmed",
@@ -255,8 +271,9 @@ export function AkiPulseScoped({
             </p>
             {report.interactions.map((row) => (
               <p key={row.action}>
-                {row.action.replaceAll("_", " ")}: {row.current} /{" "}
-                {row.previous}
+                {actions[row.action] ||
+                  (es ? "Otra acción registrada" : "Other recorded action")}
+                : {row.current} / {row.previous}
               </p>
             ))}
           </details>

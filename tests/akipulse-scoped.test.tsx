@@ -120,6 +120,9 @@ describe("scoped Pulse contracts", () => {
         locale === "en" ? "not available yet" : "Aún no hay",
       );
       expect(html).not.toContain("100%");
+      expect(html).toContain(
+        locale === "es" ? "Clics de reserva" : "Booking clicks",
+      );
     },
   );
   it.each(["en", "es"] as const)(
