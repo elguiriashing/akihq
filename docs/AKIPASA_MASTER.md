@@ -1128,6 +1128,31 @@ database row, role, subscription or cross-product cookie changes. Rollback is a
 source revert. Production OAuth initiation and exact callback destinations require
 post-deploy EN/ES verification; completing a real provider login remains separate.
 
+## 2026-10-20 | AkiPulse free management overview
+
+AkiHQ's `business?view=pulse` combines the former growth and analytics destinations
+behind server-owned `AKIPULSE_ENABLED=true`. Growth/analytics links remain valid.
+With the flag off, the previous aggregate RPC and detailed analytics error state
+remain available. The listing upsell no longer mislabels €14.99 listing Premium
+as paid AkiBusiness operations; the neutral operations handoff preserves EN/ES.
+
+Enabled Pulse uses only membership-derived venue IDs and existing analytics RLS.
+Periods are rolling 7/30/90-day UTC intervals, compared to the immediately preceding
+same-length interval. Exact counts detect truncated provider responses; up to
+1,000 rows per location and 20 locations are read. Overflow/unavailable reads show
+no partial total, and large organisations can select one location. Booking clicks
+are explicitly not bookings; action totals are not unique users or a conversion
+funnel. No Google sitewide impressions, operational revenue, acquisition sources,
+or inferred health score are presented. Existing listing/event readiness is shown
+with explicit scope, without claiming organisation-wide coverage for property or
+rental resources absent from venue membership.
+
+Acceptance before flag activation: authenticated tenant-isolation/read grants,
+responsive mobile/tablet keyboard/light/dark review, provider response limits, and
+exact-source production package. This change neither grants operational analytics
+nor changes subscriptions, data, RLS, consent capture or shared production schema.
+Rollback: disable `AKIPULSE_ENABLED`, or revert the application commit.
+
 ## 2026-10-20 | Analytics table privilege repair candidate
 
 Standalone migration20261020173020 removes browser/PUBLIC table capabilities from
@@ -1149,3 +1174,23 @@ code. No auth token or account identity crosses domains in links. Existing
 server membership checks remain authoritative. Focused tests pass; complete
 CI/build and canonical authenticated acceptance remain release gates. See
 `docs/SUITE_NAVIGATION_V1.md`. No schema, billing or customer data changes.
+
+## 2026-10-20 | Listing allowance owner compatibility
+
+AkiHQ mirrors the bounded event/media owner changes from AkiPasa PR215. Database
+ownership stays in AkiPasa's standalone migration20261020170415, with its own
+private default-closed gate, not the old Premium migration. Owner quota UI uses
+AKISUITE_LISTING_LIMITS_READY and confirms listing_limits_info before showing8/250.
+Inline event errors preserve controlled drafts. Listing Premium handoffs target
+AkiPasa's actual subscription hub with current EN/ES; paid AkiBusiness operations
+remain separate. Resolution groundwork stays independently gated/off pending
+trusted processing and direct-Storage closure. No scheduler/migration is added here.
+
+### Reserved listing uploads (2026-10-20)
+
+HQ venue/event image actions consume the shared server reservation contract,
+validate actual dimensions/digest, perform service upload/readback, then insert
+media with the authenticated member session. Shared migration173552 belongs to
+AkiPasa, defaults strictfalse, and requires both deployed products plus actual
+Storage acceptance before activation. See ENFORCED_LISTING_UPLOADS.md. Existing
+independent property uploader remains gated until its actual schema exists.

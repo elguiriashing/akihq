@@ -8,7 +8,11 @@ type GoogleWindow = Window & {
   gtag?: (...args: unknown[]) => void;
   [key: `ga-disable-${string}`]: boolean;
 };
-export function ConsentAnalytics() {
+export function ConsentAnalytics({
+  trackingAllowed = true,
+}: {
+  trackingAllowed?: boolean;
+}) {
   useEffect(() => {
     const w = window as unknown as GoogleWindow;
     // Share one gtag.js loader for GA4 and Ads, respecting the visitor's choices.
@@ -17,8 +21,8 @@ export function ConsentAnalytics() {
     let adsConfigured = false;
     function update() {
       const choices = readPrivacyChoices();
-      const analytics = choices.analytics;
-      const marketing = choices.marketing;
+      const analytics = trackingAllowed && choices.analytics;
+      const marketing = trackingAllowed && choices.marketing;
       // The consumer advertising campaign must not tag AkiBusiness or AkiDuermo.
       const adsAllowed =
         marketing &&
@@ -84,6 +88,6 @@ export function ConsentAnalytics() {
     update();
     window.addEventListener("akipasa:consent-changed", update);
     return () => window.removeEventListener("akipasa:consent-changed", update);
-  }, []);
+  }, [trackingAllowed]);
   return null;
 }

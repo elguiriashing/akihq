@@ -1,7 +1,11 @@
 /* eslint-disable @next/next/no-img-element -- Venue media uses native images with existing layout controls. */
 "use client";
 
+import { config } from "@/lib/config";
+
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createEvent } from "@/app/[locale]/business/actions";
 import { GuardedActionForm } from "@/components/GuardedActionForm";
 
@@ -26,6 +30,52 @@ export function BusinessEventComposer({
   media: BusinessMediaOption[];
 }) {
   const es = locale === "es";
+  const router = useRouter();
+  const [draft, setDraft] = useState({
+    title: "",
+    description: "",
+    bookingUrl: "",
+    startsAt: "",
+    endsAt: "",
+  });
+  const [submissionError, setSubmissionError] = useState("");
+  const [submissionSaved, setSubmissionSaved] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formVersion, setFormVersion] = useState(0);
+  async function submitEvent(formData: FormData) {
+    setSubmitting(true);
+    setSubmissionError("");
+    setSubmissionSaved(false);
+    formData.set("inline", "1");
+    try {
+      const result = await createEvent(formData);
+      if (result?.ok) {
+        setFormVersion((v) => v + 1);
+        setDraft({
+          title: "",
+          description: "",
+          bookingUrl: "",
+          startsAt: "",
+          endsAt: "",
+        });
+        setSlots({
+          banner: "",
+          explore: "",
+          profile: "",
+          background: "",
+          map: "",
+        });
+        setPrice("0");
+        setPriceMode("hide");
+        setSubmissionSaved(true);
+        router.refresh();
+      } else setSubmissionError(result?.error || "event");
+    } catch {
+      setSubmissionError("unavailable");
+    } finally {
+      setSubmitting(false);
+    }
+  }
   const [venueId, setVenueId] = useState(venues[0]?.id || "");
   const [categoryId, setCategoryId] = useState(categories[0]?.id || "");
   const [priceMode, setPriceMode] = useState<"show" | "hide">("hide");
@@ -125,7 +175,32 @@ export function BusinessEventComposer({
         </div>
       </header>
 
-      <GuardedActionForm action={createEvent} className="event-studio-form">
+      {submissionError ? (
+        <p role="alert">
+          {submissionError === "listing-limit"
+            ? es
+              ? "La ficha gratuita admite cuatro eventos por mes natural y cinco días por evento. Tu borrador sigue aquí."
+              : "Free listings allow four events per calendar month and five days per event. Your draft is still here."
+            : es
+              ? "No se pudo crear el evento. Tu borrador sigue aquí; revisa los datos y vuelve a intentarlo."
+              : "The event could not be created. Your draft is still here; check the details and retry."}
+          {submissionError === "listing-limit" ? (
+            <Link
+              href={`${config.consumerUrl}/${locale}/account/subscription?app=akibusiness`}
+            >
+              {es ? " Ver Premium de la ficha" : " View listing Premium"}
+            </Link>
+          ) : null}
+        </p>
+      ) : null}
+      {submissionSaved ? (
+        <p role="status">{es ? "Evento creado." : "Event created."}</p>
+      ) : null}
+      <GuardedActionForm
+        key={formVersion}
+        action={submitEvent}
+        className="event-studio-form"
+      >
         <input type="hidden" name="locale" value={locale} />
         <input type="hidden" name="venueId" value={venueId} />
         <input type="hidden" name="categoryId" value={categoryId} />
@@ -200,6 +275,13 @@ export function BusinessEventComposer({
             <span>{es ? "Nombre del evento" : "Event name"}</span>
             <input
               name="title"
+              value={draft.title}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }))
+              }
               required
               minLength={3}
               maxLength={160}
@@ -429,7 +511,19 @@ export function BusinessEventComposer({
 
           <label className="event-studio-big-field">
             <span>{es ? "Descripción" : "Description"}</span>
-            <textarea name="description" required minLength={20} rows={4} />
+            <textarea
+              name="description"
+              value={draft.description}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              required
+              minLength={20}
+              rows={4}
+            />
           </label>
 
           <div className="event-price-mode">
@@ -489,15 +583,48 @@ export function BusinessEventComposer({
             )}
             <label>
               {es ? "Enlace de reserva (opcional)" : "Booking link (optional)"}
-              <input name="bookingUrl" type="url" placeholder="https://" />
+              <input
+                name="bookingUrl"
+                value={draft.bookingUrl}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    bookingUrl: event.target.value,
+                  }))
+                }
+                type="url"
+                placeholder="https://"
+              />
             </label>
             <label>
               {es ? "Empieza" : "Starts"}
-              <input name="startsAt" type="datetime-local" required />
+              <input
+                name="startsAt"
+                value={draft.startsAt}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    startsAt: event.target.value,
+                  }))
+                }
+                type="datetime-local"
+                required
+              />
             </label>
             <label>
               {es ? "Termina" : "Ends"}
-              <input name="endsAt" type="datetime-local" required />
+              <input
+                name="endsAt"
+                value={draft.endsAt}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    endsAt: event.target.value,
+                  }))
+                }
+                type="datetime-local"
+                required
+              />
             </label>
           </div>
         </section>
@@ -513,7 +640,11 @@ export function BusinessEventComposer({
                 : "The button activates once required fields are complete."}
             </span>
           </div>
-          <button className="button primary event-studio-submit" type="submit">
+          <button
+            className="button primary event-studio-submit"
+            type="submit"
+            disabled={submitting}
+          >
             {es ? "Crear evento" : "Create event"}
           </button>
         </div>

@@ -21,8 +21,9 @@ import { PromotionRequestFields } from "@/components/PromotionRequestFields";
 import { Icon } from "@/components/Icons";
 import { ClaimVenuePicker } from "@/components/ClaimVenuePicker";
 import { BusinessHome } from "@/components/BusinessHome";
-import { akiSuiteCheckoutReady } from "@/lib/akisuite-readiness";
 import { BusinessGrowthOverview } from "@/components/BusinessGrowthOverview";
+import { AkiPulse } from "@/components/AkiPulse";
+import { pulsePeriod, pulseFromEvents } from "@/lib/akipulse";
 import {
   WorkspaceShell,
   type WorkspaceItem,
@@ -41,6 +42,11 @@ type ManagedVenue = {
     status: string;
     verified: boolean;
     discovery_vertical: string | null;
+    address?: string | null;
+    description_es?: string | null;
+    description_en?: string | null;
+    phone?: string | null;
+    website_url?: string | null;
   } | null;
 };
 
@@ -92,6 +98,7 @@ export default async function BusinessPage({
     "loyalty",
     "growth",
     "analytics",
+    "pulse",
     "claims",
   ].includes(query.view || "")
     ? query.view!
@@ -122,7 +129,9 @@ export default async function BusinessPage({
   ] = await Promise.all([
     supabase
       .from("venue_members")
-      .select("role,venues(id,name,slug,status,verified,discovery_vertical)")
+      .select(
+        "role,venues(id,name,slug,status,verified,discovery_vertical,address,description_es,description_en,phone,website_url)",
+      )
       .eq("profile_id", user.id),
     supabase.from("categories").select("id,name_es,name_en").order("name_es"),
     supabase
@@ -251,24 +260,73 @@ export default async function BusinessPage({
         (occurrence) => new Date(occurrence.ends_at).getTime() < now,
       ),
   );
-  const analytics =
-    view === "analytics" || view === "growth"
-      ? await Promise.all(
-          managed
-            .filter((item) => item.venues)
-            .map(async (item) => {
-              const venue = item.venues!;
+  const pulseEnabled = process.env.AKIPULSE_ENABLED === "true";
+  const pulseView = ["pulse", "growth", "analytics"].includes(view);
+  const days = pulsePeriod(query.days);
+  const availableLocations = managed.flatMap((item) =>
+    item.venues ? [item.venues] : [],
+  );
+  // Never use the query parameter to broaden the membership-derived resource set.
+  const selectedLocation = availableLocations.some(
+    (item) => item.id === query.location,
+  )
+    ? query.location!
+    : "all";
+  const scopedLocations = availableLocations.filter(
+    (item) => selectedLocation === "all" || item.id === selectedLocation,
+  );
+  const periodEnd = new Date();
+  const analytics = pulseView
+    ? await Promise.all(
+        (pulseEnabled ? scopedLocations.slice(0, 20) : scopedLocations).map(
+          async (venue) => {
+            if (!pulseEnabled) {
               const { data, error } = await supabase.rpc("venue_analytics", {
                 p_venue: venue.id,
               });
               return {
-                venue,
-                unavailable: Boolean(error),
-                rows: (data || []) as { action: string; total: number }[],
+                ...venue,
+                events: businessEvents.filter(
+                  (event) => event.venue_id === venue.id,
+                ).length,
+                metrics: error
+                  ? null
+                  : ((data || []) as { action: string; total: number }[]).map(
+                      (row) => ({
+                        action: row.action,
+                        current: Number(row.total),
+                        previous: 0,
+                      }),
+                    ),
               };
-            }),
-        )
-      : [];
+            }
+            const since = new Date(
+              periodEnd.getTime() - days * 2 * 86400000,
+            ).toISOString();
+            // RLS remains authoritative. Exact count detects provider response truncation.
+            // Indexed venue/time range, at most 1,000 returned rows per selected location.
+            const { data, error, count } = await supabase
+              .from("analytics_events")
+              .select("action,occurred_at", { count: "exact" })
+              .eq("venue_id", venue.id)
+              .gte("occurred_at", since)
+              .lt("occurred_at", periodEnd.toISOString())
+              .order("occurred_at")
+              .limit(1000);
+            return {
+              ...venue,
+              events: businessEvents.filter(
+                (event) => event.venue_id === venue.id,
+              ).length,
+              metrics:
+                error || count === null || count !== data?.length
+                  ? null
+                  : pulseFromEvents(data || [], days, periodEnd.getTime()),
+            };
+          },
+        ),
+      )
+    : [];
 
   const base = `/${locale}/business`;
   const items: WorkspaceItem[] = [
@@ -291,11 +349,10 @@ export default async function BusinessPage({
       count: redemptions?.length || undefined,
     },
     {
-      href: `${base}?view=growth`,
-      label: es ? "Promoción" : "Growth",
-      icon: "megaphone",
+      href: `${base}?view=pulse`,
+      label: pulseEnabled ? "AkiPulse" : es ? "Actividad" : "Activity",
+      icon: "activity",
     },
-    { href: `${base}?view=analytics`, label: "Analytics", icon: "activity" },
     {
       href: `/${locale}/account/subscription?from=akibusiness`,
       label: es ? "Membresías" : "Memberships",
@@ -309,25 +366,6 @@ export default async function BusinessPage({
       count: claims?.length || undefined,
     },
   ];
-  const premiumEnabled = akiSuiteCheckoutReady();
-  const premiumChecks =
-    view === "growth" &&
-    process.env.AKISUITE_FEATURES_READY === "true" &&
-    process.env.AKISUITE_SUBSCRIPTIONS_READY === "true"
-      ? await Promise.all(
-          managed
-            .filter((item) => item.venues)
-            .map(async (item) => {
-              const { data, error } = await supabase.rpc(
-                "akisuite_venue_premium",
-                { p_venue: item.venues!.id },
-              );
-              return !error && data === true;
-            }),
-        )
-      : [];
-  const premiumActive =
-    premiumChecks.length > 0 && premiumChecks.every(Boolean);
 
   return (
     <WorkspaceShell
@@ -837,42 +875,35 @@ export default async function BusinessPage({
           </section>
         )}
 
-        {view === "growth" && (
+        {pulseView && pulseEnabled && (
+          <AkiPulse
+            locale={locale}
+            locations={analytics}
+            days={days}
+            selectedLocation={selectedLocation}
+            availableLocations={availableLocations}
+            truncated={scopedLocations.length > 20}
+          />
+        )}
+
+        {pulseView && view !== "analytics" && !pulseEnabled && (
           <BusinessGrowthOverview
             locale={locale}
-            premiumEnabled={premiumEnabled}
-            premiumActive={Boolean(premiumActive)}
             events={businessEvents.length}
-            venues={managed
-              .filter((item) => item.venues)
-              .map((item) => {
-                const venue = item.venues!;
-                const result = analytics.find(
-                  (entry) => entry.venue.id === venue.id,
-                );
-                return {
-                  id: venue.id,
-                  name: venue.name,
-                  events: businessEvents.filter(
-                    (event) => event.venue_id === venue.id,
-                  ).length,
-                  interactions: result?.unavailable
-                    ? null
-                    : result?.rows.length
-                      ? result.rows.reduce(
-                          (total, row) => total + Number(row.total || 0),
-                          0,
-                        )
-                      : result
-                        ? 0
-                        : null,
-                };
-              })}
+            venues={analytics.map((item) => ({
+              id: item.id,
+              name: item.name,
+              events: item.events,
+              interactions:
+                item.metrics === null
+                  ? null
+                  : item.metrics.reduce((sum, row) => sum + row.current, 0),
+            }))}
           />
         )}
 
         {/* Growth & Promotion Requests */}
-        {view === "growth" && managed.length > 0 && (
+        {pulseView && managed.length > 0 && (
           <details className="panel catalogue-edit-card" open>
             <summary>
               <strong>
@@ -985,46 +1016,58 @@ export default async function BusinessPage({
 
         {/* Analytics View */}
         {view === "analytics" &&
-          analytics.map(({ venue, rows, unavailable }) => (
-            <section className="panel catalogue-edit-card" key={venue.id}>
-              <h2>
-                {venue.name} · {es ? "Últimos 30 días" : "Last 30 days"}
-              </h2>
+          !pulseEnabled &&
+          analytics.map((item) => {
+            const venue = item;
+            const unavailable = item.metrics === null;
+            const rows = (item.metrics || []).map((metric) => ({
+              action: metric.action,
+              total: metric.current,
+            }));
+            return (
+              <section className="panel catalogue-edit-card" key={venue.id}>
+                <h2>
+                  {venue.name} · {es ? "Últimos 30 días" : "Last 30 days"}
+                </h2>
 
-              {unavailable ? (
-                <div className="catalogue-empty-card" role="alert">
-                  <p>
-                    {es
-                      ? "No se pudieron cargar las analíticas de este local. No mostramos una actividad vacía hasta confirmar los datos."
-                      : "Analytics for this venue could not be loaded. An empty activity state is hidden until the data can be confirmed."}
-                  </p>
-                  <Link
-                    className="button secondary"
-                    href={`${base}?view=analytics`}
-                  >
-                    {es ? "Reintentar" : "Retry"}
-                  </Link>
-                </div>
-              ) : rows.length ? (
-                <div className="workspace-summary-grid">
-                  {rows.map((row) => (
-                    <article className="panel workspace-stat" key={row.action}>
-                      <span>{row.action.replaceAll("_", " ")}</span>
-                      <strong>{row.total}</strong>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="catalogue-empty-card">
-                  <p>
-                    {es
-                      ? "Aún no hay actividad o impresiones registradas en los últimos 30 días."
-                      : "No activity or impressions registered in the last 30 days yet."}
-                  </p>
-                </div>
-              )}
-            </section>
-          ))}
+                {unavailable ? (
+                  <div className="catalogue-empty-card" role="alert">
+                    <p>
+                      {es
+                        ? "No se pudieron cargar las analíticas de este local. No mostramos una actividad vacía hasta confirmar los datos."
+                        : "Analytics for this venue could not be loaded. An empty activity state is hidden until the data can be confirmed."}
+                    </p>
+                    <Link
+                      className="button secondary"
+                      href={`${base}?view=analytics`}
+                    >
+                      {es ? "Reintentar" : "Retry"}
+                    </Link>
+                  </div>
+                ) : rows.length ? (
+                  <div className="workspace-summary-grid">
+                    {rows.map((row) => (
+                      <article
+                        className="panel workspace-stat"
+                        key={row.action}
+                      >
+                        <span>{row.action.replaceAll("_", " ")}</span>
+                        <strong>{row.total}</strong>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="catalogue-empty-card">
+                    <p>
+                      {es
+                        ? "Aún no hay actividad o impresiones registradas en los últimos 30 días."
+                        : "No activity or impressions registered in the last 30 days yet."}
+                    </p>
+                  </div>
+                )}
+              </section>
+            );
+          })}
 
         {/* Claim Venue View */}
         {view === "claims" && (

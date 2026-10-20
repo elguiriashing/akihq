@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { config, isLocale } from "@/lib/config";
 import { requireUser } from "@/lib/auth";
@@ -243,12 +244,15 @@ const eventSchema = z.object({
   endsAt: madridLocalDateTimeSchema,
 });
 export async function createEvent(formData: FormData) {
+  const inline = formData.get("inline") === "1";
   const parsed = eventSchema.safeParse(Object.fromEntries(formData));
   const locale = isLocale(String(formData.get("locale")))
     ? (String(formData.get("locale")) as "es" | "en")
     : "es";
-  if (!parsed.success || parsed.data.endsAt <= parsed.data.startsAt)
+  if (!parsed.success || parsed.data.endsAt <= parsed.data.startsAt) {
+    if (inline) return { ok: false as const, error: "event" };
     redirect(`/${locale}/business?view=events&error=event`);
+  }
   const { supabase, user } = await requireBusinessAccess(locale);
   const e = parsed.data;
   let localized;
@@ -259,6 +263,7 @@ export async function createEvent(formData: FormData) {
       user.id,
     );
   } catch {
+    if (inline) return { ok: false as const, error: "translation" };
     redirect(`/${locale}/business?view=events&error=translation`);
   }
   const { data: venue } = await supabase
@@ -267,6 +272,7 @@ export async function createEvent(formData: FormData) {
     .eq("id", e.venueId)
     .maybeSingle();
   if (!venue || venue.slug === "akipasa-editorial") {
+    if (inline) return { ok: false as const, error: "event" };
     redirect(`/${locale}/business?view=events&error=event`);
   }
 
@@ -287,7 +293,14 @@ export async function createEvent(formData: FormData) {
       ends_at: e.endsAt.toISOString(),
     },
   );
-  if (error) redirect(`/${locale}/business?view=events&error=event`);
+  if (error) {
+    if (inline)
+      return {
+        ok: false as const,
+        error: error.code === "PT402" ? "listing-limit" : "event",
+      };
+    redirect(`/${locale}/business?view=events&error=event`);
+  }
   if (typeof eventId === "string") {
     const requestedSlots = [
       ["event_banner", e.bannerMediaId],
@@ -344,6 +357,10 @@ export async function createEvent(formData: FormData) {
         requesterId: user.id,
       });
     }
+  }
+  if (inline) {
+    revalidatePath(`/${locale}/business`);
+    return { ok: true as const };
   }
   redirect(`/${locale}/business?view=events&created=event`);
 }

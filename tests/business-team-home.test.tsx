@@ -19,6 +19,7 @@ vi.mock("../src/app/[locale]/business/actions", () => ({
   saveLoyaltyProgram: vi.fn(),
   submitVenueClaim: vi.fn(),
 }));
+import { AkiPulse } from "../src/components/AkiPulse";
 import BusinessPage from "../src/app/[locale]/business/page";
 import { BusinessHome } from "../src/components/BusinessHome";
 function homeProps(node: ReactNode): Record<string, unknown> | undefined {
@@ -262,4 +263,75 @@ describe("team member's real business page loader", () => {
       ).toBeDefined();
     },
   );
+  it("uses only a member location and rejects incomplete provider data when Pulse is enabled", async () => {
+    vi.stubEnv("AKIPULSE_ENABLED", "true");
+    const reads: unknown[] = [];
+    const venue = {
+      id: "owned",
+      name: "Owned venue",
+      slug: "owned",
+      status: "published",
+      verified: true,
+      discovery_vertical: "activities",
+    };
+    const supabase = {
+      from: (table: string) => {
+        const result = {
+          data:
+            table === "profiles"
+              ? { app_role: "consumer" }
+              : table === "venue_members"
+                ? [{ role: "owner", venues: venue }]
+                : [],
+          error: null,
+          count: table === "analytics_events" ? 1001 : 0,
+        };
+        const query = {
+          select: () => query,
+          eq: (key: string, value: string) => {
+            reads.push([table, key, value]);
+            return query;
+          },
+          in: () => query,
+          order: () => query,
+          gte: () => query,
+          lt: () => query,
+          limit: () => query,
+          maybeSingle: async () => result,
+          then: (resolve: (value: unknown) => unknown) =>
+            Promise.resolve(result).then(resolve),
+        };
+        return query;
+      },
+      rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
+    };
+    mocks.requireUser.mockResolvedValue({ supabase, user: { id: "owner" } });
+    try {
+      const result = await BusinessPage({
+        params: Promise.resolve({ locale: "en" }),
+        searchParams: Promise.resolve({
+          view: "pulse",
+          location: "other-owner",
+          days: "365",
+        }),
+      });
+      const pulse = elements(result).find(
+        (element) => element.type === AkiPulse,
+      );
+      expect(pulse).toBeDefined();
+      expect(pulse?.props).toMatchObject({
+        days: 30,
+        selectedLocation: "all",
+        locations: [{ id: "owned", metrics: null }],
+      });
+      expect(reads).toContainEqual(["analytics_events", "venue_id", "owned"]);
+      expect(reads).not.toContainEqual([
+        "analytics_events",
+        "venue_id",
+        "other-owner",
+      ]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
