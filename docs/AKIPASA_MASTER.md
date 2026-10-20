@@ -1128,6 +1128,16 @@ database row, role, subscription or cross-product cookie changes. Rollback is a
 source revert. Production OAuth initiation and exact callback destinations require
 post-deploy EN/ES verification; completing a real provider login remains separate.
 
+## 2026-10-20 | Analytics table privilege repair candidate
+
+Standalone migration20261020173020 removes browser/PUBLIC table capabilities from
+analytics_events and restores only authenticated SELECT under unchanged tenant/
+admin RLS. Secured SECURITY DEFINER ingestion and existing service privileges remain.
+No rows, consent state, policy or function are changed. Four real-role local SQL
+tests reproduce the old TRUNCATE bypass and verify the repaired capability matrix,
+tenant isolation and recording compatibility. See ANALYTICS_EVENT_PRIVILEGES.md.
+Hosted acceptance and actual migration remain unclaimed release gates.
+
 ## 2026-10-20 | Explicit cross-product language contract
 
 AkiSuite selectors and management/operations handoffs now retain EN/ES using
