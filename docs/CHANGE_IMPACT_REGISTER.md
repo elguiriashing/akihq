@@ -1683,3 +1683,14 @@ HQ-specific organisation, rental and authentication actions remain. Strict flag
 stays false until two-product Storage acceptance. No shared migration is applied
 from HQ; no live settings, billing or retained media changed. Runbook:
 ENFORCED_LISTING_UPLOADS.md.
+
+## 2026-10-20 | Gated AkiPulse scoped booking aggregates
+
+Owner: independent AkiHQ source. Adds bounded management-authorised booking-created
+cohorts and current inventory for venue/property/fleet/org scopes. Requires shared
+read-only RPC migration20261020180504 and explicit rollout flag, defaults off.
+No paid entitlement, booking mutation, identity, billing or routing change.
+Cross-app booking sources retain original IDs and ownership. Unknown commercial
+attribution and organisation links remain unavailable. SQL/UI regressions cover
+cross-tenant denial, revocation, scope fanout, cohort boundaries and missing data.
+Production/authenticated preview and realistic query plans are not yet verified.

@@ -58,6 +58,8 @@ jobs:
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
           node --input-type=module -e 'for (let i=0;i<60;i++){try{const r=await fetch("http://127.0.0.1:3013/api/health");if(r.ok)process.exit(0)}catch{}await new Promise(r=>setTimeout(r,1000))}process.exit(1)'
           npm run test:e2e
+      - name: Scoped Pulse component acceptance
+        run: npm run test:e2e:pulse-scoped
       - name: Disposable authenticated management acceptance
         run: npm run test:e2e:management
       - uses: actions/upload-artifact@v4
@@ -68,3 +70,4 @@ jobs:
             .wrangler/dry-run
             test-results/business
             test-results/independent-management
+            test-results/akipulse-scoped
