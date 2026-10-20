@@ -14,9 +14,11 @@ import {
   parseBookingInbox,
 } from "@/lib/business-booking-inbox";
 import {
-  listingImageDimensions,
-  listingImagePolicy,
-} from "@/lib/listing-image-policy";
+  storeListingUpload,
+  discardListingUpload,
+  ListingUploadError,
+  type StoredListingUpload,
+} from "@/lib/listing-upload";
 import { authorizedSuiteMedia } from "@/lib/akisuite-media";
 import { requireBusinessAccess } from "@/lib/entitlements";
 import { safeExternalUrlSchema } from "@/lib/auth-security";
@@ -895,29 +897,6 @@ export async function uploadVenueImage(formData: FormData) {
     redirect(destination(locale, venueId, "error=media"));
   }
   const { supabase, user } = await requireBusinessAccess(locale);
-  if (process.env.AKISUITE_LISTING_RESOLUTION_READY === "true") {
-    const { data: limitInfo, error: entitlementError } = await supabase.rpc(
-      "listing_limits_info",
-      { p_venue: venueId },
-    );
-    const dimensions = listingImageDimensions(
-      new Uint8Array(await file.arrayBuffer()),
-      file.type,
-    );
-    const policy = listingImagePolicy(limitInfo?.premium === true);
-    if (
-      entitlementError ||
-      !dimensions ||
-      Math.max(dimensions.width, dimensions.height) > policy.maxDimension
-    ) {
-      if (inline)
-        return {
-          ok: false as const,
-          error: entitlementError ? "unavailable" : "resolution",
-        };
-      redirect(destination(locale, venueId, "error=media"));
-    }
-  }
   let localizedAlt;
   try {
     localizedAlt = (
@@ -927,15 +906,18 @@ export async function uploadVenueImage(formData: FormData) {
     if (inline) return { ok: false as const, error: "translation" };
     redirect(destination(locale, venueId, "error=translation"));
   }
-  const extension = file.type.split("/")[1].replace("jpeg", "jpg");
-  const path = `${parsed.data.venueId}/${crypto.randomUUID()}.${extension}`;
-  const { error: uploadError } = await supabase.storage
-    .from("event-media")
-    .upload(path, file, { contentType: file.type, upsert: false });
-  if (uploadError) {
-    if (inline) return { ok: false as const, error: "storage" };
+  let stored: StoredListingUpload;
+  try {
+    stored = await storeListingUpload(supabase, parsed.data.venueId, file);
+  } catch (error) {
+    if (inline)
+      return {
+        ok: false as const,
+        error: error instanceof ListingUploadError ? error.code : "unavailable",
+      };
     redirect(destination(locale, venueId, "error=media"));
   }
+  const path = stored.path;
   const mediaId = crypto.randomUUID();
   const { error } = await supabase.from("venue_media").insert({
     id: mediaId,
@@ -949,7 +931,7 @@ export async function uploadVenueImage(formData: FormData) {
     created_by: user.id,
   });
   if (error) {
-    await supabase.storage.from("event-media").remove([path]);
+    await discardListingUpload(supabase, stored);
     if (inline)
       return {
         ok: false as const,
@@ -2513,16 +2495,23 @@ export async function uploadEventImage(formData: FormData) {
   const localizedAlt = (
     await translateLocalizedFields(locale, { alt: parsed.data.alt }, user.id)
   ).alt;
-  const extension = file.type.split("/")[1].replace("jpeg", "jpg");
-  const storagePath = `${parsed.data.venueId}/events/${parsed.data.eventId}/${crypto.randomUUID()}.${extension}`;
-  const { error: uploadError } = await supabase.storage
-    .from("event-media")
-    .upload(storagePath, file, { contentType: file.type, upsert: false });
-  if (uploadError) {
-    if (inline) return { ok: false as const, error: "media" };
+  let stored: StoredListingUpload;
+  try {
+    stored = await storeListingUpload(
+      supabase,
+      parsed.data.venueId,
+      file,
+      parsed.data.eventId,
+    );
+  } catch (error) {
+    if (inline)
+      return {
+        ok: false as const,
+        error: error instanceof ListingUploadError ? error.code : "unavailable",
+      };
     redirect(destination(locale, venueId, "error=media"));
   }
-
+  const storagePath = stored.path;
   const mediaId = crypto.randomUUID();
   const { error: mediaError } = await supabase.from("venue_media").insert({
     id: mediaId,
@@ -2536,7 +2525,7 @@ export async function uploadEventImage(formData: FormData) {
     created_by: user.id,
   });
   if (mediaError) {
-    await supabase.storage.from("event-media").remove([storagePath]);
+    await discardListingUpload(supabase, stored);
     if (inline) return { ok: false as const, error: "media" };
     redirect(destination(locale, venueId, "error=media"));
   }

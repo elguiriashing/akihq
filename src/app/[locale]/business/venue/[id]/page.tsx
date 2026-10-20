@@ -957,6 +957,7 @@ export default async function VenueWorkspace({
                     </div>
                     <div className="event-editor">
                       <BusinessEventEditPanel
+                        listingPremium={listingLimitsEnabled ? listingPremium : undefined}
                         locale={locale}
                         venueId={id}
                         verifiedVenue={venue.verified === true}

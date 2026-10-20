@@ -1138,3 +1138,12 @@ Inline event errors preserve controlled drafts. Listing Premium handoffs target
 AkiPasa's actual subscription hub with current EN/ES; paid AkiBusiness operations
 remain separate. Resolution groundwork stays independently gated/off pending
 trusted processing and direct-Storage closure. No scheduler/migration is added here.
+
+### Reserved listing uploads (2026-10-20)
+
+HQ venue/event image actions consume the shared server reservation contract,
+validate actual dimensions/digest, perform service upload/readback, then insert
+media with the authenticated member session. Shared migration173552 belongs to
+AkiPasa, defaults strictfalse, and requires both deployed products plus actual
+Storage acceptance before activation. See ENFORCED_LISTING_UPLOADS.md. Existing
+independent property uploader remains gated until its actual schema exists.

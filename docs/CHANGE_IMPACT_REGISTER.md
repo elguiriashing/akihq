@@ -1632,3 +1632,12 @@ Current-head hosted CI/Cloudflare/owner/browser acceptance remain release gates.
 No production mutation or activation. Keep AKISUITE_LISTING_RESOLUTION_READY off:
 header validation/browser preparation do not close direct Storage bypass. Rollback
 source/UI flag only; preserve all media/events/customer billing and shared ledger.
+
+## 2026-10-20: Reserved image upload consumer
+
+HQ mirrors AkiPasa's byte-inspected service upload, quota reservation, readback
+verification and authenticated one-use receipt for venue/event images. Existing
+HQ-specific organisation, rental and authentication actions remain. Strict flag
+stays false until two-product Storage acceptance. No shared migration is applied
+from HQ; no live settings, billing or retained media changed. Runbook:
+ENFORCED_LISTING_UPLOADS.md.
