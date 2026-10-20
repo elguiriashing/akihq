@@ -1,4 +1,8 @@
 "use server";
+import {
+  accountFeaturesAllowed,
+  accountCompletionUrl,
+} from "@/lib/account-eligibility";
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -141,7 +145,11 @@ export async function signUpWithPassword(formData: FormData) {
     redirect(
       await authReturnUrl(locale, "signup", formData, { error: "signup" }),
     );
-  if (data.session) redirect(next);
+  if (data.session) {
+    if (!(await accountFeaturesAllowed(supabase)))
+      redirect(accountCompletionUrl(locale));
+    redirect(next);
+  }
   redirect(
     await authReturnUrl(locale, "signup", formData, { registered: "1" }),
   );
@@ -175,6 +183,8 @@ export async function signInWithPassword(formData: FormData) {
     redirect(
       await authReturnUrl(locale, "signin", formData, { error: "signin" }),
     );
+  if (!(await accountFeaturesAllowed(supabase)))
+    redirect(accountCompletionUrl(locale));
   redirect(next);
 }
 

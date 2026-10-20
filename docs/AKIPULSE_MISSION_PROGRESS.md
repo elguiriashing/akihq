@@ -29,3 +29,21 @@ Category-specific workflow previews and current-consent GA4 CTA signals are impl
 - AkiDuermo PR#23 source75de5f965a0deff416c604b9954ae8bcfc08cd1b.209 full tests, lint, typecheck and Next build pass.
 - AkiCoches PR#27 source4f693e315c9394be785d7d58ea5fd2f6a2e3777e. Five pathway tests, lint and typecheck pass. Exact-head hosted full checks pending.
 - No PR merged, flag activated or production deployment performed by this workstream.
+
+## Integrated release checkpoint — 20 October 2026
+
+PR50 now incorporates current main, listing compatibility52, shared eligibility53,
+least-privilege security54 and strict upload consumer56. Source tests pass278 cases
+plus23 navigation cases; the optimized product build passes. AkiPulse browser
+fixtures pass16 viewport/language/theme combinations including unavailable data.
+Hosted checks on the integrated commit remain required before merge.
+
+Security PR54 merged as7139cd55e9ba0868ce11b857dbab9e693f609b61. The targeted
+analytics_events privilege migration was applied to the verified shared project.
+Post-application checks confirm anonymous capabilities absent, authenticated SELECT
+only with tenant RLS enabled, service capabilities preserved and251 retained rows.
+The other feature migrations and activation switches remain unapplied/off.
+
+Discovery integrations are merged: Duermo25 asddbc2c4ccddc42380624bb258a86e2d306ef69b5
+and Coches29 asb0828fe58a16bd5fa77207d71c49494453956af7. Exact production deployment
+and authenticated acceptance remain distinct verification gates.

@@ -1613,6 +1613,34 @@ back presentation without deleting legitimate companies or mappings.
 - **Dependencies:** AkiHQ EN/ES sign-in, signup, magic link, recovery, Google OAuth initiation and password recovery continuity. Server actions, Supabase Auth, callback exchange, terms, host-scoped sessions and global post-reset revocation are unchanged. No database, role, identity, email send, subscription, billing or Cloudflare configuration mutation.
 - **Evidence/rollback:** product-routing regression asserts the rendered source cannot reintroduce raw `query.next` serialization alongside the existing destination/callback cases. Run format, lint, types, complete tests, Next/OpenNext builds, browser auth-mode navigation and exact-source production smoke. Roll back with an application-source revert; no data restoration is required. A real provider account login and real recovery email remain separate acceptance gates.
 
+## 2026-10-20 | Shared account eligibility candidate
+
+Adds the AkiPasa-owned caller-only completion contract to local member/auth guards
+and supported customer API/optional tracking boundaries. Server-only readiness
+defaults off; existing accounts and RLS remain unchanged. Pending/negative state
+hands off to same-language canonical completion without cross-domain credentials.
+No cohort/schema/billing/role/production setting changes. See
+`SHARED_ACCOUNT_ELIGIBILITY.md` for coverage, central privacy safety, no seamless
+resume limitation, release gates and non-destructive rollback. Local guard tests
+are regression evidence, not authenticated five-domain acceptance.
+
+## 2026-10-20 | Narrow analytics_events table capabilities
+
+Read-only hosted evidence: anon/authenticated held all seven table capabilities;
+existing analytics_operator_read SELECT policy was tenant/admin scoped. Source
+callers were traced through the same-origin analytics API's service-only checked
+RPC, behavior ingestion, signed-in legacy definer recording, tenant reads and
+privileged AI/reporting service reads. No anonymous direct table reader is needed.
+
+Targeted mirrored migration20261020173020 revokes ALL from PUBLIC/anon/authenticated,
+restores authenticated SELECT and preserves original RLS/function/service grants.
+No data deletion or broad default-privilege edit. Four PGlite tests use actual
+historical source SQL/roles to reproduce local RLS-bypassing TRUNCATE before repair,
+then assert direct capability denial, own/foreign/admin reads and service/legacy
+recording compatibility. Test is included in npm test. Scoped TypeScript/lint and
+hosted CI precede selective application; no live mutation occurred. Rollback must
+never restore broad ALL/TRUNCATE; resolve any overlooked caller with a narrow RPC.
+
 ## 2026-10-20 | Suite language and canonical handoffs
 
 - Before: management/operations selector destinations omitted language; operations
@@ -1626,3 +1654,32 @@ back presentation without deleting legitimate companies or mappings.
 - Verification: fixed-origin/security matrix and actual selector EN/ES rendering;
   complete CI/build, responsive browsers and canonical authenticated journeys
   remain required. Source/deployment rollback preserves all stored data.
+
+## 2026-10-20 | Owner listing allowance compatibility
+
+Traced AkiHQ business event composer/action, venue and venue-backed accommodation
+media, same-origin upload API, SafeMediaFileInput, legacy recurrence/duplication,
+AkiPasa subscription handoff and shared database guards. Mirrored source changes
+from AkiPasa PR215 without overwriting HQ-specific organisation/auth/rental work.
+Event drafts retain controlled fields on quota/provider rejection; owner image
+counts/upgrade controls use independent listing readiness. Billing links remain
+central at akipasa.com and preserve EN/ES. Shared migration is owned by AkiPasa;
+this app owns no new schema, scheduler or billing webhook. Existing independent
+accommodation media API is separately gated on absent live property tables;
+its future schema needs its own quota guard and is not claimed covered here.
+
+Tests:4 image-policy and3 EN/ES/provider draft cases added to npm test; related
+business workspace/venue regressions, TypeScript and scoped lint are required.
+Current-head hosted CI/Cloudflare/owner/browser acceptance remain release gates.
+No production mutation or activation. Keep AKISUITE_LISTING_RESOLUTION_READY off:
+header validation/browser preparation do not close direct Storage bypass. Rollback
+source/UI flag only; preserve all media/events/customer billing and shared ledger.
+
+## 2026-10-20: Reserved image upload consumer
+
+HQ mirrors AkiPasa's byte-inspected service upload, quota reservation, readback
+verification and authenticated one-use receipt for venue/event images. Existing
+HQ-specific organisation, rental and authentication actions remain. Strict flag
+stays false until two-product Storage acceptance. No shared migration is applied
+from HQ; no live settings, billing or retained media changed. Runbook:
+ENFORCED_LISTING_UPLOADS.md.

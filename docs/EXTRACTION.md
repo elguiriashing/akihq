@@ -105,6 +105,26 @@ before release. Rollback: revert app code; keep the compatible additive RPC, or
 revoke/drop that function in a reviewed forward migration. Never unlink records
 or drop customer data as rollback.
 
+## 2026-10-20 | Gated shared account eligibility
+
+The server member guard reads AkiPasa's caller-only onboarding contract after
+`AKISUITE_ONBOARDING_SCHEMA_READY` activation. Pending/negative declarations
+redirect to the canonical same-language AkiPasa completion page. Separate domains
+retain host-only sessions; that destination may request sign-in with the same
+identity. No JWT, password, PKCE code or arbitrary return URL crosses products.
+The shared database state takes effect on the next guarded request without client
+cache authority. Existing accounts remain exempt. No schema, cohort activation,
+terms version, subscription, ownership or routing setting changes here.
+
+Native customer booking/saved API routes deny restricted accounts after identity
+validation where present. The shared AkiPasa migration owns covered legacy mutation
+guards. All remaining privileged endpoints and safety flows require joint
+acceptance before enrolment activation. Completion currently returns to AkiPasa;
+the user can switch products afterwards. This explicit central handoff avoids a
+local completion redirect loop, but seamless authenticated cross-product resume
+remains a separately gated enhancement. Legal, export, deletion and sign-out
+remain reachable on AkiPasa's separate safety route.
+
 ## 2026-10-20 | Explicit cross-product language contract
 
 AkiSuite selectors and management/operations handoffs now retain EN/ES using

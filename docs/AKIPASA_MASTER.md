@@ -1153,6 +1153,16 @@ exact-source production package. This change neither grants operational analytic
 nor changes subscriptions, data, RLS, consent capture or shared production schema.
 Rollback: disable `AKIPULSE_ENABLED`, or revert the application commit.
 
+## 2026-10-20 | Analytics table privilege repair candidate
+
+Standalone migration20261020173020 removes browser/PUBLIC table capabilities from
+analytics_events and restores only authenticated SELECT under unchanged tenant/
+admin RLS. Secured SECURITY DEFINER ingestion and existing service privileges remain.
+No rows, consent state, policy or function are changed. Four real-role local SQL
+tests reproduce the old TRUNCATE bypass and verify the repaired capability matrix,
+tenant isolation and recording compatibility. See ANALYTICS_EVENT_PRIVILEGES.md.
+Hosted acceptance and actual migration remain unclaimed release gates.
+
 ## 2026-10-20 | Explicit cross-product language contract
 
 AkiSuite selectors and management/operations handoffs now retain EN/ES using
@@ -1164,3 +1174,23 @@ code. No auth token or account identity crosses domains in links. Existing
 server membership checks remain authoritative. Focused tests pass; complete
 CI/build and canonical authenticated acceptance remain release gates. See
 `docs/SUITE_NAVIGATION_V1.md`. No schema, billing or customer data changes.
+
+## 2026-10-20 | Listing allowance owner compatibility
+
+AkiHQ mirrors the bounded event/media owner changes from AkiPasa PR215. Database
+ownership stays in AkiPasa's standalone migration20261020170415, with its own
+private default-closed gate, not the old Premium migration. Owner quota UI uses
+AKISUITE_LISTING_LIMITS_READY and confirms listing_limits_info before showing8/250.
+Inline event errors preserve controlled drafts. Listing Premium handoffs target
+AkiPasa's actual subscription hub with current EN/ES; paid AkiBusiness operations
+remain separate. Resolution groundwork stays independently gated/off pending
+trusted processing and direct-Storage closure. No scheduler/migration is added here.
+
+### Reserved listing uploads (2026-10-20)
+
+HQ venue/event image actions consume the shared server reservation contract,
+validate actual dimensions/digest, perform service upload/readback, then insert
+media with the authenticated member session. Shared migration173552 belongs to
+AkiPasa, defaults strictfalse, and requires both deployed products plus actual
+Storage acceptance before activation. See ENFORCED_LISTING_UPLOADS.md. Existing
+independent property uploader remains gated until its actual schema exists.

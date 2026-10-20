@@ -72,6 +72,7 @@ export function BusinessEventEditPanel({
   locale,
   venueId,
   verifiedVenue = false,
+  listingPremium,
   event,
   media,
   venueMediaIds = [],
@@ -87,6 +88,7 @@ export function BusinessEventEditPanel({
   locale: "es" | "en";
   venueId: string;
   verifiedVenue?: boolean;
+  listingPremium?: boolean;
   event: {
     id: string;
     title: string;
@@ -138,6 +140,7 @@ export function BusinessEventEditPanel({
   const [mediaState, setMediaState] = useState<
     "idle" | "working" | "saved" | "error"
   >("idle");
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{
     done: number;
     total: number;
@@ -238,6 +241,7 @@ export function BusinessEventEditPanel({
     setMediaState("working");
     setUploadProgress({ done: 0, total: files.length });
 
+    setMediaError(null);
     const uploaded: MediaOption[] = [];
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
@@ -264,6 +268,22 @@ export function BusinessEventEditPanel({
 
       const result = await uploadEventImage(formData);
       if (!result?.ok || !result.media?.url) {
+        const reason = result?.error;
+        setMediaError(
+          reason === "resolution"
+            ? es
+              ? `La imagen debe medir como máximo ${listingPremium ? 3840 : 1920} píxeles por lado.`
+              : `Images must be at most ${listingPremium ? 3840 : 1920} pixels per side.`
+            : reason === "quota"
+              ? es
+                ? "Has alcanzado el límite de imágenes de esta ficha. Se conservan las imágenes y los cambios del evento."
+                : "This listing has reached its image allowance. Existing images and event changes are preserved."
+              : reason === "invalid-file"
+                ? es
+                  ? "Selecciona una imagen estática JPEG, PNG o WebP válida de hasta10MiB."
+                  : "Select a valid static JPEG, PNG or WebP image up to10MiB."
+                : null,
+        );
         setMediaState("error");
         setUploadProgress(null);
         return;
@@ -765,6 +785,7 @@ export function BusinessEventEditPanel({
               <label>
                 {es ? "Subir imágenes / PDF" : "Upload images / PDFs"}
                 <SafeMediaFileInput
+                  listingPremium={listingPremium}
                   locale={locale}
                   name="image"
                   required
@@ -810,9 +831,10 @@ export function BusinessEventEditPanel({
                   ? "Multimedia actualizada."
                   : "Media updated."
                 : mediaState === "error"
-                  ? es
-                    ? "No se pudo actualizar la multimedia."
-                    : "Could not update media."
+                  ? (mediaError ??
+                    (es
+                      ? "No se pudo actualizar la multimedia."
+                      : "Could not update media."))
                   : ""}
             </p>
 
