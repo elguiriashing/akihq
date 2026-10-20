@@ -12,14 +12,10 @@ export function BusinessGrowthOverview({
   locale,
   venues,
   events,
-  premiumEnabled = false,
-  premiumActive = false,
 }: {
   locale: "en" | "es";
   venues: GrowthVenue[];
   events: number;
-  premiumEnabled?: boolean;
-  premiumActive?: boolean;
 }) {
   const es = locale === "es";
   const base = `/${locale}/business`;
@@ -122,42 +118,18 @@ export function BusinessGrowthOverview({
             </Link>
           </div>
           <div className={styles.future}>
-            <span className={styles.pill}>
-              {premiumActive
-                ? es
-                  ? "Premium activo"
-                  : "Premium active"
-                : premiumEnabled
-                  ? es
-                    ? "Plan Premium"
-                    : "Premium plan"
-                  : es
-                    ? "Próximamente"
-                    : "Coming later"}
-            </span>
-            <h4>AkiBusiness Premium · €14.99/{es ? "mes" : "month"}</h4>
+            <h4>AkiBusiness</h4>
             <p>
-              {premiumEnabled
-                ? es
-                  ? "Automatiza eventos, reutiliza contenido y consigue información avanzada."
-                  : "Automate events, reuse content and unlock advanced insights."
-                : es
-                  ? "Repetición automática de eventos, plantillas, biblioteca ampliada y análisis detallados. Todavía no se puede contratar."
-                  : "Automatic event recurrence, templates, expanded media and detailed insights. Checkout is not available yet."}
-            </p>
-            {!premiumActive && (
-              <Link
-                className="button button-strong"
-                href={`/${locale}/account/subscription?from=akibusiness`}
-              >
-                {es ? "Ver AkiBusiness Premium" : "Explore AkiBusiness Premium"}
-              </Link>
-            )}
-            <p className={styles.fine}>
               {es
-                ? "20 % de descuento anual. Sin promesas de posición en Google."
-                : "20% annual discount. No Google ranking guarantees."}
+                ? "Tu espacio de operaciones: TPV, inventario, clientes y personal según las herramientas y permisos activos. La gestión básica de tus fichas sigue siendo gratuita en AkiHQ."
+                : "Your operations workspace: PoS, inventory, customers and staff according to active tools and permissions. Basic listing management remains free in AkiHQ."}
             </p>
+            <a
+              className="button secondary"
+              href={`https://akibusiness.com/?locale=${locale}`}
+            >
+              {es ? "Abrir AkiBusiness" : "Open AkiBusiness"}
+            </a>
           </div>
         </div>
       </div>
