@@ -1,3 +1,4 @@
+import { suiteAccountCompletionUrl } from "./account-task-resume";
 import type { SupabaseClient } from "@supabase/supabase-js";
 /** Shared contract: AkiPasa PR #212 owns schema and completion. No local cohort. */
 export async function accountFeaturesAllowed(
@@ -13,7 +14,9 @@ export async function accountFeaturesAllowed(
   return data.status === "complete" || data.status === "exempt";
 }
 /** Canonical completion uses a separate host-local session. Never pass JWTs/PKCE. */
-export function accountCompletionUrl(locale: "en" | "es") {
+export function accountCompletionUrl(locale: "en" | "es", requested?: string) {
+  if (requested !== undefined)
+    return suiteAccountCompletionUrl("hq", locale, requested);
   return `https://akipasa.com/${locale}/onboarding`;
 }
 

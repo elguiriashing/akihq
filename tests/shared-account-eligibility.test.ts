@@ -100,3 +100,14 @@ it("does not confuse an existing underage demographic with loss of account acces
   expect(await accountFeaturesAllowed(db)).toBe(true);
   expect(await accountTrackingAllowed(db, "self")).toBe(false);
 });
+
+it("retains the exact allowlisted task in the fixed central completion envelope", () => {
+  const completion = new URL(
+    accountCompletionUrl("en", "/account?next=https://evil.test&token=secret"),
+  );
+  const next = completion.searchParams.get("next")!;
+  expect(completion.origin).toBe("https://akipasa.com");
+  expect(next).toContain("/en/account-resume?");
+  expect(next).not.toContain("evil");
+  expect(next).not.toContain("secret");
+});
