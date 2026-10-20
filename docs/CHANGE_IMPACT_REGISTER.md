@@ -1623,3 +1623,17 @@ No cohort/schema/billing/role/production setting changes. See
 `SHARED_ACCOUNT_ELIGIBILITY.md` for coverage, central privacy safety, no seamless
 resume limitation, release gates and non-destructive rollback. Local guard tests
 are regression evidence, not authenticated five-domain acceptance.
+
+## 2026-10-20 | Suite language and canonical handoffs
+
+- Before: management/operations selector destinations omitted language; operations
+  ignored incoming locale and could reload a workspace's previous language.
+- After: fixed-origin suite-navigation v1 preserves the current EN/ES across all
+  five products. Canonical free-management and paid-operations roles are retained.
+- Dependencies: desktop/mobile selectors, locale headers, static workspace cache,
+  membership back links, auth portal links and explicit location handoffs. Public
+  referral codes are bounded; callback/redirect wrappers and credentials are not
+  forwarded. No DB/API/RLS, subscription, consent or analytics behavior changes.
+- Verification: fixed-origin/security matrix and actual selector EN/ES rendering;
+  complete CI/build, responsive browsers and canonical authenticated journeys
+  remain required. Source/deployment rollback preserves all stored data.
