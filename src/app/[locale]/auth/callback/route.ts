@@ -1,3 +1,7 @@
+import {
+  accountFeaturesAllowed,
+  accountCompletionUrl,
+} from "@/lib/account-eligibility";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { config, isLocale } from "@/lib/config";
@@ -50,6 +54,11 @@ export async function GET(
         }
         cookieStore.delete("akipasa_terms_ack");
       }
+      if (
+        !/^\/(en|es)\/auth\/recover(?:\?|$)/.test(next) &&
+        !(await accountFeaturesAllowed(supabase))
+      )
+        return NextResponse.redirect(accountCompletionUrl(safeLocale));
       return NextResponse.redirect(new URL(next, publicOrigin));
     }
   }

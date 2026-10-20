@@ -1,3 +1,4 @@
+import { accountFeaturesAllowed } from "@/lib/account-eligibility";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -25,11 +26,12 @@ export async function POST(request: Request) {
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
     if (auth.user) {
+      const allowed = await accountFeaturesAllowed(supabase);
       const { error } = await supabase.from("personalisation_settings").upsert({
         profile_id: auth.user.id,
-        analytics_enabled: parsed.data.analytics,
-        personalisation_enabled: parsed.data.personalisation,
-        marketing_enabled: parsed.data.marketing,
+        analytics_enabled: allowed && parsed.data.analytics,
+        personalisation_enabled: allowed && parsed.data.personalisation,
+        marketing_enabled: allowed && parsed.data.marketing,
         updated_at: new Date().toISOString(),
       });
       if (error)

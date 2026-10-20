@@ -1612,3 +1612,14 @@ back presentation without deleting legitimate companies or mappings.
 - **Change:** mode links now serialize the already sanitized `next` value. Valid locale-scoped management and recovery tasks are preserved; external, protocol-relative, encoded-path and backslash values become the locale business-home fallback before appearing in the next auth URL.
 - **Dependencies:** AkiHQ EN/ES sign-in, signup, magic link, recovery, Google OAuth initiation and password recovery continuity. Server actions, Supabase Auth, callback exchange, terms, host-scoped sessions and global post-reset revocation are unchanged. No database, role, identity, email send, subscription, billing or Cloudflare configuration mutation.
 - **Evidence/rollback:** product-routing regression asserts the rendered source cannot reintroduce raw `query.next` serialization alongside the existing destination/callback cases. Run format, lint, types, complete tests, Next/OpenNext builds, browser auth-mode navigation and exact-source production smoke. Roll back with an application-source revert; no data restoration is required. A real provider account login and real recovery email remain separate acceptance gates.
+
+## 2026-10-20 | Shared account eligibility candidate
+
+Adds the AkiPasa-owned caller-only completion contract to local member/auth guards
+and supported customer API/optional tracking boundaries. Server-only readiness
+defaults off; existing accounts and RLS remain unchanged. Pending/negative state
+hands off to same-language canonical completion without cross-domain credentials.
+No cohort/schema/billing/role/production setting changes. See
+`SHARED_ACCOUNT_ELIGIBILITY.md` for coverage, central privacy safety, no seamless
+resume limitation, release gates and non-destructive rollback. Local guard tests
+are regression evidence, not authenticated five-domain acceptance.

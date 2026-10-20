@@ -1,3 +1,7 @@
+import {
+  accountFeaturesAllowed,
+  accountCompletionUrl,
+} from "./account-eligibility";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { config, type Locale } from "./config";
@@ -24,6 +28,8 @@ export async function requireUser(locale: Locale, next = `/${locale}/account`) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/auth?next=${encodeURIComponent(next)}`);
+  if (!(await accountFeaturesAllowed(supabase)))
+    redirect(accountCompletionUrl(locale));
   const { data: profile } = await supabase
     .from("profiles")
     .select("terms_version")
