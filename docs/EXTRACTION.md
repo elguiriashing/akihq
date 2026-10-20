@@ -104,3 +104,15 @@ CI, clean Cloudflare packaging and authenticated preview acceptance are required
 before release. Rollback: revert app code; keep the compatible additive RPC, or
 revoke/drop that function in a reviewed forward migration. Never unlink records
 or drop customer data as rollback.
+
+## 2026-10-20 | Explicit cross-product language contract
+
+AkiSuite selectors and management/operations handoffs now retain EN/ES using
+canonical product-specific route formats. AkiHQ remains free management;
+AkiBusiness remains paid operations. The synchronized suite-navigation v1
+contract rejects external/query/fragment/path-traversal destinations and can
+carry only bounded explicit workspace identity and a validated public referral
+code. No auth token or account identity crosses domains in links. Existing
+server membership checks remain authoritative. Focused tests pass; complete
+CI/build and canonical authenticated acceptance remain release gates. See
+`docs/SUITE_NAVIGATION_V1.md`. No schema, billing or customer data changes.

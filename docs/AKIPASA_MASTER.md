@@ -1137,3 +1137,15 @@ No rows, consent state, policy or function are changed. Four real-role local SQL
 tests reproduce the old TRUNCATE bypass and verify the repaired capability matrix,
 tenant isolation and recording compatibility. See ANALYTICS_EVENT_PRIVILEGES.md.
 Hosted acceptance and actual migration remain unclaimed release gates.
+
+## 2026-10-20 | Explicit cross-product language contract
+
+AkiSuite selectors and management/operations handoffs now retain EN/ES using
+canonical product-specific route formats. AkiHQ remains free management;
+AkiBusiness remains paid operations. The synchronized suite-navigation v1
+contract rejects external/query/fragment/path-traversal destinations and can
+carry only bounded explicit workspace identity and a validated public referral
+code. No auth token or account identity crosses domains in links. Existing
+server membership checks remain authoritative. Focused tests pass; complete
+CI/build and canonical authenticated acceptance remain release gates. See
+`docs/SUITE_NAVIGATION_V1.md`. No schema, billing or customer data changes.

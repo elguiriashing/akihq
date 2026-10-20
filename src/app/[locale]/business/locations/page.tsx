@@ -1,9 +1,10 @@
+import { suiteHref } from "@/lib/suite-navigation";
 import "../accommodations/accommodations.css";
 import { OrganisationManagement } from "@/components/OrganisationManagement";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { config, isLocale } from "@/lib/config";
+import { isLocale } from "@/lib/config";
 import { requireUser } from "@/lib/auth";
 import { roleSwapEnabled } from "@/lib/product-roles";
 import { attachRentalLocation } from "./organisation-actions";
@@ -130,7 +131,9 @@ export default async function PrivateLocations({
             (workspace: { id: string; name: string }) => (
               <li key={workspace.id}>
                 <a
-                  href={`${config.crmUrl}/?workspace=${encodeURIComponent(workspace.id)}`}
+                  href={suiteHref("business", locale, {
+                    workspaceId: workspace.id,
+                  })}
                 >
                   {workspace.name}
                 </a>
