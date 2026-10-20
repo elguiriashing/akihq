@@ -38,3 +38,16 @@ origin OAuth callback behavior.
 Before release: run each repository's complete checks/build, CI at the exact
 commit, responsive keyboard/browser acceptance and authenticated canonical-domain
 smoke. Rollback is a source/deployment revert; no data rollback is required.
+
+## Reactive invitation navigation correction
+
+The public referral hook revalidates after successful History push/replace and
+browser popstate, so a persistent locale layout cannot forward an earlier
+invitation. It observes the existing same-origin URL only; it creates no cookie,
+identity handoff or automatic attribution. Original History methods are restored
+when the last observer unmounts, without overwriting newer router wrappers.
+Six hook tests cover validation, same-layout navigation, history and cleanup;
+real selector render tests pass in both languages. Sixteen inert Chromium cases
+cover EN/ES, both saved themes, mobile/tablet/desktop, SPA invitation replacement
+and browser-back restoration. Types pass. Full exact-head CI and production
+verification remain required before calling the correction live.
