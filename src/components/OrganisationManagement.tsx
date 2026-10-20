@@ -1,6 +1,6 @@
+import { suiteHref } from "@/lib/suite-navigation";
 import Link from "next/link";
 import { z } from "zod";
-import { config } from "@/lib/config";
 import {
   createOperatingOrganisation,
   attachOperatingLocation,
@@ -110,7 +110,9 @@ export function OrganisationManagement({
               <li key={location.id}>
                 {location.role ? (
                   <a
-                    href={`${config.crmUrl}/?workspace=${encodeURIComponent(location.id)}`}
+                    href={suiteHref("business", locale, {
+                      workspaceId: location.id,
+                    })}
                   >
                     {location.name}
                   </a>
