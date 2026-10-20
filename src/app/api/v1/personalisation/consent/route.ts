@@ -1,4 +1,4 @@
-import { accountFeaturesAllowed } from "@/lib/account-eligibility";
+import { accountTrackingAllowed } from "@/lib/account-eligibility";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
     if (auth.user) {
-      const allowed = await accountFeaturesAllowed(supabase);
+      const allowed = await accountTrackingAllowed(supabase, auth.user.id);
       const { error } = await supabase.from("personalisation_settings").upsert({
         profile_id: auth.user.id,
         analytics_enabled: allowed && parsed.data.analytics,

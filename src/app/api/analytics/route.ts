@@ -1,4 +1,4 @@
-import { accountFeaturesAllowed } from "@/lib/account-eligibility";
+import { accountTrackingAllowed } from "@/lib/account-eligibility";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createHmac } from "node:crypto";
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
-    if (auth.user && !(await accountFeaturesAllowed(supabase)))
+    if (auth.user && !(await accountTrackingAllowed(supabase, auth.user.id)))
       return new Response(null, { status: 204 });
     const service = createSupabaseServiceClient();
     const { error } = await service.rpc("record_analytics_limited", {

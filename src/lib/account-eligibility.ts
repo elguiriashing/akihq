@@ -16,3 +16,24 @@ export async function accountFeaturesAllowed(
 export function accountCompletionUrl(locale: "en" | "es") {
   return `https://akipasa.com/${locale}/onboarding`;
 }
+
+/** Existing known-minor demographics restrict tracking only, never paid access. */
+export async function accountTrackingAllowed(
+  db: SupabaseClient,
+  userId: string,
+) {
+  if (!(await accountFeaturesAllowed(db))) return false;
+  const { data, error } = await db
+    .from("profiles")
+    .select("birth_year")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) return false;
+  const year = data?.birth_year;
+  return !(
+    typeof year === "number" &&
+    Number.isInteger(year) &&
+    year >= 1900 &&
+    new Date().getUTCFullYear() - year < 18
+  );
+}

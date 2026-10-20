@@ -34,6 +34,11 @@ not erase declarations, paid entitlements, bookings, progress or customer data.
 
 ## Local checkpoint
 
-8 scoped eligibility tests passed, including direct member-page restrictions. Changed TypeScript/JS sources passed ESLint and TypeScript. These are bounded
+9 scoped eligibility tests passed, including direct member-page restrictions. Changed TypeScript/JS sources passed ESLint and TypeScript. These are bounded
 local checks; full repository CI/build, native auth and canonical runtime
 acceptance remain pending. No production schema/configuration was changed.
+
+Existing profiles whose optional birth year unambiguously indicates under 18
+are also excluded from optional tracking. This privacy safeguard is separate
+from the disabled cohort: it never revokes existing account/tool access and
+does not send the demographic to analytics or claim verified age.
