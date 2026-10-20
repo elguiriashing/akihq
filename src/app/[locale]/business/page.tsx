@@ -1,3 +1,4 @@
+import { accountTaskFromSearch } from "@/lib/account-task-resume";
 import { roleSwapEnabled } from "@/lib/product-roles";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -111,7 +112,7 @@ export default async function BusinessPage({
     : "venues";
 
   const claimView = view === "claims";
-  const returnPath = `/${locale}/business?${new URLSearchParams({ view, ...(query.venueId ? { venueId: query.venueId } : {}) })}`;
+  const returnPath = `/${locale}${accountTaskFromSearch("hq", locale, "/business", { ...query, view }) || "/business"}`;
   const { supabase, user } = claimView
     ? await requireUser(locale, returnPath)
     : await requireManagementHomeAccess(locale, returnPath);

@@ -1,5 +1,9 @@
 /** Shared AkiSuite completion-resume contract v1. Contains navigation only. */
-import { suiteHref, type SuiteProduct } from "./suite-navigation";
+import {
+  suiteHref,
+  suiteReferralCode,
+  type SuiteProduct,
+} from "./suite-navigation";
 
 const products = ["pasa", "duermo", "coches", "hq", "business"] as const;
 const roots: Record<SuiteProduct, string> = {
@@ -17,10 +21,6 @@ const routes: Record<SuiteProduct, RegExp> = {
   business: /^\/$/,
 };
 const taskKeys = new Set([
-  "vehicle",
-  "start",
-  "end",
-  "page",
   "view",
   "tab",
   "venueId",
@@ -30,6 +30,10 @@ const taskKeys = new Set([
   "companyId",
   "organisationId",
   "workspace",
+  "vehicle",
+  "start",
+  "end",
+  "page",
 ]);
 
 export function accountTaskResume(
@@ -54,9 +58,15 @@ export function accountTaskResume(
   ) {
     const [pathname, query = ""] = requested.split("?");
     const relative = pathname.replace(/^\/(?:en|es)(?=\/|$)/, "") || "/";
-    if (routes[target].test(relative)) {
+    const incoming = new URLSearchParams(query);
+    const referral =
+      incoming.getAll("ref").length === 1
+        ? suiteReferralCode(incoming.get("ref"))
+        : undefined;
+    const referralLanding = target === "pasa" && relative === "/referrals";
+    if (routes[target].test(relative) || (referralLanding && referral)) {
       path = relative;
-      const incoming = new URLSearchParams(query);
+      if (referral) task.set("ref", referral);
       for (const [key, value] of incoming) {
         if (
           incoming.getAll(key).length === 1 &&
@@ -71,6 +81,30 @@ export function accountTaskResume(
   for (const [key, value] of task) canonical.searchParams.set(key, value);
   const local = path + (task.size ? `?${task}` : "");
   return { product: target, path: local, url: canonical.toString() };
+}
+
+/** Server pages pass only bounded task keys, never an arbitrary return URL. */
+export function accountTaskFromSearch(
+  product: unknown,
+  locale: "en" | "es",
+  pathname: string,
+  query: Record<string, string | string[] | undefined>,
+) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (typeof value !== "string") continue;
+    if (key === "ref") {
+      const referral = suiteReferralCode(value);
+      if (referral) params.set(key, referral);
+    } else if (taskKeys.has(key) && /^[A-Za-z0-9_-]{1,128}$/.test(value)) {
+      params.set(key, value);
+    }
+  }
+  return accountTaskResume(
+    product,
+    locale,
+    pathname + (params.size ? `?${params}` : ""),
+  )?.path;
 }
 
 /** A local next URL survives host-local email/OAuth auth without exporting a token. */
