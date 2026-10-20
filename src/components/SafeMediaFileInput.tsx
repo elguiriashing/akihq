@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ChangeEvent } from "react";
+import { listingImagePolicy } from "@/lib/listing-image-policy";
 
 const MAX_INPUT_BYTES = 50 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -145,15 +146,19 @@ async function renderPdfAsSafeJpeg(file: File) {
   });
 }
 
-async function compressImage(file: File): Promise<File> {
+async function compressImage(file: File, premium?: boolean): Promise<File> {
+  const policy =
+    premium === undefined
+      ? { maxDimension: MAX_IMAGE_DIMENSION, jpegQuality: 0.85 }
+      : listingImagePolicy(premium);
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
     throw new Error("unsupported_image");
   const bitmap = await createImageBitmap(file, {
     imageOrientation: "from-image",
   });
   try {
-    let width = Math.min(bitmap.width, MAX_IMAGE_DIMENSION);
-    let height = Math.min(bitmap.height, MAX_IMAGE_DIMENSION);
+    let width = Math.min(bitmap.width, policy.maxDimension);
+    let height = Math.min(bitmap.height, policy.maxDimension);
     const scale = Math.min(width / bitmap.width, height / bitmap.height);
     width = Math.max(1, Math.round(bitmap.width * scale));
     height = Math.max(1, Math.round(bitmap.height * scale));
@@ -165,7 +170,7 @@ async function compressImage(file: File): Promise<File> {
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, width, height);
     context.drawImage(bitmap, 0, 0, width, height);
-    let blob = await canvasToBlob(canvas, 0.85);
+    let blob = await canvasToBlob(canvas, policy.jpegQuality);
     if (blob.size > MAX_UPLOAD_BYTES) blob = await canvasToBlob(canvas, 0.68);
     if (blob.size > MAX_UPLOAD_BYTES)
       throw new Error("converted_file_too_large");
@@ -185,12 +190,14 @@ export function SafeMediaFileInput({
   required = false,
   multiple = false,
   maxFiles = 20,
+  listingPremium,
 }: {
   locale: "es" | "en";
   name: string;
   required?: boolean;
   multiple?: boolean;
   maxFiles?: number;
+  listingPremium?: boolean;
 }) {
   const es = locale === "es";
   const [status, setStatus] = useState("");
@@ -237,7 +244,14 @@ export function SafeMediaFileInput({
         const isPdf =
           file.type === "application/pdf" || /\.pdf$/i.test(file.name);
         transfer.items.add(
-          isPdf ? await renderPdfAsSafeJpeg(file) : await compressImage(file),
+          isPdf
+            ? listingPremium === undefined
+              ? await renderPdfAsSafeJpeg(file)
+              : await compressImage(
+                  await renderPdfAsSafeJpeg(file),
+                  listingPremium,
+                )
+            : await compressImage(file, listingPremium),
         );
       }
       input.files = transfer.files;

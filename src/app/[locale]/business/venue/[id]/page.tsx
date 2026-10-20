@@ -278,6 +278,16 @@ export default async function VenueWorkspace({
     ? await supabase.rpc("akisuite_venue_premium", { p_venue: id })
     : { data: false, error: null };
   const venuePremium = premiumResult.data === true;
+  const listingLimitResult =
+    process.env.AKISUITE_LISTING_LIMITS_READY === "true"
+      ? await supabase.rpc("listing_limits_info", { p_venue: id })
+      : { data: null, error: null };
+  const listingLimitsEnabled =
+    !listingLimitResult.error && listingLimitResult.data?.enabled === true;
+  const listingPremium = listingLimitResult.data?.premium === true;
+  const listingAutomationLocked =
+    (listingLimitsEnabled || suiteToolsReady) &&
+    !(listingLimitsEnabled ? listingPremium : venuePremium);
   const [sharedMedia, growthReport, stayReport, templates] = suiteToolsReady
     ? await Promise.all([
         supabase.rpc("akisuite_media_library", { p_venue: id }),
@@ -843,7 +853,12 @@ export default async function VenueWorkspace({
                 placements={venueMediaSlots}
                 accommodation={isAccommodation}
                 stayHeaderIds={stayHeaderIds}
-                premium={suiteToolsReady && venuePremium}
+                premium={
+                  listingLimitsEnabled
+                    ? listingPremium
+                    : suiteToolsReady && venuePremium
+                }
+                listingLimits={listingLimitsEnabled}
               />
             </section>
           </>
@@ -1119,11 +1134,11 @@ export default async function VenueWorkspace({
                         <summary>
                           {es ? "Configurar repetición" : "Set recurrence"}
                         </summary>
-                        {suiteToolsReady && !venuePremium && (
+                        {listingAutomationLocked && (
                           <p className="notice">
                             {es
-                              ? "Las nuevas repeticiones y copias requieren AkiBusiness Premium. Las fechas actuales se conservan."
-                              : "New recurrence and duplication require AkiBusiness Premium. Existing dates are retained."}
+                              ? "Las nuevas repeticiones y copias requieren Premium de la ficha. Las fechas actuales se conservan."
+                              : "New recurrence and duplication require listing Premium. Existing dates are retained."}
                           </p>
                         )}
                         <form action={setRecurrence} className="stack">
@@ -1215,7 +1230,7 @@ export default async function VenueWorkspace({
                               ? "Las fechas ya existentes no se duplicarán."
                               : "Existing dates will not be duplicated."}
                           </p>
-                          <button className="button" type="submit">
+                          <button className="button" type="submit" disabled={listingAutomationLocked}>
                             {es ? "Crear repetición" : "Create recurrence"}
                           </button>
                         </form>
@@ -1269,6 +1284,7 @@ export default async function VenueWorkspace({
                             )}
                           />
                         )}
+                        {listingAutomationLocked ? <p>{es?"Reutiliza tus eventos con Premium de la ficha.":"Reuse your events with listing Premium."} <a href={`${config.consumerUrl}/${locale}/account/subscription?app=${isAccommodation?"akiduermo":"akibusiness"}`}>{es?"Ver Premium":"View Premium"}</a></p>:null}
                         <form action={duplicateEvent} className="stack">
                           <input type="hidden" name="locale" value={locale} />
                           <input type="hidden" name="venueId" value={id} />
@@ -1286,7 +1302,7 @@ export default async function VenueWorkspace({
                               defaultValue={`${event.slug}-copia`}
                             />
                           </label>
-                          <button className="button secondary" type="submit">
+                          <button className="button secondary" type="submit" disabled={listingAutomationLocked}>
                             {es
                               ? "Crear borrador duplicado"
                               : "Create duplicate draft"}

@@ -1127,3 +1127,14 @@ the locale business home. No session, Supabase identity, provider configuration,
 database row, role, subscription or cross-product cookie changes. Rollback is a
 source revert. Production OAuth initiation and exact callback destinations require
 post-deploy EN/ES verification; completing a real provider login remains separate.
+
+## 2026-10-20 | Listing allowance owner compatibility
+
+AkiHQ mirrors the bounded event/media owner changes from AkiPasa PR215. Database
+ownership stays in AkiPasa's standalone migration20261020170415, with its own
+private default-closed gate, not the old Premium migration. Owner quota UI uses
+AKISUITE_LISTING_LIMITS_READY and confirms listing_limits_info before showing8/250.
+Inline event errors preserve controlled drafts. Listing Premium handoffs target
+AkiPasa's actual subscription hub with current EN/ES; paid AkiBusiness operations
+remain separate. Resolution groundwork stays independently gated/off pending
+trusted processing and direct-Storage closure. No scheduler/migration is added here.

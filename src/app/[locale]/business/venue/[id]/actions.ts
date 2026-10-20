@@ -13,6 +13,10 @@ import {
   bookingInboxHref,
   parseBookingInbox,
 } from "@/lib/business-booking-inbox";
+import {
+  listingImageDimensions,
+  listingImagePolicy,
+} from "@/lib/listing-image-policy";
 import { authorizedSuiteMedia } from "@/lib/akisuite-media";
 import { requireBusinessAccess } from "@/lib/entitlements";
 import { safeExternalUrlSchema } from "@/lib/auth-security";
@@ -891,6 +895,29 @@ export async function uploadVenueImage(formData: FormData) {
     redirect(destination(locale, venueId, "error=media"));
   }
   const { supabase, user } = await requireBusinessAccess(locale);
+  if (process.env.AKISUITE_LISTING_RESOLUTION_READY === "true") {
+    const { data: limitInfo, error: entitlementError } = await supabase.rpc(
+      "listing_limits_info",
+      { p_venue: venueId },
+    );
+    const dimensions = listingImageDimensions(
+      new Uint8Array(await file.arrayBuffer()),
+      file.type,
+    );
+    const policy = listingImagePolicy(limitInfo?.premium === true);
+    if (
+      entitlementError ||
+      !dimensions ||
+      Math.max(dimensions.width, dimensions.height) > policy.maxDimension
+    ) {
+      if (inline)
+        return {
+          ok: false as const,
+          error: entitlementError ? "unavailable" : "resolution",
+        };
+      redirect(destination(locale, venueId, "error=media"));
+    }
+  }
   let localizedAlt;
   try {
     localizedAlt = (

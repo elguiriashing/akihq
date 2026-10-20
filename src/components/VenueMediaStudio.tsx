@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element -- Venue media uses native images with existing layout controls. */
 "use client";
 
+import { config } from "@/lib/config";
+
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { setMediaFolder } from "@/app/[locale]/business/venue/[id]/premium-actions";
 import { SafeMediaFileInput } from "@/components/SafeMediaFileInput";
@@ -86,6 +88,7 @@ export function VenueMediaStudio({
   accommodation = false,
   stayHeaderIds = [],
   premium = false,
+  listingLimits = false,
 }: {
   locale: "es" | "en";
   venueId: string;
@@ -94,6 +97,7 @@ export function VenueMediaStudio({
   accommodation?: boolean;
   stayHeaderIds?: string[];
   premium?: boolean;
+  listingLimits?: boolean;
 }) {
   const es = locale === "es";
   const [items, setItems] = useState(media);
@@ -276,6 +280,14 @@ export function VenueMediaStudio({
       );
     if (!files.length) return;
 
+    if (listingLimits && items.length + files.length > (premium ? 250 : 8)) {
+      setUploadError(
+        es
+          ? "La selección supera el límite de fotos de esta ficha. Tus archivos y textos siguen aquí; selecciona menos archivos o consulta Premium."
+          : "This selection exceeds the listing photo allowance. Your files and text are still here; select fewer files or view Premium.",
+      );
+      return;
+    }
     const sharedAlt = String(source.get("alt") || "").trim();
     const toHeader = source.get("destination") === "stay_header";
     if (toHeader && files.length + headerIds.length > 12) {
@@ -345,33 +357,37 @@ export function VenueMediaStudio({
       if (!result?.ok || !result.media?.url) {
         const reason = result?.error;
         const explanation =
-          reason === "invalid-file"
+          reason === "resolution"
             ? es
-              ? "Archivo inválido o demasiado grande."
-              : "Invalid or oversized file."
-            : reason === "storage"
+              ? `La imagen debe medir como máximo ${premium ? 3840 : 1920} píxeles por lado. Vuelve a seleccionarla para prepararla.`
+              : `Images must be at most ${premium ? 3840 : 1920} pixels per side. Select it again to prepare it.`
+            : reason === "invalid-file"
               ? es
-                ? "El almacenamiento rechazó el archivo."
-                : "Storage rejected the file."
-              : reason === "quota"
+                ? "Archivo inválido o demasiado grande."
+                : "Invalid or oversized file."
+              : reason === "storage"
                 ? es
-                  ? "Has alcanzado el límite de imágenes o almacenamiento de este espacio. El contenido existente se conserva."
-                  : "This workspace has reached its image or storage allowance. Existing content is retained."
-                : reason === "database"
+                  ? "El almacenamiento rechazó el archivo."
+                  : "Storage rejected the file."
+                : reason === "quota"
                   ? es
-                    ? "No se pudo guardar el archivo en la biblioteca."
-                    : "Could not save the file to the media library."
-                  : reason === "translation"
+                    ? "Has alcanzado el límite de imágenes o almacenamiento de esta ficha. El contenido existente se conserva."
+                    : "This listing has reached its image or storage allowance. Existing content is retained."
+                  : reason === "database"
                     ? es
-                      ? "Falló la traducción de la descripción."
-                      : "Description translation failed."
-                    : reason === "unavailable" || reason === "origin"
+                      ? "No se pudo guardar el archivo en la biblioteca."
+                      : "Could not save the file to the media library."
+                    : reason === "translation"
                       ? es
-                        ? "El servidor no pudo procesar la subida. Vuelve a iniciar sesión y reinténtalo."
-                        : "The server could not process the upload. Sign in again and retry."
-                      : es
-                        ? "No se pudo completar la subida."
-                        : "Upload could not be completed.";
+                        ? "Falló la traducción de la descripción."
+                        : "Description translation failed."
+                      : reason === "unavailable" || reason === "origin"
+                        ? es
+                          ? "El servidor no pudo procesar la subida. Vuelve a iniciar sesión y reinténtalo."
+                          : "The server could not process the upload. Sign in again and retry."
+                        : es
+                          ? "No se pudo completar la subida."
+                          : "Upload could not be completed.";
         setUploadError(`${file.name}: ${explanation}`);
         setItems((current) => [...current, ...uploaded]);
         setStatus("error");
@@ -487,6 +503,20 @@ export function VenueMediaStudio({
               ? "Cinco superficies, una biblioteca."
               : "Five surfaces, one media library."}
           </h2>
+          {listingLimits ? (
+            <p role="status">
+              {es
+                ? `${items.length} de ${premium ? 250 : 8} fotos. Las imágenes existentes se conservan al cambiar de plan.`
+                : `${items.length} of ${premium ? 250 : 8} photos. Existing images are retained when your plan changes.`}
+              {!premium ? (
+                <a
+                  href={`${config.consumerUrl}/${locale}/account/subscription?app=${accommodation ? "akiduermo" : "akibusiness"}`}
+                >
+                  {es ? " Ver Premium de la ficha" : " View listing Premium"}
+                </a>
+              ) : null}
+            </p>
+          ) : null}
           <p>
             {accommodation
               ? es
@@ -714,6 +744,7 @@ export function VenueMediaStudio({
               required
               multiple
               maxFiles={20}
+              listingPremium={listingLimits ? premium : undefined}
             />
           </label>
           <label>
