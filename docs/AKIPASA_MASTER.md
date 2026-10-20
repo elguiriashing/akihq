@@ -1152,3 +1152,15 @@ responsive mobile/tablet keyboard/light/dark review, provider response limits, a
 exact-source production package. This change neither grants operational analytics
 nor changes subscriptions, data, RLS, consent capture or shared production schema.
 Rollback: disable `AKIPULSE_ENABLED`, or revert the application commit.
+
+## 2026-10-20 | Explicit cross-product language contract
+
+AkiSuite selectors and management/operations handoffs now retain EN/ES using
+canonical product-specific route formats. AkiHQ remains free management;
+AkiBusiness remains paid operations. The synchronized suite-navigation v1
+contract rejects external/query/fragment/path-traversal destinations and can
+carry only bounded explicit workspace identity and a validated public referral
+code. No auth token or account identity crosses domains in links. Existing
+server membership checks remain authoritative. Focused tests pass; complete
+CI/build and canonical authenticated acceptance remain release gates. See
+`docs/SUITE_NAVIGATION_V1.md`. No schema, billing or customer data changes.

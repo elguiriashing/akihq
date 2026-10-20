@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { managementProduct, operationsProduct } from "../lib/product-roles";
+import { useSuiteReferral } from "./useSuiteReferral";
+import { suiteHref } from "../lib/suite-navigation";
 import { Icon } from "./Icons";
 import { LanguageLink } from "./LanguageLink";
 import { PortalLogo } from "./PortalLogo";
@@ -19,41 +21,42 @@ export function PortalHeaderTools({
   onLanguageChange?: () => void;
   children?: ReactNode;
 }) {
+  const referralCode = useSuiteReferral();
   const menu = useRef<HTMLDetailsElement>(null);
   const nextLocale = locale === "es" ? "en" : "es";
   const apps = [
     {
       product: "pasa",
       name: "AkiPasa",
-      href: `https://akipasa.com/${locale}`,
+      href: suiteHref("pasa", locale, { referralCode }),
       logo: "pasa",
       accent: "#F26B1D",
     },
     {
       product: "duermo",
       name: "AkiDuermo",
-      href: `https://akiduermo.com/?lang=${locale}`,
+      href: suiteHref("duermo", locale, { referralCode }),
       logo: "duermo",
       accent: "#2FC2A5",
     },
     {
       product: "coches",
       name: "AkiCoches",
-      href: `https://akicoches.com/?lang=${locale}`,
+      href: suiteHref("coches", locale, { referralCode }),
       logo: "coches",
       accent: "#FF3047",
     },
     {
       product: "management",
       name: managementProduct.name,
-      href: `${managementProduct.origin}/${locale}/business`,
+      href: suiteHref("hq", locale, { referralCode }),
       logo: managementProduct.logo,
       accent: "#FFC533",
     },
     {
       product: "operations",
       name: operationsProduct.name,
-      href: operationsProduct.origin,
+      href: suiteHref("business", locale, { referralCode }),
       logo: operationsProduct.logo,
       accent: "#8958FF",
     },
@@ -133,6 +136,18 @@ export function PortalHeaderTools({
               </a>
             );
           })}
+          {referralCode && (
+            <a
+              href={suiteHref("pasa", locale, {
+                path: "/referrals",
+                referralCode,
+              })}
+            >
+              {locale === "es"
+                ? "Aplicar invitación de referido"
+                : "Apply referral invitation"}
+            </a>
+          )}
           {children && <div className="portal-product-actions">{children}</div>}
         </div>
       </details>

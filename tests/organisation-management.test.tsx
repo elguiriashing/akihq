@@ -111,7 +111,7 @@ it.each(["en", "es"] as const)(
     );
     expect(
       screen.getByRole("link", { name: "Own place" }).getAttribute("href"),
-    ).toBe("https://akibusiness.com/?workspace=private-one");
+    ).toBe(`https://akibusiness.com/?locale=${locale}&workspace=private-one`);
     expect(screen.queryByRole("link", { name: /Metadata only/ })).toBeNull();
     expect(screen.queryByRole("option", { name: "Staff place" })).toBeNull();
     expect(screen.getByRole("option", { name: "Own place" })).toBeTruthy();
