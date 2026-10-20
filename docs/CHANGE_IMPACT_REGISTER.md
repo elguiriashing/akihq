@@ -1612,3 +1612,20 @@ back presentation without deleting legitimate companies or mappings.
 - **Change:** mode links now serialize the already sanitized `next` value. Valid locale-scoped management and recovery tasks are preserved; external, protocol-relative, encoded-path and backslash values become the locale business-home fallback before appearing in the next auth URL.
 - **Dependencies:** AkiHQ EN/ES sign-in, signup, magic link, recovery, Google OAuth initiation and password recovery continuity. Server actions, Supabase Auth, callback exchange, terms, host-scoped sessions and global post-reset revocation are unchanged. No database, role, identity, email send, subscription, billing or Cloudflare configuration mutation.
 - **Evidence/rollback:** product-routing regression asserts the rendered source cannot reintroduce raw `query.next` serialization alongside the existing destination/callback cases. Run format, lint, types, complete tests, Next/OpenNext builds, browser auth-mode navigation and exact-source production smoke. Roll back with an application-source revert; no data restoration is required. A real provider account login and real recovery email remain separate acceptance gates.
+
+## 2026-10-20 | Narrow analytics_events table capabilities
+
+Read-only hosted evidence: anon/authenticated held all seven table capabilities;
+existing analytics_operator_read SELECT policy was tenant/admin scoped. Source
+callers were traced through the same-origin analytics API's service-only checked
+RPC, behavior ingestion, signed-in legacy definer recording, tenant reads and
+privileged AI/reporting service reads. No anonymous direct table reader is needed.
+
+Targeted mirrored migration20261020173020 revokes ALL from PUBLIC/anon/authenticated,
+restores authenticated SELECT and preserves original RLS/function/service grants.
+No data deletion or broad default-privilege edit. Four PGlite tests use actual
+historical source SQL/roles to reproduce local RLS-bypassing TRUNCATE before repair,
+then assert direct capability denial, own/foreign/admin reads and service/legacy
+recording compatibility. Test is included in npm test. Scoped TypeScript/lint and
+hosted CI precede selective application; no live mutation occurred. Rollback must
+never restore broad ALL/TRUNCATE; resolve any overlooked caller with a narrow RPC.
