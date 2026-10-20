@@ -136,3 +136,13 @@ code. No auth token or account identity crosses domains in links. Existing
 server membership checks remain authoritative. Focused tests pass; complete
 CI/build and canonical authenticated acceptance remain release gates. See
 `docs/SUITE_NAVIGATION_V1.md`. No schema, billing or customer data changes.
+
+## 2026-10-20 | PostGIS reference-table client privileges
+
+The shared PostGIS spatial_ref_sys table is extension-owned and retained without
+RLS changes. A narrow mirrored migration revokes PUBLIC/anon/authenticated table
+capabilities and restores only client SELECT, preserving other explicit role
+grants, extension ownership and existing reference rows. Effective table/column
+postconditions reject silent no-op/inherited-grant repairs transactionally.
+See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
+geography acceptance and safe rollback. No live application is claimed by CI.
