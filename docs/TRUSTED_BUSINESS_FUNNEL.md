@@ -42,3 +42,12 @@ preview/mobile/tablet acceptance remain release gates. No production data is use
 Rollback: disable only the HQ readiness flag/revert this panel and projection; keep
 shared optional-data retention maintenance according to the approved policy. Never
 delete financial or historical analytics data as a UI rollback.
+
+Local acceptance checkpoint: 298 application tests, 16 PostgreSQL scope fixtures and
+23 shared-navigation regressions pass. The real-component responsive harness passes
+64 venue/property/fleet/organisation × EN/ES × light/dark × phone/tablet portrait/
+tablet landscape/desktop combinations, including verified counts, unsupported
+mapping text, 44px controls, keyboard focus, overflow and denied-state checks.
+Evidence: test-results/akipulse-scoped/evidence.json (generated, not committed).
+This uses labelled synthetic data and no provider calls; actual authenticated
+production mapping/consent journeys still require release acceptance.
