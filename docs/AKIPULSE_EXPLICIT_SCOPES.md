@@ -106,9 +106,10 @@ foreign permissions and provider failures; no failure confirms a saved link.
 Responsive fixtures label synthetic data and stub only action transport/router;
 SQL tests exercise real guards. Real production acceptance remains separate.
 
-Local acceptance checkpoint: 350 application tests, 30 PostgreSQL fixtures and 23
+Local acceptance checkpoint: 350 application tests, 31 PostgreSQL fixtures and 23
 shared navigation regressions pass. The responsive real-component harness passes
 80 scope × EN/ES × light/dark × phone/tablet/desktop cases, including the explicit
-rental link save flow with labelled synthetic action transport. Full lint/types/
-format checks pass. Exact production packaging and hosted CI are required before
-merge; no source state is described as production activated.
+rental link successful/denied save flows and retained draft selection with labelled
+synthetic action transport. Full lint/types/
+format checks, supported Cloudflare packaging and Wrangler dry-run pass. Hosted
+CI on the final exact commit remains required before merge; no source state is described as production activated.

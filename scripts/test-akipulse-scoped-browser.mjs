@@ -30,7 +30,7 @@ await build({
             contents:
               args.path === "next/navigation"
                 ? "export function useRouter(){return {refresh(){}}}"
-                : "export async function saveRentalPulseWorkspace(value){window.__syntheticLinkCalls=(window.__syntheticLinkCalls||[]).concat([value]);return {ok:true}}",
+                : "export async function saveRentalPulseWorkspace(value){window.__syntheticLinkCalls=(window.__syntheticLinkCalls||[]).concat([value]);return window.__syntheticLinkFail?{ok:false,error:'forbidden'}:{ok:true}}",
             loader: "js",
           }),
         );
@@ -147,6 +147,27 @@ try {
             assert.equal(
               await page.locator('select[name="workspace"]').inputValue(),
               "synthetic-owned",
+            );
+            await page.evaluate(() => {
+              window.__syntheticLinkFail = true;
+            });
+            await page.locator('select[name="workspace"]').selectOption("");
+            await page
+              .getByRole("button", {
+                name: locale === "es" ? "Guardar vínculo" : "Save link",
+                exact: true,
+              })
+              .click();
+            await page
+              .getByRole("status")
+              .filter({
+                hasText:
+                  locale === "es" ? "No se pudo guardar" : "Could not save",
+              })
+              .waitFor();
+            assert.equal(
+              await page.locator('select[name="workspace"]').inputValue(),
+              "",
             );
           }
           for (const control of await page

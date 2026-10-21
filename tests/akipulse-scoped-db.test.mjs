@@ -756,3 +756,37 @@ test("organisation without explicit operating locations reports missing linkage,
     reason: "organisation_mapping_missing",
   });
 });
+
+test("rental organisation fanout and owned-workspace pagination remain bounded", async () => {
+  await db.exec(`insert into crm_workspace_members values('unlinked','${owner}','active','owner');
+   insert into car_rental_companies(id,name,submitted_by) select gen_random_uuid(),'Owned branch','${owner}' from generate_series(1,101);
+   insert into akipulse_rental_workspaces(company_id,workspace_id,linked_by) select id,'unlinked','${owner}' from car_rental_companies where name='Owned branch';`);
+  await assert.rejects(
+    v2("organisation", org),
+    /exceeds rental branch report scope/,
+  );
+  await db.exec(`insert into crm_workspaces(id,name,status,owner_profile_id) select 'owned-'||g,'Owned workspace '||g,'active','${owner}' from generate_series(1,55)g;
+   insert into crm_workspace_members select id,'${owner}','active','owner' from crm_workspaces where id like 'owned-%';`);
+  const a = (
+    await db.query("select akipulse_rental_workspace_options($1,51,0) r", [
+      fleet,
+    ])
+  ).rows[0].r.options;
+  const b = (
+    await db.query("select akipulse_rental_workspace_options($1,51,50) r", [
+      fleet,
+    ])
+  ).rows[0].r.options;
+  assert.equal(a.length, 51);
+  assert.equal(b.length, 6);
+  assert.equal(new Set([...a.slice(0, 50), ...b].map((w) => w.id)).size, 56);
+  await assert.rejects(
+    db.query("select akipulse_rental_workspace_options($1,51,10001)", [fleet]),
+    /Invalid page/,
+  );
+  await db.exec("set role anon");
+  await assert.rejects(
+    db.query("select akipulse_organisation_funnel($1,30)", [org]),
+    /permission denied/,
+  );
+});
