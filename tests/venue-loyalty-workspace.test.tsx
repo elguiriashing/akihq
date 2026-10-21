@@ -5,7 +5,7 @@ import {
   type StampCard,
 } from "../src/components/VenueLoyaltyWorkspace";
 
-const noop = async (_formData: FormData) => {};
+const noop = async () => {};
 const card: StampCard = {
   id: "11111111-1111-4111-8111-111111111111",
   title_es: "Regular",
