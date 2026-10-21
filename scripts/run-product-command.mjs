@@ -35,7 +35,7 @@ const result = spawnSync(
   process.execPath,
   command === "test"
     ? [executables[command], "run", "--environment", "node", ...args]
-    : [executables[command], "build", ...args],
+    : [executables[command], "build", "--webpack", ...args],
   {
     stdio: "inherit",
     env: { ...defaults, ...process.env },

@@ -5,6 +5,7 @@ import { managementProduct } from "@/lib/product-roles";
 import Image from "next/image";
 import { RentalBookingsDashboard } from "./RentalBookingsDashboard";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { ThemeToggle } from "./ThemeModeControls";
@@ -99,6 +100,7 @@ export function RentalOperatorDesk({
   readError,
   actions,
 }: Props) {
+  const router = useRouter();
   const es = locale === "es";
   const [tab, setTab] = useState<
     | "overview"
@@ -366,7 +368,7 @@ export function RentalOperatorDesk({
             type="button"
             aria-label={es ? "Switch to English" : "Cambiar a español"}
             onClick={() =>
-              location.assign(
+              router.push(
                 location.pathname.replace(
                   /^\/(en|es)(?=\/|$)/,
                   es ? "/en" : "/es",
@@ -390,7 +392,7 @@ export function RentalOperatorDesk({
             aria-label={es ? "Cambiar sucursal" : "Switch branch"}
             value={company.id}
             onChange={(e) =>
-              location.assign(
+              router.push(
                 `/${locale}/business/mobility?company=${e.target.value}`,
               )
             }

@@ -6,6 +6,8 @@ import {
   RentalOperatorDesk,
   type DeskVehicle,
 } from "../src/components/RentalOperatorDesk";
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 const car: DeskVehicle = {
   id: "v1",
   name: "Mustang",
@@ -103,4 +105,22 @@ it("shows every supplied contact field in the pending request view", () => {
   ).toBe("mailto:renter@example.test");
   expect(screen.getByText("+34 600 123 456")).toBeTruthy();
   expect(screen.getByText("Child seat please")).toBeTruthy();
+});
+
+it("switches operating branches through the Next router", () => {
+  render(
+    <RentalOperatorDesk
+      {...props}
+      branches={[
+        { id: "c1", name: "Current" },
+        { id: "c2", name: "Other" },
+      ]}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText("Switch branch"), {
+    target: { value: "c2" },
+  });
+  expect(navigation.push).toHaveBeenCalledWith(
+    "/en/business/mobility?company=c2",
+  );
 });

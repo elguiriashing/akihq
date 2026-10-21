@@ -1,13 +1,19 @@
 import { defineConfig, globalIgnores } from "eslint/config";
-import { FlatCompat } from "@eslint/eslintrc";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
 
-const compat = new FlatCompat({
-  baseDirectory: path.dirname(fileURLToPath(import.meta.url)),
-});
 export default defineConfig([
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...nextVitals,
+  ...nextTypescript,
+  // React Compiler is not enabled. Preserve the prior hooks lint contract
+  // during this runtime-only upgrade; see docs/NEXT16_RUNTIME_UPGRADE.md.
+  {
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/purity": "off",
+    },
+  },
   globalIgnores([
     ".next/**",
     ".open-next/**",

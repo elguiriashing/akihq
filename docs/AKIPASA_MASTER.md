@@ -1225,3 +1225,27 @@ shared schema is installed. Database count/strict gates remain independently off
 strictfalse retains legacy authenticated upload. No customer, billing, global old
 feature flag or library activation changes. See LISTING_SCHEMA_READINESS.md for
 actual owner paths, native-property dependency, acceptance and coordinated rollback.
+
+## 2026-10-20 | Validated referral task completion
+
+Account completion preserves a single public referral code matching the existing
+uppercase alphanumeric 8–24 character navigation bound. The canonical public
+`/{locale}/referrals?ref=CODE` task returns to AkiPasa's explicit confirmation page;
+other allowed product tasks retain their validated code and EN/ES choice through
+the same fixed-origin resume envelope. Duplicate, URL-shaped, lowercase and
+out-of-range codes are discarded. Direct unprefixed AkiPasa referral completion
+uses this same sanitizer rather than falling back to Account.
+
+This changes navigation only: pending/underage restrictions, legal and tracking
+choices, first-attribution immutability and the explicit confirmation action remain
+authoritative. No automatic attribution, referral cookie, identity transfer, schema,
+financial incentive or production write is introduced. Shared contract copies and
+role-controller regressions cover all five products and both languages. Hosted CI
+and exact-source release checks remain required; unit fixtures do not establish
+authenticated production browser acceptance.
+
+Actual management Home and Claims entry now preserve the validated referral alongside bounded view/location keys before requireManagementHomeAccess or requireUser. Server authorization, claim ownership and consent remain unchanged. Pending and underage requests still reach completion in the same language.
+
+## 2026-10-21 | Supported Next16 runtime for AkiHQ
+
+Next/eslint-config-next16.4.2, OpenNext1.20.12 and Wrangler4.151.3 replace the expired major support window without a bypass. Existing React, security overrides, edge middleware, tenant/authentication rules and one-minute image cache policy remain intact. Explicit Webpack and native flat lint preserve build behavior. Documented new compiler recommendations are deferred while compiler is disabled; original hooks/security/a11y rules remain. New internal-navigation findings use the Next router with regression evidence. See docs/NEXT16_RUNTIME_UPGRADE.md for primary sources, migration choices, verification and rollback. No billing, schemas, product roles, provider or production mutations are part of this dependency branch.
