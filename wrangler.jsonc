@@ -22,6 +22,8 @@
     "AKISUITE_TAX_READY": "false",
     "AKISUITE_SUBSCRIPTIONS_READY": "false",
     "AKISUITE_FEATURES_READY": "false",
+    "AKISUITE_LISTING_LIMITS_READY": "true",
+    "AKISUITE_LISTING_UPLOADS_READY": "true",
     "AKISUITE_BILLING_VERIFIED": "false",
   },
   "limits": { "cpu_ms": 1000, "subrequests": 100 },
