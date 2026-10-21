@@ -1450,7 +1450,7 @@ export default async function VenueWorkspace({
           <VenueLoyaltyWorkspace
             locale={locale}
             venueId={id}
-            programs={(programs || []) as StampCard[]}
+            programs={(programs || []) as unknown as StampCard[]}
             offers={offers || []}
             redemptions={
               (pendingStampRedemptions ||
