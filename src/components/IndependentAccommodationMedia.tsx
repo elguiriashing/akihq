@@ -152,6 +152,16 @@ export function IndependentAccommodationMedia({
         <p role="status">{es ? "Cargando fotografías…" : "Loading photos…"}</p>
       ) : (
         <>
+          <p id={`native-gallery-help-${property}`}>
+            {es
+              ? "Deja la posición vacía para mantener la fotografía privada."
+              : "Leave the position empty to keep the photo private."}
+          </p>
+          <datalist id={`native-gallery-positions-${property}`}>
+            {Array.from({ length: limits?.photos ?? 8 }, (_, i) => (
+              <option key={i} value={i + 1} />
+            ))}
+          </datalist>
           <ul>
             {items.map((item) => (
               <li key={item.id}>
@@ -175,36 +185,53 @@ export function IndependentAccommodationMedia({
                     {es ? "Fotografía no disponible" : "Photo unavailable"}
                   </span>
                 )}
-                <label>
-                  {es ? "Posición en galería" : "Gallery position"}
-                  <select
-                    aria-label={`${es ? "Posición en galería" : "Gallery position"}: ${item.altText || item.id}`}
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const value = String(
+                      new FormData(event.currentTarget).get("position") ?? "",
+                    ).trim();
+                    if (
+                      value !== "" &&
+                      (!/^\d+$/.test(value) ||
+                        Number(value) < 1 ||
+                        Number(value) > (limits?.photos ?? 8))
+                    )
+                      return;
+                    void save({
+                      action: "place",
+                      property,
+                      id: item.id,
+                      position: value === "" ? null : Number(value) - 1,
+                    });
+                  }}
+                >
+                  <label>
+                    {es ? "Posición en galería" : "Gallery position"}
+                    <input
+                      type="number"
+                      name="position"
+                      min={1}
+                      max={limits?.photos ?? 8}
+                      step={1}
+                      inputMode="numeric"
+                      list={`native-gallery-positions-${property}`}
+                      aria-label={`${es ? "Posición en galería" : "Gallery position"}: ${item.altText || item.id}`}
+                      aria-describedby={`native-gallery-help-${property}`}
+                      disabled={busy || error}
+                      defaultValue={
+                        item.position === null ? "" : item.position + 1
+                      }
+                    />
+                  </label>
+                  <button
+                    type="submit"
                     disabled={busy || error}
-                    value={
-                      item.position === null ? "private" : String(item.position)
-                    }
-                    onChange={(event) =>
-                      void save({
-                        action: "place",
-                        property,
-                        id: item.id,
-                        position:
-                          event.target.value === "private"
-                            ? null
-                            : Number(event.target.value),
-                      })
-                    }
+                    aria-label={`${es ? "Guardar posición" : "Save position"}: ${item.altText || item.id}`}
                   >
-                    <option value="private">
-                      {es ? "Privada" : "Private"}
-                    </option>
-                    {Array.from({ length: limits?.photos ?? 8 }, (_, i) => (
-                      <option key={i} value={i}>
-                        {i + 1}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    {es ? "Guardar posición" : "Save position"}
+                  </button>
+                </form>
                 <button
                   type="button"
                   disabled={busy || error}

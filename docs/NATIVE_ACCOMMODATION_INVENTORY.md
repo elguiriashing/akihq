@@ -51,3 +51,13 @@ and run controlled owner/foreign/revoked-property and actual concurrent occupanc
 acceptance. Keep customer discovery/booking gated until its separate integration
 is complete. Rollback disables native flags before reverting consumer adapters;
 retain all property IDs, inventory, grants, receipts, media and audit history.
+
+## 2026-10-21 | Bounded native gallery controls
+
+Premium250-photo media editing now shares one datalist for positions instead
+of rendering250 options in each of250 rows. Numeric per-photo position forms
+retain explicit Save and blank-private behavior, preserving the same backend
+position/entitlement rules and retained media. A full250-photo regression checks
+250 options total and the exact selected property's placement request.
+18 focused media/API/service-adapter cases pass with TypeScript and zero-warning
+lint. Native runtime/database activation remains gated; no live changes.

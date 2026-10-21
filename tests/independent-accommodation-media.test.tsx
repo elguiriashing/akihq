@@ -30,8 +30,9 @@ it("places only the selected property's image and retains private status until e
   }));
   render(<IndependentAccommodationMedia property={property} locale="en" />);
   const select = await screen.findByLabelText("Gallery position: Room");
-  expect((select as HTMLSelectElement).value).toBe("private");
-  fireEvent.change(select, { target: { value: "0" } });
+  expect((select as HTMLInputElement).value).toBe("");
+  fireEvent.change(select, { target: { value: "1" } });
+  fireEvent.submit(select.closest("form")!);
   await waitFor(() =>
     expect(request.mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(
       true,
@@ -129,4 +130,47 @@ it("disables new uploads when the authoritative property quota is full while ret
     (screen.getByRole("button", { name: "Remove photo" }) as HTMLButtonElement)
       .disabled,
   ).toBe(false);
+});
+
+it("renders one shared position list for250Premium photos rather than62500 duplicated options", async () => {
+  request.mockImplementation(async (_url, opts) => ({
+    ok: true,
+    json: async () =>
+      opts?.method === "POST"
+        ? { ok: true }
+        : {
+            media: Array.from({ length: 250 }, (_, i) => ({
+              id: `media-${i}`,
+              altText: `Room${i}`,
+              url: null,
+              position: null,
+            })),
+            limits: {
+              premium: true,
+              photos: 250,
+              used: 250,
+              max_dimension: 3840,
+              uploads_enforced: true,
+            },
+          },
+  }));
+  const { container } = render(
+    <IndependentAccommodationMedia property={property} locale="en" />,
+  );
+  const position = await screen.findByLabelText("Gallery position: Room249");
+  expect(screen.getAllByRole("spinbutton")).toHaveLength(250);
+  expect(container.querySelectorAll("datalist")).toHaveLength(1);
+  expect(container.querySelectorAll("option")).toHaveLength(250);
+  fireEvent.change(position, { target: { value: "250" } });
+  fireEvent.submit(position.closest("form")!);
+  await waitFor(() =>
+    expect(request.mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(
+      true,
+    ),
+  );
+  expect(
+    JSON.parse(
+      request.mock.calls.find(([, opts]) => opts?.method === "POST")![1].body,
+    ),
+  ).toEqual({ action: "place", property, id: "media-249", position: 249 });
 });

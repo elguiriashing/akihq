@@ -1246,3 +1246,13 @@ shared schema is installed. Database count/strict gates remain independently off
 strictfalse retains legacy authenticated upload. No customer, billing, global old
 feature flag or library activation changes. See LISTING_SCHEMA_READINESS.md for
 actual owner paths, native-property dependency, acceptance and coordinated rollback.
+
+## 2026-10-21 | Bounded native gallery controls
+
+Premium250-photo media editing now shares one datalist for positions instead
+of rendering250 options in each of250 rows. Numeric per-photo position forms
+retain explicit Save and blank-private behavior, preserving the same backend
+position/entitlement rules and retained media. A full250-photo regression checks
+250 options total and the exact selected property's placement request.
+18 focused media/API/service-adapter cases pass with TypeScript and zero-warning
+lint. Native runtime/database activation remains gated; no live changes.
