@@ -73,12 +73,19 @@ try {
           const gridBox = await page
             .locator("[data-fixture-dashboard]")
             .boundingBox();
+          const disclosureBox = await page
+            .locator("[data-fixture-dashboard] > details")
+            .boundingBox();
           const panelBox = await page
             .locator('[aria-labelledby="pulse-booking-title"]')
             .boundingBox();
           assert(
-            gridBox && panelBox && Math.abs(panelBox.width - gridBox.width) < 2,
-            "Scoped panel must span the complete production dashboard grid",
+            gridBox &&
+              disclosureBox &&
+              panelBox &&
+              Math.abs(disclosureBox.width - gridBox.width) < 2 &&
+              panelBox.width <= disclosureBox.width,
+            "Scoped disclosure must span the complete production dashboard grid",
           );
 
           assert(
