@@ -168,3 +168,15 @@ authenticated production browser acceptance.
 Actual management Home and Claims entry now preserve the validated referral alongside bounded view/location keys before requireManagementHomeAccess or requireUser. Server authorization, claim ownership and consent remain unchanged. Pending and underage requests still reach completion in the same language.
 
 Completion-resume scope correction retains the actual legacy property/company/organisation query names using the shared bounded allowlist; no scope authorisation or runtime pin change. See ACCOUNT_TASK_RESUME_V1.md.
+
+## 21 October 2026 — reconciled scoped commercial observations
+
+Reuses the reviewed HQ #63 read-only funnel projection on current main e2492a4f.
+The compact dashboard, loyalty and current Next 16 features remain intact. Exact
+listing scope plus unique active workspace mapping and current management access
+are required; unavailable/unsupported scopes never show fabricated counts or
+conversion rates. See TRUSTED_BUSINESS_FUNNEL.md for rollout and rollback.
+The shared stage schema is installed but collection remains disabled and retention
+NULL. This source does not change readiness flags, collection or billing state.
+The HQ projection must be installed and real-caller ACL checks accepted before
+reader readiness can be enabled.

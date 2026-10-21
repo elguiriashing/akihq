@@ -72,6 +72,27 @@ createRoot(document.getElementById("fixture")!).render(
     <p>Synthetic QA fixture · no real customer records or provider calls</p>
     <div className="dashboard-grid" data-fixture-dashboard>
       <AkiPulseScoped
+        funnel={
+          kind === "venue" || kind === "property"
+            ? {
+                available: true,
+                scope: "workspace",
+                days: 7,
+                stages: {
+                  claim_completed: 1,
+                  checkout_started: 2,
+                  payment_verified: 1,
+                },
+                coverage: "consented_verified_observations_only",
+                retention_days: 90,
+                collection_started_at: "2026-10-20T00:00:00Z",
+                claim_stage_available: true,
+                cta_attribution_available: false,
+                conversion_rate_available: false,
+                hq_activation_definition: "owner_created_management_workspace",
+              }
+            : { available: false, reason: "scope_mapping_unsupported" }
+        }
         locale={locale}
         kind={kind}
         selected={id}
