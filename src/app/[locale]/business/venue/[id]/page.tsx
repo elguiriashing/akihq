@@ -121,7 +121,6 @@ export default async function VenueWorkspace({
     { data: ownedMedia },
     { data: programs },
     { data: credentials },
-    { data: rewards },
     { data: bookingSettings },
     { data: bookingNotificationSettings },
     { count: pendingBookingCount },
@@ -173,13 +172,6 @@ export default async function VenueWorkspace({
       .select("id,token,label,active")
       .eq("venue_id", id)
       .eq("active", true),
-    supabase
-      .from("business_rewards")
-      .select(
-        "id,title_es,title_en,description_es,description_en,claim_window_days,active",
-      )
-      .eq("venue_id", id)
-      .order("created_at", { ascending: false }),
     supabase
       .from("venue_booking_settings")
       .select(
