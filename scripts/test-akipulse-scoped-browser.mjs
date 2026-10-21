@@ -115,7 +115,13 @@ try {
           await reportSummaries.last().click();
           assert(
             (await page.locator("body").innerText()).includes(
-              locale === "en" ? "verified adapter" : "adaptador verificado",
+              kind === "venue" || kind === "property"
+                ? locale === "en"
+                  ? "not unique customers"
+                  : "No son clientes únicos"
+                : locale === "en"
+                  ? "no verified single-workspace mapping"
+                  : "no tiene un vínculo verificado",
             ),
           );
           await page.locator("select[name=pulseResource]").focus();

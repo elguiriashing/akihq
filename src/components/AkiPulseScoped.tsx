@@ -1,7 +1,10 @@
 import type { PulseScope, PulseScopedReport } from "@/lib/akipulse-scoped";
+import { BusinessFunnel } from "./BusinessFunnel";
+import type { BusinessFunnel as FunnelReport } from "@/lib/akipulse-funnel";
 import styles from "./BusinessGrowthOverview.module.css";
 import scopedStyles from "./AkiPulseScoped.module.css";
 export function AkiPulseScoped({
+  funnel,
   locale,
   kind,
   selected,
@@ -12,6 +15,7 @@ export function AkiPulseScoped({
   hasMore,
   days,
 }: {
+  funnel?: FunnelReport | null;
   locale: "en" | "es";
   kind: string;
   selected: string;
@@ -295,18 +299,7 @@ export function AkiPulseScoped({
             </details>
           </>
         )}
-        <details>
-          <summary>
-            {es
-              ? "Cobertura de adquisición y embudo comercial"
-              : "Acquisition and commercial funnel coverage"}
-          </summary>
-          <p>
-            {es
-              ? "Aún no hay un adaptador verificado que vincule impresiones, reclamaciones, activaciones y pagos a este ámbito. No calculamos tasas de conversión ni atribuimos tráfico global de Google a tu negocio. Los clics GA4 sujetos a consentimiento siguen separados de los pagos verificados."
-              : "A verified adapter linking impressions, claims, activations and payments to this scope is not available yet. Conversion rates and sitewide Google traffic are not attributed to your business. Consent-gated GA4 clicks remain separate from verified payments."}
-          </p>
-        </details>
+        <BusinessFunnel locale={locale} report={funnel || null} />
         <p className={styles.fine}>
           {es
             ? "Los alojamientos independientes y las sucursales sin vínculo de organización conservan sus permisos y datos. Su incorporación a un total de organización requiere un vínculo explícito verificado."

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AkiPulseScoped } from "../src/components/AkiPulseScoped";
 import {
@@ -117,7 +118,9 @@ describe("scoped Pulse contracts", () => {
           : "no la fecha de confirmación",
       );
       expect(html).toContain(
-        locale === "en" ? "not available yet" : "Aún no hay",
+        locale === "en"
+          ? "Funnel data is unavailable"
+          : "Los datos del embudo no están disponibles",
       );
       expect(html).not.toContain("100%");
       expect(html).toContain(
@@ -150,4 +153,132 @@ describe("scoped Pulse contracts", () => {
       );
     },
   );
+});
+
+import { readBusinessFunnel } from "../src/lib/akipulse-funnel";
+import { BusinessFunnel } from "../src/components/BusinessFunnel";
+const verified = {
+  available: true,
+  scope: "workspace",
+  days: 7,
+  stages: { payment_verified: 2 },
+  coverage: "consented_verified_observations_only",
+  retention_days: 90,
+  collection_started_at: until,
+  claim_stage_available: false,
+  cta_attribution_available: false,
+  conversion_rate_available: false,
+  hq_activation_definition: "owner_created_management_workspace",
+};
+it("binds verified counts to exact scope and period, rejects fabricated rates", () => {
+  expect(
+    readBusinessFunnel(
+      { kind: "venue", id, days: 7, funnel: verified },
+      "venue",
+      id,
+      7,
+    )?.available,
+  ).toBe(true);
+  expect(
+    readBusinessFunnel(
+      { kind: "venue", id, days: 7, funnel: verified },
+      "fleet",
+      id,
+      7,
+    ),
+  ).toBeNull();
+  expect(
+    readBusinessFunnel(
+      { ...verified, conversion_rate_available: true },
+      "venue",
+      id,
+      7,
+    ),
+  ).toBeNull();
+  expect(
+    readBusinessFunnel(
+      { kind: "venue", id, days: 30, funnel: verified },
+      "venue",
+      id,
+      7,
+    ),
+  ).toBeNull();
+});
+it.each(["en", "es"] as const)(
+  "renders honest %s verified-stage coverage",
+  (locale) => {
+    const parsed = readBusinessFunnel(
+      { kind: "venue", id, days: 7, funnel: verified },
+      "venue",
+      id,
+      7,
+    );
+    const html = renderToStaticMarkup(
+      <BusinessFunnel locale={locale} report={parsed} />,
+    );
+    expect(html).toContain(
+      locale === "en" ? "not unique customers" : "No son clientes únicos",
+    );
+    expect(html).toContain(
+      locale === "en" ? "No observations" : "Sin observaciones",
+    );
+    expect(html).toContain(
+      locale === "en" ? "No authorized mapping" : "Sin vínculo autorizado",
+    );
+    expect(html).not.toContain("100%");
+    expect(html).toContain("<summary>");
+  },
+);
+
+it.each(["en", "es"] as const)(
+  "uses plain %s unavailable reporting copy",
+  (locale) => {
+    const html = renderToStaticMarkup(
+      <BusinessFunnel
+        locale={locale}
+        report={{ available: false, reason: "stage_adapter_not_installed" }}
+      />,
+    );
+    expect(html).toContain(
+      locale === "en"
+        ? "Verified funnel reporting is not available yet."
+        : "Los informes del embudo verificado todavía no están disponibles.",
+    );
+    expect(html).not.toContain("adapter");
+    expect(html).not.toContain("adaptador");
+  },
+);
+
+it("installed read-only funnel readiness does not activate collection or financial gates", () => {
+  const config = JSON.parse(
+    readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8").replace(
+      /,\s*([}\]])/g,
+      "$1",
+    ),
+  );
+  expect(config.vars.AKISUITE_FUNNEL_READY).toBe("true");
+  for (const gate of [
+    "AKISUITE_CHECKOUT_ENABLED",
+    "AKISUITE_TAX_READY",
+    "AKISUITE_SUBSCRIPTIONS_READY",
+    "AKISUITE_BILLING_VERIFIED",
+  ]) {
+    expect(config.vars[gate]).toBe("false");
+  }
+  expect(
+    Object.keys(config.vars).filter((key) => /COLLECTION|RETENTION/.test(key)),
+  ).toEqual([]);
+  expect(
+    readBusinessFunnel(
+      {
+        kind: "venue",
+        id,
+        days: 7,
+        funnel: { available: false, reason: "not_activated" },
+      },
+      "venue",
+      id,
+      7,
+    ),
+  ).toEqual({ available: false, reason: "not_activated" });
 });
