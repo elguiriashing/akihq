@@ -19,8 +19,7 @@ export default async function AccommodationManagement({
   const property = accommodationPropertyId.safeParse(query.property);
   const { supabase } = await requireUser(
     locale,
-    accountTaskFromSearch("hq", locale, "/business/accommodations", query) ||
-      "/business/accommodations",
+    `/${locale}${accountTaskFromSearch("hq", locale, "/business/accommodations", query) || "/business/accommodations"}`,
   );
   const locations =
     process.env.AKISUITE_ORGANISATIONS_READY === "true"

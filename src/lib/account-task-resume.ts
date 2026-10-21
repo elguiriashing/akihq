@@ -28,6 +28,10 @@ const taskKeys = new Set([
   "propertyId",
   "branchId",
   "companyId",
+  // Existing management routes consume these bounded legacy scope names.
+  "property",
+  "company",
+  "organisation",
   "organisationId",
   "workspace",
   "vehicle",

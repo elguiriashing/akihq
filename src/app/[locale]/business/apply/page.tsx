@@ -38,8 +38,7 @@ export default async function BusinessApplicationPage({
     query.plan === "business_pro" ? "business_pro" : "business";
   const { supabase, user } = await requireUser(
     locale,
-    accountTaskFromSearch("hq", locale, "/business/apply", query) ||
-      "/business/apply",
+    `/${locale}${accountTaskFromSearch("hq", locale, "/business/apply", query) || "/business/apply"}`,
   );
   const { data } = await supabase
     .from("business_applications")

@@ -22,8 +22,7 @@ export default async function PrivateLocations({
   const query = await searchParams;
   const { supabase, user } = await requireUser(
     locale,
-    accountTaskFromSearch("hq", locale, "/business/locations", query) ||
-      "/business/locations",
+    `/${locale}${accountTaskFromSearch("hq", locale, "/business/locations", query) || "/business/locations"}`,
   );
   const es = locale === "es";
   const ready =

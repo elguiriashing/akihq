@@ -36,8 +36,7 @@ export default async function RentalBranchWorkspace({
     query = await searchParams;
   const { supabase } = await requireUser(
     locale,
-    accountTaskFromSearch("hq", locale, "/business/mobility", query) ||
-      "/business/mobility",
+    `/${locale}${accountTaskFromSearch("hq", locale, "/business/mobility", query) || "/business/mobility"}`,
   );
   const { data: branches, error: branchError } = await supabase.rpc(
     "managed_rental_branches",

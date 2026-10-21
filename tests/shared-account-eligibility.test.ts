@@ -8,15 +8,22 @@ const state = vi.hoisted(() => ({
   locale: "en",
   from: vi.fn(),
   getUser: vi.fn(),
+  rpc: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: async () => ({
     auth: { getUser: state.getUser },
-    rpc: async () => ({ data: { status: state.status }, error: null }),
+    rpc: async (name: string, args?: unknown) =>
+      name === "my_account_onboarding"
+        ? { data: { status: state.status }, error: null }
+        : state.rpc(name, args),
     from: state.from,
   }),
 }));
 vi.mock("next/navigation", () => ({
+  notFound: () => {
+    throw new Error("not-found");
+  },
   redirect: (path: string) => {
     throw new Error(`redirect:${path}`);
   },
@@ -36,6 +43,7 @@ vi.mock("../src/app/[locale]/business/actions", () => ({
   submitVenueClaim: vi.fn(),
 }));
 import { requireUser } from "../src/lib/auth";
+import { safeAuthDestination } from "../src/lib/auth-security";
 import { afterEach, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -368,5 +376,252 @@ it.each(["en", "es"] as const)(
         expect(destination).not.toContain("secret");
       }
     }
+  },
+);
+
+it.each(["en", "es"] as const)(
+  "retains actual legacy scope names through every %s completion envelope",
+  (locale) => {
+    const scope = {
+      property: "00000000-0000-4000-8000-000000000011",
+      company: "00000000-0000-4000-8000-000000000022",
+      organisation: "00000000-0000-4000-8000-000000000033",
+      ref: "AKI12345",
+    };
+    for (const product of [
+      "pasa",
+      "duermo",
+      "coches",
+      "hq",
+      "business",
+    ] as const) {
+      const pathname =
+        product === "pasa"
+          ? "/referrals"
+          : product === "hq"
+            ? "/business/accommodations"
+            : product === "business"
+              ? "/"
+              : "/account";
+      const task = accountTaskFromSearch(product, locale, pathname, scope)!;
+      const completion = new URL(
+        suiteAccountCompletionUrl(product, locale, task),
+      );
+      const next = new URL(
+        completion.searchParams.get("next")!,
+        completion.origin,
+      );
+      const destination = new URL(
+        accountTaskResume(
+          next.searchParams.get("product"),
+          locale,
+          next.searchParams.get("path")!,
+        )!.url,
+      );
+      for (const [key, value] of Object.entries(scope))
+        expect(destination.searchParams.get(key)).toBe(value);
+      expect(destination.searchParams.getAll("property")).toHaveLength(1);
+      expect(destination.searchParams.getAll("company")).toHaveLength(1);
+      expect(destination.searchParams.getAll("organisation")).toHaveLength(1);
+      expect(next.pathname).toBe(`/${locale}/account-resume`);
+    }
+  },
+);
+
+it.each(["property", "company", "organisation"])(
+  "rejects duplicate and malicious legacy %s scopes without dropping valid referral intent",
+  (key) => {
+    for (const locale of ["en", "es"] as const) {
+      for (const value of [
+        ["owned", "foreign"],
+        "https://evil.invalid",
+        "//evil.invalid",
+        "../foreign",
+        "x".repeat(129),
+      ]) {
+        const task = accountTaskFromSearch(
+          "hq",
+          locale,
+          "/business/locations",
+          { [key]: value, ref: "AKI12345" },
+        )!;
+        const destination = new URL(accountTaskResume("hq", locale, task)!.url);
+        expect(destination.searchParams.has(key)).toBe(false);
+        expect(destination.searchParams.get("ref")).toBe("AKI12345");
+      }
+      const direct = new URL(
+        accountTaskResume(
+          "hq",
+          locale,
+          `/business/locations?${key}=owned&${key}=foreign&ref=AKI12345`,
+        )!.url,
+      );
+      expect(direct.searchParams.has(key)).toBe(false);
+      expect(direct.searchParams.get("ref")).toBe("AKI12345");
+    }
+  },
+);
+
+it.each(["en", "es"] as const)(
+  "resumes %s actual property, company and organisation selection through pending gate and completed destination",
+  async (locale) => {
+    vi.stubEnv("AKISUITE_ONBOARDING_SCHEMA_READY", "true");
+    vi.stubEnv("AKISUITE_ORGANISATIONS_READY", "true");
+    vi.stubEnv("AKISUITE_ACCOMMODATION_READY", "true");
+    vi.stubEnv("AKISUITE_PRIVATE_LOCATIONS_READY", "true");
+    state.getUser.mockResolvedValue({ data: { user: { id: "fixture" } } });
+    const selected = "00000000-0000-4000-8000-000000000022";
+    const other = "00000000-0000-4000-8000-000000000011";
+    const branches = [
+      { id: other, name: "First owned branch" },
+      { id: selected, name: "Selected owned branch" },
+    ];
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      order: vi.fn(() => query),
+      limit: vi.fn(async () => ({ data: [], error: null, count: 0 })),
+      maybeSingle: vi.fn(async () => ({
+        data: { terms_version: "2026-07-23" },
+        error: null,
+      })),
+    };
+    state.from.mockImplementation(() => query);
+    state.rpc.mockImplementation(async (name: string) => ({
+      data: name === "managed_rental_branches" ? branches : [],
+      error: null,
+      count: 0,
+    }));
+    const cases = [
+      {
+        key: "property",
+        path: "accommodations",
+        page: (await import("../src/app/[locale]/business/accommodations/page"))
+          .default,
+      },
+      {
+        key: "company",
+        path: "mobility",
+        page: (await import("../src/app/[locale]/business/mobility/page"))
+          .default,
+      },
+      {
+        key: "organisation",
+        path: "locations",
+        page: (await import("../src/app/[locale]/business/locations/page"))
+          .default,
+      },
+    ];
+    function elementProps(node: unknown): Record<string, unknown>[] {
+      if (Array.isArray(node)) return node.flatMap(elementProps);
+      if (node && typeof node === "object" && "props" in node) {
+        const props = (node as { props: Record<string, unknown> }).props;
+        return [props, ...elementProps(props.children)];
+      }
+      return [];
+    }
+    for (const status of ["pending", "underage"])
+      for (const item of cases) {
+        state.status = status;
+        // Auth must retain the same localized destination before onboarding starts.
+        state.getUser.mockResolvedValueOnce({ data: { user: null } });
+        let authRedirect = "";
+        try {
+          await item.page({
+            params: Promise.resolve({ locale }),
+            searchParams: Promise.resolve({
+              [item.key]: selected,
+              ref: "AKI12345",
+              page: "2",
+            }),
+          });
+        } catch (error) {
+          authRedirect = (error as Error).message.replace(/^redirect:/, "");
+        }
+        const auth = new URL(authRedirect, "https://akihq.app");
+        expect(auth.pathname).toBe(`/${locale}/auth`);
+        const validatedAuthTask = new URL(
+          safeAuthDestination(locale, auth.searchParams.get("next")!),
+          auth.origin,
+        );
+        expect(validatedAuthTask.pathname).toBe(
+          `/${locale}/business/${item.path}`,
+        );
+        expect(validatedAuthTask.searchParams.get(item.key)).toBe(selected);
+        expect(validatedAuthTask.searchParams.get("ref")).toBe("AKI12345");
+        let redirect = "";
+        try {
+          await item.page({
+            params: Promise.resolve({ locale }),
+            searchParams: Promise.resolve(
+              Object.fromEntries(validatedAuthTask.searchParams),
+            ),
+          });
+        } catch (error) {
+          redirect = (error as Error).message.replace(/^redirect:/, "");
+        }
+        const completion = new URL(redirect);
+        const next = new URL(
+          completion.searchParams.get("next")!,
+          completion.origin,
+        );
+        const resumed = accountTaskResume(
+          next.searchParams.get("product"),
+          locale,
+          next.searchParams.get("path")!,
+        )!;
+        const destination = new URL(resumed.url);
+        expect(destination.origin).toBe("https://akihq.app");
+        expect(destination.pathname).toBe(`/${locale}/business/${item.path}`);
+        expect(destination.searchParams.get(item.key)).toBe(selected);
+        expect(destination.searchParams.get("ref")).toBe("AKI12345");
+        // Continue as a server-approved complete-account fixture.
+        state.status = "complete";
+        state.rpc.mockClear();
+        query.eq.mockClear();
+        const rendered = await item.page({
+          params: Promise.resolve({ locale }),
+          searchParams: Promise.resolve(
+            Object.fromEntries(destination.searchParams),
+          ),
+        });
+        if (item.key === "property")
+          expect(
+            elementProps(rendered).find((props) => props.initialProperty)
+              ?.initialProperty,
+          ).toBe(selected);
+        if (item.key === "company") {
+          expect((elementProps(rendered)[0].company as { id: string }).id).toBe(
+            selected,
+          );
+          expect(query.eq).toHaveBeenCalledWith("company_id", selected);
+          expect(query.eq).not.toHaveBeenCalledWith("company_id", other);
+        }
+        if (item.key === "organisation") {
+          expect(state.rpc).toHaveBeenCalledWith(
+            "list_operating_organisation_locations",
+            { p_organisation: selected, p_limit: 50, p_offset: 0 },
+          );
+          expect(
+            elementProps(rendered).some(
+              (props) =>
+                (props.query as { organisation?: string } | undefined)
+                  ?.organisation === selected,
+            ),
+          ).toBe(true);
+        }
+      }
+    state.status = "complete";
+    const mobility = cases.find((item) => item.key === "company")!;
+    await expect(
+      mobility.page({
+        params: Promise.resolve({ locale }),
+        searchParams: Promise.resolve({
+          company: "00000000-0000-4000-8000-000000000099",
+        }),
+      }),
+    ).rejects.toThrow("not-found");
+    state.from.mockReset();
+    state.rpc.mockReset();
   },
 );
