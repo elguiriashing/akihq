@@ -45,8 +45,8 @@ export function BusinessFunnel({
       ? "El periodo de recopilación todavía no está inicializado."
       : "The collection period has not been initialized.",
     stage_adapter_not_installed: es
-      ? "El adaptador compartido de eventos verificados todavía no está instalado."
-      : "The shared verified-stage adapter is not installed yet.",
+      ? "Los informes del embudo verificado todavía no están disponibles."
+      : "Verified funnel reporting is not available yet.",
   };
   return (
     <details>

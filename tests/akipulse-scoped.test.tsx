@@ -228,3 +228,22 @@ it.each(["en", "es"] as const)(
     expect(html).toContain("<summary>");
   },
 );
+
+it.each(["en", "es"] as const)(
+  "uses plain %s unavailable reporting copy",
+  (locale) => {
+    const html = renderToStaticMarkup(
+      <BusinessFunnel
+        locale={locale}
+        report={{ available: false, reason: "stage_adapter_not_installed" }}
+      />,
+    );
+    expect(html).toContain(
+      locale === "en"
+        ? "Verified funnel reporting is not available yet."
+        : "Los informes del embudo verificado todavía no están disponibles.",
+    );
+    expect(html).not.toContain("adapter");
+    expect(html).not.toContain("adaptador");
+  },
+);
