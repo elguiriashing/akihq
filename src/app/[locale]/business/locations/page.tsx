@@ -1,3 +1,4 @@
+import { accountTaskFromSearch } from "@/lib/account-task-resume";
 import { suiteHref } from "@/lib/suite-navigation";
 import "../accommodations/accommodations.css";
 import { OrganisationManagement } from "@/components/OrganisationManagement";
@@ -19,10 +20,10 @@ export default async function PrivateLocations({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const query = await searchParams;
-  const requestedCompany = z.string().uuid().safeParse(query.organisation);
   const { supabase, user } = await requireUser(
     locale,
-    `/${locale}/business/locations${requestedCompany.success ? "?organisation=" + requestedCompany.data : ""}`,
+    accountTaskFromSearch("hq", locale, "/business/locations", query) ||
+      "/business/locations",
   );
   const es = locale === "es";
   const ready =

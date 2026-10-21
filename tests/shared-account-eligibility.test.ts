@@ -309,3 +309,64 @@ it("filters actual server search records without picking a repeated referral or 
     }),
   ).toBe("/?ref=AKI12345&workspace=workspace_1");
 });
+
+it.each(["en", "es"] as const)(
+  "actual scoped management loaders preserve %s referral before their server gate",
+  async (locale) => {
+    vi.stubEnv("AKISUITE_ONBOARDING_SCHEMA_READY", "true");
+    state.getUser.mockResolvedValue({ data: { user: { id: "fixture" } } });
+    const pages = [
+      [
+        "locations",
+        (await import("../src/app/[locale]/business/locations/page")).default,
+      ],
+      [
+        "mobility",
+        (await import("../src/app/[locale]/business/mobility/page")).default,
+      ],
+      [
+        "accommodations",
+        (await import("../src/app/[locale]/business/accommodations/page"))
+          .default,
+      ],
+      [
+        "apply",
+        (await import("../src/app/[locale]/business/apply/page")).default,
+      ],
+    ] as const;
+    for (const status of ["pending", "underage"]) {
+      state.status = status;
+      for (const [name, page] of pages) {
+        let destination = "";
+        try {
+          await page({
+            params: Promise.resolve({ locale }),
+            searchParams: Promise.resolve({
+              ref: "AKI12345",
+              page: "2",
+              next: "https://evil.invalid",
+              token: "secret",
+            }),
+          });
+        } catch (error) {
+          destination = (error as Error).message.replace(/^redirect:/, "");
+        }
+        const completion = new URL(destination);
+        expect(completion.pathname).toBe(`/${locale}/onboarding`);
+        const next = new URL(
+          completion.searchParams.get("next")!,
+          completion.origin,
+        );
+        const task = new URL(
+          next.searchParams.get("path")!,
+          "https://akihq.app",
+        );
+        expect(task.pathname).toBe(`/business/${name}`);
+        expect(task.searchParams.get("ref")).toBe("AKI12345");
+        expect(task.searchParams.get("page")).toBe("2");
+        expect(task.searchParams.has("next")).toBe(false);
+        expect(destination).not.toContain("secret");
+      }
+    }
+  },
+);

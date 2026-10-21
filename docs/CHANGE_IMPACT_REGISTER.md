@@ -1724,3 +1724,5 @@ and exact-source release checks remain required; unit fixtures do not establish
 authenticated production browser acceptance.
 
 Actual management Home and Claims entry now preserve the validated referral alongside bounded view/location keys before requireManagementHomeAccess or requireUser. Server authorization, claim ownership and consent remain unchanged. Pending and underage requests still reach completion in the same language.
+
+Referral resume followup also covers existing HQ locations, mobility, accommodation and application server loaders. All four pass the real pending/underage eligibility gate in EN/ES before any management query runs. Existing bounded task allowlist remains authoritative.

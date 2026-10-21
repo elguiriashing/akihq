@@ -1,3 +1,4 @@
+import { accountTaskFromSearch } from "@/lib/account-task-resume";
 import { managementProduct } from "@/lib/product-roles";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -35,7 +36,8 @@ export default async function RentalBranchWorkspace({
     query = await searchParams;
   const { supabase } = await requireUser(
     locale,
-    `/${locale}/business/mobility${query.company ? "?company=" + encodeURIComponent(query.company) : ""}`,
+    accountTaskFromSearch("hq", locale, "/business/mobility", query) ||
+      "/business/mobility",
   );
   const { data: branches, error: branchError } = await supabase.rpc(
     "managed_rental_branches",

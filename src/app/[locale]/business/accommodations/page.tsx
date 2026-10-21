@@ -1,3 +1,4 @@
+import { accountTaskFromSearch } from "@/lib/account-task-resume";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
@@ -18,7 +19,8 @@ export default async function AccommodationManagement({
   const property = accommodationPropertyId.safeParse(query.property);
   const { supabase } = await requireUser(
     locale,
-    `/${locale}/business/accommodations${property.success ? "?property=" + property.data : ""}`,
+    accountTaskFromSearch("hq", locale, "/business/accommodations", query) ||
+      "/business/accommodations",
   );
   const locations =
     process.env.AKISUITE_ORGANISATIONS_READY === "true"
