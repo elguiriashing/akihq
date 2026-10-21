@@ -1,3 +1,4 @@
+import { accountTaskFromSearch } from "@/lib/account-task-resume";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
@@ -37,7 +38,7 @@ export default async function BusinessApplicationPage({
     query.plan === "business_pro" ? "business_pro" : "business";
   const { supabase, user } = await requireUser(
     locale,
-    `/${locale}/business/apply`,
+    `/${locale}${accountTaskFromSearch("hq", locale, "/business/apply", query) || "/business/apply"}`,
   );
   const { data } = await supabase
     .from("business_applications")
