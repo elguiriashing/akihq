@@ -186,3 +186,12 @@ ACL-verified; AKISUITE_FUNNEL_READY=true is enabled for the reader only. Shared
 collection remains disabled with retention NULL and no observations. Financial
 checkout/tax gates remain false. Full current-source tests/build and 64 responsive
 component cases pass; final hosted CI and deployment acceptance remain required.
+
+## Explicit resource scope adapters
+
+Native property reporting reads the native inventory namespace, not venue tables.
+Independent rental workspace mapping is owner-confirmed and never creates a public
+venue, subscription or organisation attachment. Organisation reporting uses explicit
+operating_organisation_locations with current workspace/resource permission
+intersections and bounded fanout. Original legacy reports remain the fallback while
+the new adapter gates are false. See AKIPULSE_EXPLICIT_SCOPES.md.

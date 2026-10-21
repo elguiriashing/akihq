@@ -1837,3 +1837,13 @@ ACL-verified; AKISUITE_FUNNEL_READY=true is enabled for the reader only. Shared
 collection remains disabled with retention NULL and no observations. Financial
 checkout/tax gates remain false. Full current-source tests/build and 64 responsive
 component cases pass; final hosted CI and deployment acceptance remain required.
+
+## 21 October 2026 — explicit independent-resource analytics
+
+Touches scoped Pulse dispatch/contracts/components, an owner-only rental mapping
+server action, and eight additive short SQL phases. Native property identities and
+independent rental branch identities are preserved. Explicit org/workspace/resource
+links and live management intersections drive every cohort; no owner-wide inference,
+raw PII, invented revenue or duplicated claim summation. New flags stay false.
+Shared collection, billing, entitlements and existing source records are unchanged.
+See AKIPULSE_EXPLICIT_SCOPES.md for security boundaries, validation and rollback.

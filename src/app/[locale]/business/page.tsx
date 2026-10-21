@@ -1,3 +1,5 @@
+import { readRentalPulseLinks } from "@/lib/pulse-rental-links";
+import { RentalPulseWorkspaceLink } from "@/components/RentalPulseWorkspaceLink";
 import { accountTaskFromSearch } from "@/lib/account-task-resume";
 import { readBusinessFunnel } from "@/lib/akipulse-funnel";
 import { roleSwapEnabled } from "@/lib/product-roles";
@@ -288,25 +290,44 @@ export default async function BusinessPage({
     pulseView &&
     process.env.AKIPULSE_SCOPED_BOOKINGS_READY === "true";
   const scopedPulseQuery = pulseScopeQuery.parse(query);
-  const scopeList = scopedPulseEnabled
-    ? await supabase.rpc("akipulse_scopes", {
-        p_kind: scopedPulseQuery.pulseKind,
-        p_limit: 51,
-        p_offset: scopedPulseQuery.pulsePage * 50,
-      })
-    : { data: [], error: null };
+  const nativePulseReady =
+    process.env.AKIPULSE_NATIVE_PROPERTIES_READY === "true";
+  const v2PulseReady =
+    process.env.AKIPULSE_EXPLICIT_SCOPE_ADAPTERS_READY === "true";
+  const requestedScopeReady =
+    scopedPulseQuery.pulseKind !== "native_property" ||
+    (nativePulseReady && v2PulseReady);
+  const scopeList =
+    scopedPulseEnabled && requestedScopeReady
+      ? await supabase.rpc(
+          v2PulseReady ? "akipulse_scopes_v2" : "akipulse_scopes",
+          {
+            p_kind: scopedPulseQuery.pulseKind,
+            p_limit: 51,
+            p_offset: scopedPulseQuery.pulsePage * 50,
+          },
+        )
+      : { data: [], error: null };
   const pulseScopes: PulseScope[] = (scopeList.data || []).slice(0, 50);
   // A selection is never a permission grant: the aggregate RPC rechecks all underlying scopes.
   const pulseResource =
     scopedPulseQuery.pulseResource || pulseScopes[0]?.id || "";
   const scopeResult =
-    scopedPulseEnabled && pulseResource && !scopeList.error
-      ? await supabase.rpc("akipulse_scope_analytics", {
-          p_kind: scopedPulseQuery.pulseKind,
-          p_id: pulseResource,
-          p_days: days,
-          p_until: periodEnd.toISOString(),
-        })
+    scopedPulseEnabled &&
+    requestedScopeReady &&
+    pulseResource &&
+    !scopeList.error
+      ? await supabase.rpc(
+          v2PulseReady
+            ? "akipulse_scope_analytics_v2"
+            : "akipulse_scope_analytics",
+          {
+            p_kind: scopedPulseQuery.pulseKind,
+            p_id: pulseResource,
+            p_days: days,
+            p_until: periodEnd.toISOString(),
+          },
+        )
       : { data: null, error: null };
   const scopedPulseReport = scopeResult.data
     ? readPulseScopedReport(
@@ -320,11 +341,16 @@ export default async function BusinessPage({
 
   const funnelResult =
     scopedPulseReport && process.env.AKISUITE_FUNNEL_READY === "true"
-      ? await supabase.rpc("akipulse_business_funnel", {
-          p_kind: scopedPulseQuery.pulseKind,
-          p_id: pulseResource,
-          p_days: days,
-        })
+      ? await supabase.rpc(
+          v2PulseReady
+            ? "akipulse_business_funnel_v2"
+            : "akipulse_business_funnel",
+          {
+            p_kind: scopedPulseQuery.pulseKind,
+            p_id: pulseResource,
+            p_days: days,
+          },
+        )
       : { data: null, error: null };
   const businessFunnel = !funnelResult.error
     ? readBusinessFunnel(
@@ -335,6 +361,21 @@ export default async function BusinessPage({
       )
     : null;
 
+  const rentalLinkResult =
+    scopedPulseEnabled &&
+    v2PulseReady &&
+    scopedPulseQuery.pulseKind === "fleet" &&
+    pulseResource &&
+    scopedPulseReport
+      ? await supabase.rpc("akipulse_rental_workspace_options", {
+          p_company: pulseResource,
+          p_limit: 51,
+          p_offset: scopedPulseQuery.pulseLinkPage * 50,
+        })
+      : { data: null, error: null };
+  const rentalLinks = rentalLinkResult.error
+    ? null
+    : readRentalPulseLinks(rentalLinkResult.data);
   const analytics = pulseView
     ? await Promise.all(
         (pulseEnabled ? scopedLocations.slice(0, 20) : scopedLocations).map(
@@ -808,6 +849,19 @@ export default async function BusinessPage({
         {scopedPulseEnabled && (
           <AkiPulseScoped
             funnel={businessFunnel}
+            nativeReady={nativePulseReady && v2PulseReady}
+            rentalLink={
+              rentalLinks ? (
+                <RentalPulseWorkspaceLink
+                  key={pulseResource}
+                  locale={locale}
+                  company={pulseResource}
+                  links={rentalLinks}
+                  page={scopedPulseQuery.pulseLinkPage}
+                  days={days}
+                />
+              ) : undefined
+            }
             locale={locale}
             kind={scopedPulseQuery.pulseKind}
             selected={pulseResource}

@@ -1346,3 +1346,15 @@ ACL-verified; AKISUITE_FUNNEL_READY=true is enabled for the reader only. Shared
 collection remains disabled with retention NULL and no observations. Financial
 checkout/tax gates remain false. Full current-source tests/build and 64 responsive
 component cases pass; final hosted CI and deployment acceptance remain required.
+
+## 21 October 2026 — explicit independent-resource analytics
+
+A separate successor to #74 adds native property cohorts, bounded explicit
+organisation/property/fleet scope adapters and deduplicated verified organisation
+commercial stages. Rental owners can confirm a workspace association only when
+owning both resources; no automatic assignment, paid grant or source-ID migration
+occurs. All reports recheck current scope and memberships. Independent/native
+coverage and linked-workspace stage semantics remain explicit. Both new reader
+flags stay false pending exact release acceptance; shared collection stays false.
+See AKIPULSE_EXPLICIT_SCOPES.md for eight short transactional migration phases,
+source definitions, query bounds, security tests and rollback.

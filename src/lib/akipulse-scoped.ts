@@ -2,17 +2,19 @@ import { z } from "zod";
 export const pulseScopeKind = z.enum([
   "venue",
   "property",
+  "native_property",
   "fleet",
   "organisation",
 ]);
 export const pulseScopeQuery = z.object({
   pulseKind: pulseScopeKind.catch("venue"),
   pulseResource: z.string().uuid().optional().catch(undefined),
+  pulseLinkPage: z.coerce.number().int().min(0).max(200).catch(0),
   pulsePage: z.coerce.number().int().min(0).max(200).catch(0),
 });
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const row = z.object({
-  source: z.enum(["venue", "accommodation", "fleet"]),
+  source: z.enum(["venue", "accommodation", "native_accommodation", "fleet"]),
   period: z.enum(["current", "previous"]),
   status: z.string().max(32),
   total: count,
@@ -30,6 +32,11 @@ export const pulseScopedReport = z.object({
   }),
   coverage: z.object({
     measured_venues: count,
+    measured_rental_branches: count.optional(),
+    excluded_rental_branches: count.optional(),
+    measured_native_properties: count.optional(),
+    excluded_native_properties: count.optional(),
+    native_reporting_available: z.boolean().optional(),
     excluded_locations: count,
     current_active_units: count.nullable(),
     current_active_vehicles: count.nullable(),

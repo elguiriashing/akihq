@@ -2,9 +2,11 @@ import type { BusinessFunnel as Report } from "@/lib/akipulse-funnel";
 export function BusinessFunnel({
   locale,
   report,
+  linkedResource = false,
 }: {
   locale: "en" | "es";
   report: Report | null;
+  linkedResource?: boolean;
 }) {
   const es = locale === "es";
   const labels = {
@@ -29,9 +31,12 @@ export function BusinessFunnel({
     scope_mapping_unsupported: es
       ? "Este ámbito aún no tiene un vínculo verificado a un único espacio de gestión. No sumamos embudos de organizaciones o flotas."
       : "This scope has no verified single-workspace mapping. Organisation and fleet funnels are not summed.",
+    organisation_mapping_missing: es
+      ? "Esta organización aún no tiene ubicaciones operativas vinculadas explícitamente."
+      : "This organisation has no explicitly linked operating locations yet.",
     workspace_mapping_missing: es
-      ? "No hay un espacio activo vinculado explícitamente a esta ficha."
-      : "No active workspace is explicitly linked to this listing.",
+      ? "No hay un espacio operativo activo vinculado explícitamente a este recurso."
+      : "No active operating workspace is explicitly linked to this resource.",
     workspace_mapping_ambiguous: es
       ? "Hay varios espacios vinculados. Es necesario verificar el vínculo antes de mostrar datos."
       : "Multiple workspaces are linked. The mapping needs review before data can be shown.",
@@ -60,6 +65,25 @@ export function BusinessFunnel({
               ? "Observaciones verificadas con consentimiento vigente. No son clientes únicos ni una tasa de conversión; cada etapa cuenta hechos distintos. La activación significa crear un espacio de gestión, no visitar AkiHQ."
               : "Verified observations with current consent. These are not unique customers or a conversion rate; each stage counts different facts. Activation means creating a management workspace, not visiting AkiHQ."}
           </p>
+          {linkedResource && (
+            <p>
+              {es
+                ? "Estas etapas pertenecen al espacio operativo vinculado explícitamente; no son conversiones exclusivas de esta propiedad o sucursal."
+                : "These stages belong to the explicitly linked operating workspace; they are not conversions exclusive to this property or branch."}
+            </p>
+          )}
+          {report.organisation_coverage && (
+            <p role="status">
+              {report.organisation_coverage.included_workspaces}{" "}
+              {es
+                ? "espacios de gestión incluidos"
+                : "management workspaces included"}{" "}
+              · {report.organisation_coverage.excluded_workspaces}{" "}
+              {es
+                ? "excluidos por permisos o estado. Cada prueba se cuenta una sola vez."
+                : "excluded by permissions or status. Each verified fact is counted once."}
+            </p>
+          )}
           <p>
             {es ? "Recopilación desde" : "Collection since"}{" "}
             {new Intl.DateTimeFormat(locale, {
