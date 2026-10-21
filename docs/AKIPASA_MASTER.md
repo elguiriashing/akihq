@@ -1217,3 +1217,15 @@ grants, extension ownership and existing reference rows. Effective table/column
 postconditions reject silent no-op/inherited-grant repairs transactionally.
 See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
 geography acceptance and safe rollback. No live application is claimed by CI.
+
+## 2026-10-20 | Verified commercial observations in scoped AkiPulse
+
+Adds a separately gated read-only commercial-stage panel. The adapter rechecks
+existing scoped-report authorization, requires exactly one active/trial workspace
+linked by source_venue_id and an active owner/admin/manager workspace membership,
+then calls the shared manager-only trusted-stage projection. Organisation/fleet,
+missing/ambiguous linkage, missing schema and inactive collection show explicit
+coverage reasons. No inferred customer funnel, sitewide Google attribution or
+conversion rates. The UI shows distinct consented facts, collection start and
+bounded period, with honest absent observations in EN/ES. Existing scoped booking
+and interaction reports remain independent. See TRUSTED_BUSINESS_FUNNEL.md.

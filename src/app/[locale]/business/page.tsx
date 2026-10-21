@@ -1,3 +1,4 @@
+import { readBusinessFunnel } from "@/lib/akipulse-funnel";
 import { roleSwapEnabled } from "@/lib/product-roles";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -314,6 +315,23 @@ export default async function BusinessPage({
         pulseResource,
         days,
         periodEnd.toISOString(),
+      )
+    : null;
+
+  const funnelResult =
+    scopedPulseReport && process.env.AKISUITE_FUNNEL_READY === "true"
+      ? await supabase.rpc("akipulse_business_funnel", {
+          p_kind: scopedPulseQuery.pulseKind,
+          p_id: pulseResource,
+          p_days: days,
+        })
+      : { data: null, error: null };
+  const businessFunnel = !funnelResult.error
+    ? readBusinessFunnel(
+        funnelResult.data,
+        scopedPulseQuery.pulseKind,
+        pulseResource,
+        days,
       )
     : null;
 
@@ -918,6 +936,7 @@ export default async function BusinessPage({
 
         {scopedPulseEnabled && (
           <AkiPulseScoped
+            funnel={businessFunnel}
             locale={locale}
             kind={scopedPulseQuery.pulseKind}
             selected={pulseResource}

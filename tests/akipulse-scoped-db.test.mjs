@@ -53,10 +53,21 @@ before(async () => {
       "utf8",
     ),
   );
+  await db.exec(`create table crm_workspace_members(workspace_id text,profile_id uuid,status text,role text);
+ create function public.crm_can_access_workspace(w text) returns boolean language sql stable as $$ select exists(select 1 from public.crm_workspace_members where workspace_id=w and profile_id=auth.uid() and status='active') $$;`);
+  await db.exec(
+    await readFile(
+      new URL(
+        "../supabase/migrations/20261020235637_trusted_business_funnel_projection.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
 });
 beforeEach(async () => {
   await db.exec(
-    "reset role; truncate venues,venue_members,car_rental_companies,car_rental_vehicles,operating_organisations,operating_organisation_locations,crm_workspaces,booking_requests,accommodation_reservations,car_rental_bookings,accommodation_units,analytics_events restart identity;",
+    "reset role; truncate crm_workspace_members,venues,venue_members,car_rental_companies,car_rental_vehicles,operating_organisations,operating_organisation_locations,crm_workspaces,booking_requests,accommodation_reservations,car_rental_bookings,accommodation_units,analytics_events restart identity;",
   );
   await actor();
   await db.query("select set_config('test.account_allowed','true',false)");
@@ -242,4 +253,54 @@ test("absent onboarding rollout helper preserves existing authorised access", as
       "create function public.account_features_allowed() returns boolean language sql stable as $$ select current_setting('test.account_allowed',true) is distinct from 'false' $$;",
     );
   }
+});
+
+async function funnel(kind = "venue", id = venue, days = 7) {
+  return (
+    await db.query("select akipulse_business_funnel($1,$2,$3) r", [
+      kind,
+      id,
+      days,
+    ])
+  ).rows[0].r;
+}
+test("funnel requires exact single mapping and live management, with honest unsupported scope coverage", async () => {
+  await assert.rejects(funnel("venue", foreign), /management/);
+  assert.equal(
+    (await funnel("organisation", org)).reason,
+    "scope_mapping_unsupported",
+  );
+  assert.equal((await funnel()).reason, "workspace_management_required");
+  await db.exec(
+    `insert into crm_workspace_members values('one','${owner}','active','manager')`,
+  );
+  assert.equal((await funnel()).reason, "stage_adapter_not_installed");
+  await db.exec(
+    `create function public.suite_business_funnel(w text,d integer) returns jsonb language sql stable as $$select jsonb_build_object('available',false,'reason','not_activated')$$`,
+  );
+  assert.deepEqual(await funnel(), {
+    kind: "venue",
+    id: venue,
+    days: 7,
+    funnel: { available: false, reason: "not_activated" },
+  });
+  await db.exec("set role anon");
+  await assert.rejects(funnel(), /permission denied/);
+  await db.exec("reset role;set role authenticated");
+  assert.equal((await funnel()).funnel.reason, "not_activated");
+  await db.exec(
+    "reset role;update crm_workspace_members set status='inactive' where workspace_id='one'",
+  );
+  assert.equal((await funnel()).reason, "workspace_management_required");
+  await db.exec(
+    "update crm_workspace_members set status='active' where workspace_id='one'",
+  );
+  await db.exec(
+    `insert into crm_workspaces values('duplicate','${venue}','active')`,
+  );
+  assert.equal((await funnel()).reason, "workspace_mapping_ambiguous");
+  await db.exec(`delete from crm_workspaces where source_venue_id='${venue}'`);
+  assert.equal((await funnel()).reason, "workspace_mapping_missing");
+  await db.query("select set_config('test.account_allowed','false',false)");
+  await assert.rejects(funnel(), /Account completion/);
 });
