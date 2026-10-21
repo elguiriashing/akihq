@@ -10,10 +10,23 @@ const mock = vi.hoisted(() => ({
     from: vi.fn(),
     storage: { from: vi.fn() },
   },
-  store: { upload: vi.fn(), remove: vi.fn(), createSignedUrls: vi.fn() },
+  store: {
+    upload: vi.fn(),
+    remove: vi.fn(),
+    createSignedUrls: vi.fn(),
+    download: vi.fn(),
+  },
+  serviceRpc: vi.fn(),
+  serviceFrom: vi.fn(),
 }));
 vi.mock("../src/lib/supabase/server", () => ({
   createSupabaseServerClient: async () => mock.db,
+}));
+vi.mock("../src/lib/supabase/service", () => ({
+  createSupabaseServiceClient: () => ({
+    rpc: mock.serviceRpc,
+    storage: { from: mock.serviceFrom },
+  }),
 }));
 import { GET, POST } from "../src/app/api/business/accommodations/media/route";
 const property = "11111111-1111-4111-8111-111111111111",
@@ -56,7 +69,12 @@ function json(body: unknown) {
 }
 function upload(
   type = "image/png",
-  bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]),
+  bytes = new Uint8Array(
+    Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB9sAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  ),
 ) {
   const form = new FormData();
   form.set("property", property);
@@ -71,12 +89,38 @@ function upload(
 afterEach(() => vi.unstubAllEnvs());
 beforeEach(() => {
   vi.stubEnv("AKISUITE_ACCOMMODATION_READY", "true");
+  vi.stubEnv("AKISUITE_ACCOMMODATION_MEDIA_READY", "true");
   vi.clearAllMocks();
   terms.mockResolvedValue(null);
   mock.db.auth.getUser.mockResolvedValue({ data: { user: { id: "owner" } } });
-  mock.db.rpc.mockResolvedValue({ data: true, error: null });
+  mock.db.rpc.mockImplementation(async (name: string) => ({
+    data:
+      name === "accommodation_listing_info"
+        ? {
+            uploads_enforced: true,
+            premium: false,
+            photos: 8,
+            used: 0,
+            max_dimension: 1920,
+          }
+        : name === "reserve_accommodation_upload"
+          ? { id, path: property + "/" + id + ".png" }
+          : true,
+    error: null,
+  }));
+  mock.serviceRpc.mockResolvedValue({ data: true, error: null });
+  mock.store.download.mockResolvedValue({
+    data: new Blob([
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB9sAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    ]),
+    error: null,
+  });
   mock.db.from.mockReturnValue(query());
   mock.db.storage.from.mockReturnValue(mock.store);
+  mock.serviceFrom.mockReturnValue(mock.store);
   mock.store.upload.mockResolvedValue({ error: null });
   mock.store.remove.mockResolvedValue({ error: null });
   mock.store.createSignedUrls.mockResolvedValue({
@@ -119,11 +163,16 @@ it("uploads a unique property path and creates private metadata only", async () 
   const q = query();
   mock.db.from.mockReturnValue(q);
   expect((await POST(upload())).status).toBe(201);
-  expect(mock.db.storage.from).toHaveBeenCalledWith("accommodation-media");
+  expect(mock.serviceFrom).toHaveBeenCalledWith("accommodation-media");
+  expect(mock.db.storage.from).not.toHaveBeenCalled();
   expect(mock.store.upload).toHaveBeenCalledWith(
     expect.stringMatching(new RegExp(`^${property}/[a-f0-9-]+\\.png$`)),
     expect.any(Uint8Array),
-    { contentType: "image/png", upsert: false },
+    expect.objectContaining({
+      contentType: "image/png",
+      upsert: false,
+      metadata: expect.objectContaining({ accommodation_upload_id: id }),
+    }),
   );
   expect(q.insert).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -144,7 +193,10 @@ it("does not create metadata after upload failure and cleans a failed metadata i
   mock.store.upload.mockResolvedValue({ error: null });
   mock.db.from.mockReturnValue(query(null, { message: "denied" }));
   expect((await POST(upload())).status).toBe(503);
-  expect(mock.store.remove).toHaveBeenCalledTimes(1);
+  expect(mock.store.remove).toHaveBeenCalledTimes(2);
+  expect(mock.serviceRpc).toHaveBeenCalledWith("cancel_accommodation_upload", {
+    p_reservation: id,
+  });
 });
 it("signs only scoped metadata and exposes errors as unavailable", async () => {
   const response = await GET(
@@ -153,6 +205,13 @@ it("signs only scoped metadata and exposes errors as unavailable", async () => {
     ),
   );
   expect(await response.json()).toEqual({
+    limits: {
+      uploads_enforced: true,
+      premium: false,
+      photos: 8,
+      used: 0,
+      max_dimension: 1920,
+    },
     media: [
       {
         id,

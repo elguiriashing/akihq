@@ -48,6 +48,7 @@ function query(data: unknown = [{ id }], error: unknown = null) {
 afterEach(() => vi.unstubAllEnvs());
 beforeEach(() => {
   vi.stubEnv("AKISUITE_ACCOMMODATION_READY", "true");
+  vi.stubEnv("AKISUITE_ACCOMMODATION_INVENTORY_READY", "true");
   vi.clearAllMocks();
   terms.mockResolvedValue(null);
   db.auth.getUser.mockResolvedValue({ data: { user: { id: "owner" } } });
@@ -191,13 +192,16 @@ it("checks reservation membership before invoking the status transaction", async
     ).status,
   ).toBe(403);
   expect(db.rpc).not.toHaveBeenCalledWith(
-    "accommodation_change_status",
+    "accommodation_property_change_status",
     expect.anything(),
   );
 });
 it("retains section-specific unavailable reads instead of inventing empty inventory", async () => {
   db.from.mockImplementation((table: string) =>
-    query([], table === "accommodation_units" ? { message: "offline" } : null),
+    query(
+      [],
+      table === "accommodation_property_units" ? { message: "offline" } : null,
+    ),
   );
   const response = await GET(
     new Request(
@@ -285,4 +289,39 @@ it("bounds pagination and rejects arbitrary section tables", async () => {
   expect(q.range).toHaveBeenCalledWith(200, 300);
   expect(q.order).toHaveBeenCalledWith("id");
   expect((await result.json()).units).toMatchObject({ page: 2, hasMore: true });
+});
+
+it("never falls back to legacy venue inventory while the native inventory schema gate is closed", async () => {
+  vi.stubEnv("AKISUITE_ACCOMMODATION_INVENTORY_READY", "false");
+  expect(
+    (
+      await call({
+        action: "room_type",
+        property,
+        name: "Double",
+        maxGuests: 2,
+        active: true,
+      })
+    ).status,
+  ).toBe(503);
+  expect(db.from).not.toHaveBeenCalled();
+  expect(
+    (
+      await GET(
+        new Request(
+          `https://akihq.app/api/business/accommodations?property=${property}&section=units`,
+        ),
+      )
+    ).status,
+  ).toBe(503);
+  expect(db.from).not.toHaveBeenCalled();
+});
+it("maps paginated native reads to distinct property tables", async () => {
+  await GET(
+    new Request(
+      `https://akihq.app/api/business/accommodations?property=${property}&section=units`,
+    ),
+  );
+  expect(db.from).toHaveBeenCalledWith("accommodation_property_units");
+  expect(db.from).not.toHaveBeenCalledWith("accommodation_units");
 });
