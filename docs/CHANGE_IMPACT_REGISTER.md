@@ -1705,6 +1705,27 @@ postconditions reject silent no-op/inherited-grant repairs transactionally.
 See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
 geography acceptance and safe rollback. No live application is claimed by CI.
 
+## 2026-10-21 | Independent property listing foundation (gated)
+
+Native accommodation uses real property UUID ownership and CRM intersection,
+separate property listing entitlements and verified service-upload reservations.
+Free/Premium media quotas are8/250 with1920/3840 dimensions; retained old media
+survive downgrade. New property schema refuses ambiguous historical/native data
+for explicit reconciliation. No legacy venue inventory or billing state changes.
+See NATIVE_ACCOMMODATION_FOUNDATION.md for roles, evidence and rollout gates.
+This is implemented/tested source, not merged or production verified; native
+inventory adapter compatibility remains a separately tracked follow-on.
+
+## 2026-10-21 | Native property inventory compatibility (gated)
+
+Additive002500 uses distinct accommodation*property*\* inventory with immutable
+property scope, RLS, composite identity FKs, non-overlapping rates/occupancy and
+audited manager reservation status changes. AkiHQ maps native sections explicitly
+and never falls back to existing venue tables. Native runtime/database inventory
+gates default off; no customer booking/quote or payment path is enabled.
+See NATIVE_ACCOMMODATION_INVENTORY.md for tests, corrected001000 prerequisite,
+privacy preservation and actual-provider/concurrent acceptance requirements.
+
 ## Listing schema-reader source configuration
 
 Adds server-only LIMITS_READY and UPLOADS_READY runtime vars after the standalone

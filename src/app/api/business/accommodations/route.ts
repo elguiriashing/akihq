@@ -1,3 +1,4 @@
+import { nativeAccommodationTables } from "@/lib/native-accommodation-inventory";
 import { accommodationApiTerms } from "@/lib/accommodation-api-terms";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -73,8 +74,17 @@ export async function GET(request: Request) {
   ];
   if (section) {
     if (!pageable.includes(section)) return reply({ error: "invalid" }, 400);
+    if (
+      section !== "property_media" &&
+      process.env.AKISUITE_ACCOMMODATION_INVENTORY_READY !== "true"
+    )
+      return reply({ error: "unavailable" }, 503);
     const result = await db
-      .from(`accommodation_${section}`)
+      .from(
+        nativeAccommodationTables[
+          section as keyof typeof nativeAccommodationTables
+        ],
+      )
       .select("*")
       .eq("property_id", parsed.data)
       .order("id")
@@ -92,7 +102,7 @@ export async function GET(request: Request) {
   const profile = await db
     .from("accommodation_properties")
     .select(
-      "id,name,status,legacy_venue_id,workspace_id,slug,address,city,latitude,longitude,accommodation_type,website_url,description_es,description_en",
+      "id,name,status,revision_id,legacy_venue_id,workspace_id,slug,address,city,latitude,longitude,accommodation_type,website_url,description_es,description_en",
     )
     .eq("id", parsed.data)
     .maybeSingle();
@@ -107,12 +117,15 @@ export async function GET(request: Request) {
   ] as const;
   const rows = await Promise.all(
     sections.map((section) =>
-      db
-        .from(`accommodation_${section}`)
-        .select("*")
-        .eq("property_id", parsed.data)
-        .order(section === "booking_settings" ? "property_id" : "id")
-        .limit(101),
+      section !== "property_media" &&
+      process.env.AKISUITE_ACCOMMODATION_INVENTORY_READY !== "true"
+        ? Promise.resolve({ data: null, error: { message: "unavailable" } })
+        : db
+            .from(nativeAccommodationTables[section])
+            .select("*")
+            .eq("property_id", parsed.data)
+            .order(section === "booking_settings" ? "property_id" : "id")
+            .limit(101),
     ),
   );
   // Each section exposes its read failure; unknown inventory must never appear empty.
@@ -200,6 +213,11 @@ export async function POST(request: Request) {
   );
   if (accessError) return reply({ error: "unavailable" }, 503);
   if (allowed !== true) return reply({ error: "forbidden" }, 403);
+  if (
+    p.action !== "profile" &&
+    process.env.AKISUITE_ACCOMMODATION_INVENTORY_READY !== "true"
+  )
+    return reply({ error: "unavailable" }, 503);
   let result;
   switch (p.action) {
     case "profile":
@@ -213,13 +231,13 @@ export async function POST(request: Request) {
       const row = { name: p.name, max_guests: p.maxGuests, active: p.active };
       result = p.id
         ? await db
-            .from("accommodation_room_types")
+            .from(nativeAccommodationTables.room_types)
             .update(row)
             .eq("property_id", p.property)
             .eq("id", p.id)
             .select("id")
         : await db
-            .from("accommodation_room_types")
+            .from(nativeAccommodationTables.room_types)
             .insert({ ...row, property_id: p.property })
             .select("id");
       break;
@@ -228,20 +246,20 @@ export async function POST(request: Request) {
       const row = { name: p.name, room_type_id: p.roomType, active: p.active };
       result = p.id
         ? await db
-            .from("accommodation_units")
+            .from(nativeAccommodationTables.units)
             .update(row)
             .eq("property_id", p.property)
             .eq("id", p.id)
             .select("id")
         : await db
-            .from("accommodation_units")
+            .from(nativeAccommodationTables.units)
             .insert({ ...row, property_id: p.property })
             .select("id");
       break;
     }
     case "rate":
       result = await db
-        .from("accommodation_nightly_rates")
+        .from(nativeAccommodationTables.nightly_rates)
         .insert({
           property_id: p.property,
           room_type_id: p.roomType,
@@ -254,7 +272,7 @@ export async function POST(request: Request) {
       break;
     case "block":
       result = await db
-        .from("accommodation_unit_blocks")
+        .from(nativeAccommodationTables.unit_blocks)
         .insert({
           property_id: p.property,
           unit_id: p.unit,
@@ -268,8 +286,8 @@ export async function POST(request: Request) {
       result = await db
         .from(
           p.action === "remove_rate"
-            ? "accommodation_nightly_rates"
-            : "accommodation_unit_blocks",
+            ? nativeAccommodationTables.nightly_rates
+            : nativeAccommodationTables.unit_blocks,
         )
         .delete()
         .eq("property_id", p.property)
@@ -278,7 +296,7 @@ export async function POST(request: Request) {
       break;
     case "settings":
       result = await db
-        .from("accommodation_booking_settings")
+        .from(nativeAccommodationTables.booking_settings)
         .upsert(
           {
             property_id: p.property,
@@ -293,14 +311,14 @@ export async function POST(request: Request) {
       break;
     case "status": {
       const reservation = await db
-        .from("accommodation_reservations")
+        .from(nativeAccommodationTables.reservations)
         .select("id")
         .eq("property_id", p.property)
         .eq("id", p.reservation)
         .maybeSingle();
       if (reservation.error) return reply({ error: "unavailable" }, 503);
       if (!reservation.data) return reply({ error: "forbidden" }, 403);
-      result = await db.rpc("accommodation_change_status", {
+      result = await db.rpc("accommodation_property_change_status", {
         p_reservation: p.reservation,
         p_status: p.status,
       });

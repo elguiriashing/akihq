@@ -1,3 +1,8 @@
+import {
+  storeAccommodationUpload,
+  discardAccommodationUpload,
+  AccommodationUploadError,
+} from "@/lib/accommodation-upload";
 import { accommodationApiTerms } from "@/lib/accommodation-api-terms";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { accommodationPropertyId } from "@/lib/independent-accommodation";
@@ -19,7 +24,7 @@ const mutation = z.discriminatedUnion("action", [
       action: z.literal("place"),
       property: accommodationPropertyId,
       id: z.string().uuid(),
-      position: z.number().int().min(0).max(11).nullable(),
+      position: z.number().int().min(0).max(249).nullable(),
     })
     .strict(),
   z
@@ -63,8 +68,12 @@ export async function GET(request: Request) {
     .select("id,storage_path,alt_text,public_position")
     .eq("property_id", property.data)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(251);
   if (error) return reply({ error: "unavailable" }, 503);
+  const limits = await db.rpc("accommodation_listing_info", {
+    p_property: property.data,
+  });
+  if (limits.error) return reply({ error: "unavailable" }, 503);
   const rows = data || [];
   const signed = rows.length
     ? await db.storage.from(bucket).createSignedUrls(
@@ -79,6 +88,7 @@ export async function GET(request: Request) {
       .map((s) => [s.path, s.signedUrl]),
   );
   return reply({
+    limits: limits.data,
     media: rows.map((r) => ({
       id: r.id,
       altText: r.alt_text,
@@ -108,38 +118,21 @@ export async function POST(request: Request) {
         (alt !== null && (typeof alt !== "string" || alt.length > 300))
       )
         return reply({ error: "invalid_file" }, 400);
-      const extension: Record<string, string> = {
-        "image/jpeg": "jpg",
-        "image/png": "png",
-        "image/webp": "webp",
-      };
-      if (!extension[file.type]) return reply({ error: "invalid_file" }, 400);
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const valid =
-        file.type === "image/jpeg"
-          ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
-          : file.type === "image/png"
-            ? [137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => bytes[i] === v)
-            : String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
-              String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
-      if (!valid) return reply({ error: "invalid_file" }, 400);
       const authorized = await access(property.data);
       if (!authorized.db) return authorized.response;
       const db = authorized.db;
+      const stored = await storeAccommodationUpload(db, property.data, file);
       const id = crypto.randomUUID();
-      const path = `${property.data}/${id}.${extension[file.type]}`;
-      const uploaded = await db.storage
-        .from(bucket)
-        .upload(path, bytes, { contentType: file.type, upsert: false });
-      if (uploaded.error) return reply({ error: "unavailable" }, 503);
       const inserted = await db.from("accommodation_property_media").insert({
         id,
         property_id: property.data,
-        storage_path: path,
+        storage_path: stored.path,
+        mime_type: file.type,
+        size_bytes: file.size,
         alt_text: alt || "",
       });
       if (inserted.error) {
-        await db.storage.from(bucket).remove([path]);
+        await discardAccommodationUpload(db, stored);
         return reply({ error: "unavailable" }, 503);
       }
       return reply({ id }, 201);
@@ -186,6 +179,15 @@ export async function POST(request: Request) {
       ? reply({ error: "unavailable" }, 503)
       : reply({ ok: true });
   } catch (error) {
+    if (error instanceof AccommodationUploadError)
+      return reply(
+        { error: error.code },
+        error.code === "quota" || error.code === "resolution"
+          ? 402
+          : error.code === "invalid-file"
+            ? 400
+            : 503,
+      );
     return reply(
       { error: "invalid" },
       error instanceof RequestSecurityError ? error.status : 400,
