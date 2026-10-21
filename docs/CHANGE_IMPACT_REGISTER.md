@@ -1,5 +1,15 @@
 # Change Impact Register
 
+## 2026-10-21 | Supported Next/OpenNext runtime
+
+- Replaces unsupported Next 15.5.28 with stable Next 16.4.2 and pins the
+  matching ESLint, OpenNext Cloudflare 1.20.12 and Wrangler 4.151.3 toolchain.
+- Preserves the existing Webpack/map alias, explicit server-action limit,
+  signed-image cache behavior and React Compiler-off hydration behavior.
+- No route, auth, role, RLS, schema, billing, customer data, Worker name/domain
+  or feature-gate change. Full tests, optimized build, clean OpenNext package,
+  dry-run, hosted CI and exact-SHA live acceptance are required before release.
+
 ## 2026-10-17 | AkiHQ management cross-site launcher
 
 - Scope: AkiHQ management portal's shared header menu and local suite assets.
@@ -1712,3 +1722,21 @@ shared schema is installed. Database count/strict gates remain independently off
 strictfalse retains legacy authenticated upload. No customer, billing, global old
 feature flag or library activation changes. See LISTING_SCHEMA_READINESS.md for
 actual owner paths, native-property dependency, acceptance and coordinated rollback.
+
+## 2026-10-21 | Business home recovery and compact AkiPulse
+
+- Reproduced the signed-in Home failure as a PostgREST 400 caused by selecting
+  removed `venues.phone`; the live schema retains `contact_phone`. The loader now
+  aliases `phone:contact_phone` and keeps a successful venue or rental source
+  visible when the other source fails. Both-source failure still blocks closed.
+- AkiPulse is condensed into glanceable KPIs, action bars and readiness rows.
+  Methodology and the separately scoped booking report are collapsed; promotion
+  request/history appears only in Pulse and opens on demand with localised labels.
+- Dependencies traced: authenticated venue membership, independent rental branch
+  RPC, venue/stay/rental routing, EN/ES, responsive Home/Pulse UI, analytics RPCs,
+  promotion action and shared Supabase RLS. No database, grants, subscription,
+  Stripe, identity, storage or deployment mapping change.
+- Regression evidence: the loader test asserts the exact current column alias and
+  all business/Pulse component and scoped SQL suites. TypeScript, lint, formatting,
+  full tests, Cloudflare build, hosted CI and live exact-SHA acceptance are release
+  gates. Roll back the source commit only; no customer-data rollback is required.

@@ -43,6 +43,15 @@
   background: var(--surface);
   min-width: 0;
 }
+.partialWarning {
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--primary) 55%, var(--line));
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--ink);
+  font-size: 12px;
+}
 .heading {
   display: flex;
   align-items: center;

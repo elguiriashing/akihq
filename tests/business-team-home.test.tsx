@@ -85,6 +85,7 @@ describe("team member's real business page loader", () => {
         },
       ];
       const reads: Array<[string, string, unknown]> = [];
+      const selects: Array<[string, string | undefined]> = [];
       const supabase = {
         rpc: async (name: string) => ({
           data:
@@ -103,7 +104,10 @@ describe("team member's real business page loader", () => {
         }),
         from: (table: string) => {
           const query = {
-            select: () => query,
+            select: (columns?: string) => {
+              selects.push([table, columns]);
+              return query;
+            },
             eq: (field: string, value: unknown) => {
               reads.push([table, field, value]);
               return query;
@@ -183,6 +187,10 @@ describe("team member's real business page loader", () => {
         "venue_members",
         "profile_id",
         "team-user",
+      ]);
+      expect(selects).toContainEqual([
+        "venue_members",
+        "role,venues(id,name,slug,status,verified,discovery_vertical,address,description_es,description_en,phone:contact_phone,website_url)",
       ]);
       expect(reads).not.toContainEqual([
         "car_rental_companies",

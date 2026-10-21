@@ -125,6 +125,7 @@ export function BookingManager({
 }) {
   const router = useRouter();
   const es = locale === "es";
+  const [renderedAt] = useState(Date.now);
   const [mode, setMode] = useState<Mode>(
     settings?.mode === "request" || settings?.mode === "disabled"
       ? (settings.mode as Mode)
@@ -1195,7 +1196,7 @@ export function BookingManager({
                             value="completed"
                             disabled={
                               !!slot &&
-                              new Date(slot.starts_at).getTime() > Date.now()
+                              new Date(slot.starts_at).getTime() > renderedAt
                             }
                           >
                             {es ? "Completar" : "Complete"}

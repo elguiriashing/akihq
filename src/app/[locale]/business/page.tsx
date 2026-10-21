@@ -123,6 +123,19 @@ export default async function BusinessPage({
 
   const flags = await loadFeatureFlags(supabase);
   const es = locale === "es";
+  const promotionServiceLabels: Record<string, string> = {
+    featured_listing: es ? "Evento destacado" : "Featured event",
+    social_campaign: es ? "Campaña en redes" : "Social campaign",
+    content_package: es ? "Paquete de contenido" : "Content package",
+    other: es ? "Solicitud personalizada" : "Custom request",
+  };
+  const promotionStateLabels: Record<string, string> = {
+    requested: es ? "Solicitada" : "Requested",
+    reviewing: es ? "En revisión" : "In review",
+    won: es ? "Aprobada" : "Approved",
+    declined: es ? "No aprobada" : "Not approved",
+    cancelled: es ? "Cancelada" : "Cancelled",
+  };
   const platformStaff = canModerate(profile?.app_role || "");
 
   const [
@@ -136,7 +149,7 @@ export default async function BusinessPage({
     supabase
       .from("venue_members")
       .select(
-        "role,venues(id,name,slug,status,verified,discovery_vertical,address,description_es,description_en,phone,website_url)",
+        "role,venues(id,name,slug,status,verified,discovery_vertical,address,description_es,description_en,phone:contact_phone,website_url)",
       )
       .eq("profile_id", user.id),
     supabase.from("categories").select("id,name_es,name_en").order("name_es"),
@@ -254,7 +267,7 @@ export default async function BusinessPage({
       item.venues ? [[item.venues.id, item.venues.name] as const] : [],
     ),
   );
-  const now = Date.now();
+  const now = new Date().getTime();
   const archivedEvents = businessEvents.filter(
     (event) => event.status === "archived",
   );
@@ -507,7 +520,8 @@ export default async function BusinessPage({
         {view === "venues" && (
           <BusinessHome
             locale={locale}
-            readError={Boolean(membersError || rentalCompaniesError)}
+            readError={Boolean(membersError && rentalCompaniesError)}
+            partialError={Boolean(membersError || rentalCompaniesError)}
             places={[
               ...managed.flatMap((item) =>
                 item.venues
@@ -916,6 +930,17 @@ export default async function BusinessPage({
           </section>
         )}
 
+        {pulseView && pulseEnabled && (
+          <AkiPulse
+            locale={locale}
+            locations={analytics}
+            days={days}
+            selectedLocation={selectedLocation}
+            availableLocations={availableLocations}
+            truncated={scopedLocations.length > 20}
+          />
+        )}
+
         {scopedPulseEnabled && (
           <AkiPulseScoped
             locale={locale}
@@ -931,17 +956,6 @@ export default async function BusinessPage({
             page={scopedPulseQuery.pulsePage}
             hasMore={(scopeList.data || []).length > 50}
             days={days}
-          />
-        )}
-
-        {pulseView && pulseEnabled && (
-          <AkiPulse
-            locale={locale}
-            locations={analytics}
-            days={days}
-            selectedLocation={selectedLocation}
-            availableLocations={availableLocations}
-            truncated={scopedLocations.length > 20}
           />
         )}
 
@@ -962,8 +976,8 @@ export default async function BusinessPage({
         )}
 
         {/* Growth & Promotion Requests */}
-        {pulseView && managed.length > 0 && (
-          <details className="panel catalogue-edit-card" open>
+        {view === "pulse" && managed.length > 0 && (
+          <details className="panel catalogue-edit-card">
             <summary>
               <strong>
                 {es
@@ -1062,9 +1076,11 @@ export default async function BusinessPage({
               <div className="managed-list">
                 {promotions.map((item) => (
                   <div className="managed-row" key={item.id}>
-                    <strong>{item.service}</strong>
+                    <strong>
+                      {promotionServiceLabels[item.service] || item.service}
+                    </strong>
                     <span className="status-pill badge-neutral">
-                      {item.state}
+                      {promotionStateLabels[item.state] || item.state}
                     </span>
                   </div>
                 ))}

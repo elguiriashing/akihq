@@ -27,11 +27,13 @@ export function BusinessHome({
   locale,
   places,
   readError = false,
+  partialError = false,
   deleteAction,
 }: {
   locale: "en" | "es";
   places: ManagedPlace[];
   readError?: boolean;
+  partialError?: boolean;
   deleteAction: (formData: FormData) => void | Promise<void>;
 }) {
   const es = locale === "es";
@@ -120,6 +122,13 @@ export function BusinessHome({
         </Link>
       </div>
       <div className={styles.workspace}>
+        {partialError && !readError && (
+          <p className={styles.partialWarning} role="status">
+            {es
+              ? "Mostramos los negocios disponibles; una fuente no respondió y se puede reintentar recargando."
+              : "Available businesses are shown; one source did not respond and can be retried by reloading."}
+          </p>
+        )}
         <div className={styles.heading}>
           <div>
             <h2>
