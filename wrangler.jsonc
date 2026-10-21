@@ -18,6 +18,7 @@
     "NEXT_PUBLIC_DATA_PROVIDER": "hybrid",
     "NEXT_PUBLIC_GOOGLE_AUTH_ENABLED": "true",
     "NEXT_PUBLIC_MAP_STYLE_URL": "https://tiles.openfreemap.org/styles/liberty",
+    "AKISUITE_FUNNEL_READY": "true",
     "AKISUITE_CHECKOUT_ENABLED": "false",
     "AKISUITE_TAX_READY": "false",
     "AKISUITE_SUBSCRIPTIONS_READY": "false",

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AkiPulseScoped } from "../src/components/AkiPulseScoped";
 import {
@@ -247,3 +248,37 @@ it.each(["en", "es"] as const)(
     expect(html).not.toContain("adaptador");
   },
 );
+
+it("installed read-only funnel readiness does not activate collection or financial gates", () => {
+  const config = JSON.parse(
+    readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8").replace(
+      /,\s*([}\]])/g,
+      "$1",
+    ),
+  );
+  expect(config.vars.AKISUITE_FUNNEL_READY).toBe("true");
+  for (const gate of [
+    "AKISUITE_CHECKOUT_ENABLED",
+    "AKISUITE_TAX_READY",
+    "AKISUITE_SUBSCRIPTIONS_READY",
+    "AKISUITE_BILLING_VERIFIED",
+  ]) {
+    expect(config.vars[gate]).toBe("false");
+  }
+  expect(
+    Object.keys(config.vars).filter((key) => /COLLECTION|RETENTION/.test(key)),
+  ).toEqual([]);
+  expect(
+    readBusinessFunnel(
+      {
+        kind: "venue",
+        id,
+        days: 7,
+        funnel: { available: false, reason: "not_activated" },
+      },
+      "venue",
+      id,
+      7,
+    ),
+  ).toEqual({ available: false, reason: "not_activated" });
+});

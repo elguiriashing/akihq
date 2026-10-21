@@ -47,11 +47,14 @@ Reconciliation checkpoint (21 October 2026): this successor reuses PR #63 and
 preserves main e2492a4f's Next 16 runtime, compact Pulse disclosure, resilient
 management home and loyalty workspace. The shared canonical stage schema is now
 installed by the release owner, with collection disabled, retention NULL and no
-observations. This HQ projection and reader are still pending release.
+observations. The release owner has now installed this exact projection and verified authenticated
+execution allowed, anonymous execution denied and collection still disabled with
+zero observations. The checked-in AKISUITE_FUNNEL_READY flag now enables only the
+reader; deployment and real-owner acceptance remain release gates.
 
 Release sequence:
 
-1. Review/apply the identical 3.2 KB HQ projection migration after its prerequisites.
+1. Review/apply the identical 2,589-byte HQ projection migration after its prerequisites.
    It is one transactional phase, without data writes or collection activation.
 2. Verify authenticated owner access returns not_activated while foreign and
    anonymous access are denied; verify raw stage tables remain private.
@@ -65,3 +68,10 @@ The SQL fixtures additionally check nullable access-helper denial and preserve t
 real caller through the shared projection. Application and responsive harness
 results are recorded in the successor PR; synthetic observations are labelled in
 fixtures. Actual production mapping and consent journeys remain release gates.
+
+Local successor validation: 341 application cases (342 after the readiness guard),
+18 PostgreSQL cases, 23 navigation cases, full lint/types/format and the supported
+Next 16/OpenNext Cloudflare build plus Wrangler dry-run pass. The real-component
+harness passes 64 scope × locale × theme × responsive viewport cases with labelled
+synthetic observations, keyboard/overflow/44px target and denied-state checks.
+Hosted CI must validate the final exact successor commit before merge.

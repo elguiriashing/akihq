@@ -1340,3 +1340,9 @@ The shared stage schema is installed but collection remains disabled and retenti
 NULL. This source does not change readiness flags, collection or billing state.
 The HQ projection must be installed and real-caller ACL checks accepted before
 reader readiness can be enabled.
+
+Release-owner follow-up: the exact read-only HQ projection is now installed and
+ACL-verified; AKISUITE_FUNNEL_READY=true is enabled for the reader only. Shared
+collection remains disabled with retention NULL and no observations. Financial
+checkout/tax gates remain false. Full current-source tests/build and 64 responsive
+component cases pass; final hosted CI and deployment acceptance remain required.
