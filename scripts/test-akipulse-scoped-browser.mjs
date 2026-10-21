@@ -16,6 +16,27 @@ await build({
   outfile: path.join(output, "fixture.js"),
   loader: { ".module.css": "local-css" },
   tsconfig: "tsconfig.json",
+  plugins: [
+    {
+      name: "labelled-synthetic-management-actions",
+      setup(builder) {
+        builder.onResolve(
+          { filter: /^(@\/app\/actions\/pulse|next\/navigation)$/ },
+          (args) => ({ path: args.path, namespace: "synthetic-action" }),
+        );
+        builder.onLoad(
+          { filter: /.*/, namespace: "synthetic-action" },
+          (args) => ({
+            contents:
+              args.path === "next/navigation"
+                ? "export function useRouter(){return {refresh(){}}}"
+                : "export async function saveRentalPulseWorkspace(value){window.__syntheticLinkCalls=(window.__syntheticLinkCalls||[]).concat([value]);if(window.__syntheticLinkThrow)throw new Error('Synthetic offline transport');return window.__syntheticLinkFail?{ok:false,error:'forbidden'}:{ok:true}}",
+            loader: "js",
+          }),
+        );
+      },
+    },
+  ],
 });
 // Use the actual shared parent rule, with a sibling so :only-child cannot mask a missing span.
 const dashboardCSS = (await fs.readFile("src/app/globals.css", "utf8")).match(
@@ -59,7 +80,13 @@ try {
   ])
     for (const locale of ["en", "es"])
       for (const theme of ["light", "dark"])
-        for (const kind of ["venue", "property", "fleet", "organisation"]) {
+        for (const kind of [
+          "venue",
+          "property",
+          "native_property",
+          "fleet",
+          "organisation",
+        ]) {
           const page = await browser.newPage({ viewport: { width, height } });
           const errors = [];
           page.on("pageerror", (error) => errors.push(String(error)));
@@ -93,6 +120,82 @@ try {
               () => document.documentElement.scrollWidth <= innerWidth + 1,
             ),
           );
+          if (kind === "fleet") {
+            await page
+              .getByText(
+                locale === "es"
+                  ? "Vincular sucursal a un espacio operativo"
+                  : "Link rental branch to an operating workspace",
+                { exact: true },
+              )
+              .click();
+            await page
+              .locator('select[name="workspace"]')
+              .selectOption("synthetic-owned");
+            await page
+              .getByRole("button", {
+                name: locale === "es" ? "Guardar vínculo" : "Save link",
+                exact: true,
+              })
+              .click();
+            await page
+              .getByRole("status")
+              .filter({
+                hasText: locale === "es" ? "Vínculo guardado" : "Link saved",
+              })
+              .waitFor();
+            assert.equal(
+              await page.locator('select[name="workspace"]').inputValue(),
+              "synthetic-owned",
+            );
+            await page.evaluate(() => {
+              window.__syntheticLinkFail = true;
+            });
+            await page.locator('select[name="workspace"]').selectOption("");
+            await page
+              .getByRole("button", {
+                name: locale === "es" ? "Guardar vínculo" : "Save link",
+                exact: true,
+              })
+              .click();
+            await page
+              .getByRole("status")
+              .filter({
+                hasText:
+                  locale === "es" ? "No se pudo guardar" : "Could not save",
+              })
+              .waitFor();
+            assert.equal(
+              await page.locator('select[name="workspace"]').inputValue(),
+              "",
+            );
+            await page.evaluate(() => {
+              window.__syntheticLinkThrow = true;
+            });
+            await page
+              .locator('select[name="workspace"]')
+              .selectOption("synthetic-owned");
+            await page
+              .getByRole("button", {
+                name: locale === "es" ? "Guardar vínculo" : "Save link",
+                exact: true,
+              })
+              .click();
+            await page
+              .getByRole("status")
+              .filter({
+                hasText:
+                  locale === "es" ? "No se pudo guardar" : "Could not save",
+              })
+              .waitFor();
+            await page.waitForFunction(
+              () => !document.querySelector('button[type="submit"]')?.disabled,
+            );
+            assert.equal(
+              await page.locator('select[name="workspace"]').inputValue(),
+              "synthetic-owned",
+            );
+          }
           for (const control of await page
             .locator("button,select,summary,nav a")
             .all()) {
@@ -106,7 +209,7 @@ try {
             '[aria-labelledby="pulse-booking-title"] details > summary',
           );
           await reportSummaries.first().click();
-          if (kind !== "fleet")
+          if (kind !== "fleet" && kind !== "native_property")
             assert(
               (await page.locator("body").innerText()).includes(
                 locale === "es" ? "Clics de reserva" : "Booking clicks",
@@ -115,7 +218,7 @@ try {
           await reportSummaries.last().click();
           assert(
             (await page.locator("body").innerText()).includes(
-              kind === "venue" || kind === "property"
+              kind !== "fleet"
                 ? locale === "en"
                   ? "not unique customers"
                   : "No son clientes únicos"

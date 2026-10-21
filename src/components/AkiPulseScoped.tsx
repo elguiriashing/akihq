@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { PulseScope, PulseScopedReport } from "@/lib/akipulse-scoped";
 import { BusinessFunnel } from "./BusinessFunnel";
 import type { BusinessFunnel as FunnelReport } from "@/lib/akipulse-funnel";
@@ -5,6 +6,8 @@ import styles from "./BusinessGrowthOverview.module.css";
 import scopedStyles from "./AkiPulseScoped.module.css";
 export function AkiPulseScoped({
   funnel,
+  nativeReady = false,
+  rentalLink,
   locale,
   kind,
   selected,
@@ -16,6 +19,8 @@ export function AkiPulseScoped({
   days,
 }: {
   funnel?: FunnelReport | null;
+  nativeReady?: boolean;
+  rentalLink?: ReactNode;
   locale: "en" | "es";
   kind: string;
   selected: string;
@@ -41,6 +46,13 @@ export function AkiPulseScoped({
     property: es
       ? "Alojamientos vinculados a fichas"
       : "Listing-linked accommodation",
+    ...(nativeReady
+      ? {
+          native_property: es
+            ? "Alojamientos independientes"
+            : "Independent accommodation",
+        }
+      : {}),
     fleet: es ? "Sucursales de alquiler" : "Rental branches",
     organisation: es ? "Organizaciones" : "Organisations",
   };
@@ -193,11 +205,55 @@ export function AkiPulseScoped({
                   : "locations lack a verified link or management access. They are excluded; results are not the complete organisation total."}
               </p>
             )}
+            {report.coverage.excluded_native_properties ? (
+              <p role="status">
+                {report.coverage.excluded_native_properties}{" "}
+                {es
+                  ? "propiedades vinculadas excluidas por permisos o disponibilidad."
+                  : "linked properties excluded by permissions or readiness."}
+              </p>
+            ) : null}
+            {kind === "organisation" &&
+              report.coverage.native_reporting_available === false && (
+                <p role="status">
+                  {es
+                    ? "La cobertura de alojamientos independientes aún no está disponible; estos totales no los incluyen."
+                    : "Independent accommodation reporting is unavailable; these totals do not include those properties."}
+                </p>
+              )}
+            {report.coverage.excluded_rental_branches ? (
+              <p role="status">
+                {report.coverage.excluded_rental_branches}{" "}
+                {es
+                  ? "sucursales vinculadas excluidas por permisos o estado."
+                  : "linked rental branches excluded by permissions or status."}
+              </p>
+            ) : null}
             <div className={styles.stats}>
               <article>
                 <span>{es ? "Fichas medidas" : "Measured listings"}</span>
                 <strong>{report.coverage.measured_venues}</strong>
               </article>
+              {report.coverage.measured_rental_branches !== undefined && (
+                <article>
+                  <span>
+                    {es
+                      ? "Sucursales de alquiler medidas"
+                      : "Rental branches measured"}
+                  </span>
+                  <strong>{report.coverage.measured_rental_branches}</strong>
+                </article>
+              )}
+              {report.coverage.measured_native_properties !== undefined && (
+                <article>
+                  <span>
+                    {es
+                      ? "Propiedades independientes medidas"
+                      : "Independent properties measured"}
+                  </span>
+                  <strong>{report.coverage.measured_native_properties}</strong>
+                </article>
+              )}
               {report.coverage.current_active_units !== null && (
                 <article>
                   <span>
@@ -247,13 +303,17 @@ export function AkiPulseScoped({
                             ? es
                               ? "Alojamiento"
                               : "Accommodation"
-                            : row.source === "fleet"
+                            : row.source === "native_accommodation"
                               ? es
-                                ? "Alquiler"
-                                : "Rental"
-                              : es
-                                ? "Reserva de local"
-                                : "Venue booking"}
+                                ? "Alojamiento independiente"
+                                : "Independent accommodation"
+                              : row.source === "fleet"
+                                ? es
+                                  ? "Alquiler"
+                                  : "Rental"
+                                : es
+                                  ? "Reserva de local"
+                                  : "Venue booking"}
                         </th>
                         <td>
                           {row.period === "current"
@@ -278,6 +338,13 @@ export function AkiPulseScoped({
                   : "No requests recorded in these intervals."}
               </p>
             )}
+            {kind === "native_property" && (
+              <p>
+                {es
+                  ? "Las interacciones de descubrimiento de esta propiedad aún no están vinculadas a este informe."
+                  : "Discovery interactions for this property are not yet linked to this report."}
+              </p>
+            )}
             <details>
               <summary>
                 {es
@@ -299,7 +366,12 @@ export function AkiPulseScoped({
             </details>
           </>
         )}
-        <BusinessFunnel locale={locale} report={funnel || null} />
+        {rentalLink}
+        <BusinessFunnel
+          locale={locale}
+          report={funnel || null}
+          linkedResource={kind === "native_property" || kind === "fleet"}
+        />
         <p className={styles.fine}>
           {es
             ? "Los alojamientos independientes y las sucursales sin vínculo de organización conservan sus permisos y datos. Su incorporación a un total de organización requiere un vínculo explícito verificado."

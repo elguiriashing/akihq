@@ -1,11 +1,12 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { RentalPulseWorkspaceLink } from "../../src/components/RentalPulseWorkspaceLink";
 import { AkiPulseScoped } from "../../src/components/AkiPulseScoped";
 import type { PulseScopedReport } from "../../src/lib/akipulse-scoped";
 const params = new URLSearchParams(location.search);
 const locale = params.get("locale") === "es" ? "es" : "en";
 const kind = (
-  ["venue", "property", "fleet", "organisation"].includes(
+  ["venue", "property", "native_property", "fleet", "organisation"].includes(
     params.get("kind") || "",
   )
     ? params.get("kind")
@@ -27,7 +28,10 @@ const data: PulseScopedReport = {
     previous_from: "2026-10-06T00:00:00Z",
   },
   coverage: {
-    measured_venues: kind === "fleet" ? 0 : 2,
+    measured_venues: kind === "fleet" || kind === "native_property" ? 0 : 2,
+    measured_native_properties:
+      kind === "native_property" || kind === "organisation" ? 1 : undefined,
+    native_reporting_available: true,
     excluded_locations: kind === "organisation" ? 1 : 0,
     current_active_units: kind === "fleet" ? null : 3,
     current_active_vehicles: kind === "fleet" ? 4 : null,
@@ -37,9 +41,11 @@ const data: PulseScopedReport = {
       source:
         kind === "fleet"
           ? "fleet"
-          : kind === "property"
-            ? "accommodation"
-            : "venue",
+          : kind === "native_property"
+            ? "native_accommodation"
+            : kind === "property"
+              ? "accommodation"
+              : "venue",
       period: "current",
       status: "confirmed",
       total: 4,
@@ -48,16 +54,18 @@ const data: PulseScopedReport = {
       source:
         kind === "fleet"
           ? "fleet"
-          : kind === "property"
-            ? "accommodation"
-            : "venue",
+          : kind === "native_property"
+            ? "native_accommodation"
+            : kind === "property"
+              ? "accommodation"
+              : "venue",
       period: "previous",
       status: "cancelled",
       total: 2,
     },
   ],
   interactions:
-    kind === "fleet"
+    kind === "fleet" || kind === "native_property"
       ? []
       : [{ action: "booking_click", current: 7, previous: 3 }],
   commercial_funnel: {
@@ -73,10 +81,14 @@ createRoot(document.getElementById("fixture")!).render(
     <div className="dashboard-grid" data-fixture-dashboard>
       <AkiPulseScoped
         funnel={
-          kind === "venue" || kind === "property"
+          kind !== "fleet"
             ? {
                 available: true,
-                scope: "workspace",
+                scope: kind === "organisation" ? "organisation" : "workspace",
+                organisation_coverage:
+                  kind === "organisation"
+                    ? { included_workspaces: 2, excluded_workspaces: 1 }
+                    : undefined,
                 days: 7,
                 stages: {
                   claim_completed: 1,
@@ -93,6 +105,28 @@ createRoot(document.getElementById("fixture")!).render(
               }
             : { available: false, reason: "scope_mapping_unsupported" }
         }
+        rentalLink={
+          kind === "fleet" ? (
+            <RentalPulseWorkspaceLink
+              locale={locale}
+              company={id}
+              links={{
+                can_link: true,
+                options: [
+                  {
+                    id: "synthetic-owned",
+                    name: "Synthetic owned operating workspace",
+                  },
+                ],
+                current: null,
+                has_link: false,
+              }}
+              page={0}
+              days={7}
+            />
+          ) : undefined
+        }
+        nativeReady
         locale={locale}
         kind={kind}
         selected={id}

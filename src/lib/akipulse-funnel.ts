@@ -11,7 +11,13 @@ const funnel = z.discriminatedUnion("available", [
   z.object({ available: z.literal(false), reason: z.string().max(80) }),
   z.object({
     available: z.literal(true),
-    scope: z.literal("workspace"),
+    scope: z.enum(["workspace", "organisation"]),
+    organisation_coverage: z
+      .object({
+        included_workspaces: z.number().int().min(1).max(100),
+        excluded_workspaces: z.number().int().min(0).max(100),
+      })
+      .optional(),
     days: z.number().int().min(1).max(90),
     stages: z.record(
       stage,
@@ -48,7 +54,12 @@ export function readBusinessFunnel(
     response.data.kind === kind &&
     response.data.id === id &&
     response.data.days === days &&
-    (!response.data.funnel.available || response.data.funnel.days === days)
+    (!response.data.funnel.available ||
+      (response.data.funnel.days === days &&
+        response.data.funnel.scope ===
+          (kind === "organisation" ? "organisation" : "workspace") &&
+        (kind !== "organisation" ||
+          !!response.data.funnel.organisation_coverage)))
     ? response.data.funnel
     : null;
 }

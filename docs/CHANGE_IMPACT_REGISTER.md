@@ -1837,3 +1837,28 @@ ACL-verified; AKISUITE_FUNNEL_READY=true is enabled for the reader only. Shared
 collection remains disabled with retention NULL and no observations. Financial
 checkout/tax gates remain false. Full current-source tests/build and 64 responsive
 component cases pass; final hosted CI and deployment acceptance remain required.
+
+## 21 October 2026 — explicit independent-resource analytics
+
+Touches scoped Pulse dispatch/contracts/components, an owner-only rental mapping
+server action, and eight additive short SQL phases. Native property identities and
+independent rental branch identities are preserved. Explicit org/workspace/resource
+links and live management intersections drive every cohort; no owner-wide inference,
+raw PII, invented revenue or duplicated claim summation. New flags stay false.
+Shared collection, billing, entitlements and existing source records are unchanged.
+See AKIPULSE_EXPLICIT_SCOPES.md for security boundaries, validation and rollback.
+
+### Rental workspace link transport recovery
+
+Narrow client catch around the owner link server action prevents transport errors
+from replacing the management view. Success/denial/network rejection retain the
+selected draft; network failures never display saved confirmation. No SQL or flags
+change. The 80-case real-component browser matrix includes a throwing transport.
+
+### Own rental-link activity portability
+
+Adds my_pulse_management_export_page and subject/cursor indexes only, plus actual
+PostgreSQL privacy tests. Fixed section allowlist, auth.uid identity and curated
+own actor/linked_by rows prevent foreign/private business data export. Restricted
+users retain privacy access without gaining operational access. Requires central
+account-export dispatch before rental mapping activation; no UI/flag changes.
