@@ -65,6 +65,10 @@ try {
           page.on("pageerror", (error) => errors.push(String(error)));
           const url = `http://127.0.0.1:${server.address().port}/?${new URLSearchParams({ locale, theme, kind })}`;
           await page.goto(url);
+          const disclosure = page.locator(
+            "[data-fixture-dashboard] > details > summary",
+          );
+          await disclosure.click();
           await page.locator("table").waitFor();
           const gridBox = await page
             .locator("[data-fixture-dashboard]")
@@ -91,14 +95,17 @@ try {
               JSON.stringify({ locale, kind, box }),
             );
           }
-          await page.locator("summary").first().click();
+          const reportSummaries = page.locator(
+            '[aria-labelledby="pulse-booking-title"] details > summary',
+          );
+          await reportSummaries.first().click();
           if (kind !== "fleet")
             assert(
               (await page.locator("body").innerText()).includes(
                 locale === "es" ? "Clics de reserva" : "Booking clicks",
               ),
             );
-          await page.locator("summary").last().click();
+          await reportSummaries.last().click();
           assert(
             (await page.locator("body").innerText()).includes(
               locale === "en" ? "verified adapter" : "adaptador verificado",
@@ -115,6 +122,7 @@ try {
             fullPage: true,
           });
           await page.goto(url + "&denied=1");
+          await disclosure.click();
           await page.getByRole("alert").waitFor();
           assert.equal(await page.locator("table").count(), 0);
           assert.deepEqual(errors, []);
