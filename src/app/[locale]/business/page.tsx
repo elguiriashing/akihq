@@ -1,19 +1,17 @@
 import { accountTaskFromSearch } from "@/lib/account-task-resume";
 import { roleSwapEnabled } from "@/lib/product-roles";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { config, isLocale } from "@/lib/config";
 import { loadFeatureFlags } from "@/lib/feature-flags";
 import { requireUser } from "@/lib/auth";
 import { requireManagementHomeAccess } from "@/lib/entitlements";
 import {
-  confirmRedemption,
   createOfficialEvent,
   createVenue,
   deleteManagedVenue,
   requestPromotion,
   reuseEvent,
-  saveLoyaltyProgram,
   submitVenueClaim,
 } from "./actions";
 import { SpainAddressAutocomplete } from "@/components/SpainAddressAutocomplete";
@@ -99,10 +97,12 @@ export default async function BusinessPage({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const query = await searchParams;
+  // Old loyalty bookmarks now lead to the shared per-venue workspace.
+  if (query.view === "loyalty")
+    redirect(`/${locale}/business?notice=loyalty-moved`);
   const view = [
     "venues",
     "events",
-    "loyalty",
     "growth",
     "analytics",
     "pulse",
@@ -143,8 +143,6 @@ export default async function BusinessPage({
     { data: members, error: membersError },
     { data: categories },
     { data: claims },
-    { data: programs },
-    { data: redemptions },
     { data: promotions },
   ] = await Promise.all([
     supabase
@@ -159,18 +157,6 @@ export default async function BusinessPage({
       .select("id,status,created_at,venues(name)")
       .eq("claimant_id", user.id)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("loyalty_programs")
-      .select(
-        "id,venue_id,title_es,title_en,reward_es,reward_en,stamps_required,check_in_token,active",
-      ),
-    supabase
-      .from("reward_redemptions")
-      .select(
-        "id,requested_at,profiles(display_name),loyalty_programs(title_es,venue_id)",
-      )
-      .eq("state", "requested")
-      .order("requested_at"),
     supabase
       .from("promotion_requests")
       .select("id,venue_id,service,state,created_at")
@@ -398,12 +384,6 @@ export default async function BusinessPage({
       count: businessEvents.length || undefined,
     },
     {
-      href: `${base}?view=loyalty`,
-      label: es ? "Fidelidad" : "Loyalty",
-      icon: "gift",
-      count: redemptions?.length || undefined,
-    },
-    {
       href: `${base}?view=pulse`,
       label: pulseEnabled ? "AkiPulse" : es ? "Actividad" : "Activity",
       icon: "activity",
@@ -428,13 +408,20 @@ export default async function BusinessPage({
       eyebrow={es ? "Panel de negocio" : "Business workspace"}
       description={
         es
-          ? "Gestiona tus locales, fidelidad y crecimiento desde un solo espacio."
-          : "Manage venues, loyalty, and growth from one focused workspace."
+          ? "Gestiona tus negocios y abre cada local AkiPasa para administrar sus tarjetas de fidelidad."
+          : "Manage your businesses and open each AkiPasa venue to manage its loyalty cards."
       }
       homeHref={base}
       items={items}
       navigationTitle={es ? "Negocio" : "Business"}
     >
+      {query.notice === "loyalty-moved" && (
+        <p className="notice" role="status">
+          {es
+            ? "La fidelidad se gestiona ahora desde Recompensas dentro de cada local AkiPasa. Abre tu local a continuación."
+            : "Loyalty is now managed under Rewards inside each AkiPasa venue. Open a venue below to manage its cards."}
+        </p>
+      )}
       {(query.created || query.error) && (
         <p
           className={`notice ${query.created ? "notice-success" : "notice-error"}`}
@@ -787,148 +774,6 @@ export default async function BusinessPage({
               media={eventComposerMedia}
             />
           </details>
-        )}
-
-        {/* Loyalty & Stamps View */}
-        {view === "loyalty" && managed.length > 0 && (
-          <details className="panel catalogue-edit-card" open>
-            <summary>
-              <strong>
-                {es
-                  ? "Programa de Sellos y Recompensas"
-                  : "Stamps & Rewards Program"}
-              </strong>
-            </summary>
-
-            <AutoTranslationNote locale={locale} />
-            <form action={saveLoyaltyProgram} className="stack focused-form">
-              <input type="hidden" name="locale" value={locale} />
-
-              <div className="form-grid-two">
-                <label>
-                  {es ? "Local" : "Venue"}
-                  <select name="venueId" required>
-                    {managed.map(
-                      (m) =>
-                        m.venues && (
-                          <option key={m.venues.id} value={m.venues.id}>
-                            {m.venues.name}
-                          </option>
-                        ),
-                    )}
-                  </select>
-                </label>
-
-                <label>
-                  {es ? "Sellos necesarios" : "Stamps required"}
-                  <input
-                    name="stampsRequired"
-                    type="number"
-                    min="2"
-                    max="50"
-                    defaultValue="8"
-                    required
-                  />
-                </label>
-              </div>
-
-              <div className="form-grid-two">
-                <label>
-                  {es ? "Nombre del programa" : "Programme name"}
-                  <input
-                    name="title"
-                    required
-                    minLength={3}
-                    placeholder={es ? "Ej. Tarjeta VIP" : "e.g. VIP Card"}
-                  />
-                </label>
-              </div>
-
-              <div className="form-grid-two">
-                <label>
-                  {es ? "Recompensa" : "Reward"}
-                  <textarea
-                    name="reward"
-                    required
-                    minLength={3}
-                    rows={2}
-                    placeholder={
-                      es
-                        ? "Ej. Bebida gratis en tu 8ª visita"
-                        : "e.g. Free drink on 8th visit"
-                    }
-                  />
-                </label>
-              </div>
-
-              <div className="form-actions-right">
-                <button className="button primary" type="submit">
-                  {es ? "Guardar programa" : "Save programme"}
-                </button>
-              </div>
-            </form>
-
-            {programs && programs.length > 0 && (
-              <div className="managed-list">
-                {programs.map((program) => (
-                  <div className="managed-row" key={program.id}>
-                    <div>
-                      <strong>
-                        {locale === "en"
-                          ? program.title_en || program.title_es
-                          : program.title_es}
-                      </strong>
-                      <span className="managed-meta">
-                        <a
-                          href={`/${locale}/check-in/${program.check_in_token}`}
-                          className="inline-detail-link"
-                        >
-                          {es
-                            ? "Abrir enlace de check-in"
-                            : "Open check-in link"}
-                        </a>
-                      </span>
-                    </div>
-                    <span className="status-pill badge-neutral">
-                      {program.stamps_required} {es ? "sellos" : "stamps"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </details>
-        )}
-
-        {view === "loyalty" && redemptions && redemptions.length > 0 && (
-          <section className="panel catalogue-edit-card">
-            <h2>
-              {es
-                ? "Recompensas pendientes de canje"
-                : "Pending reward redemptions"}
-            </h2>
-            <div className="managed-list">
-              {redemptions.map((item) => (
-                <form
-                  action={confirmRedemption}
-                  className="managed-row"
-                  key={item.id}
-                >
-                  <input type="hidden" name="locale" value={locale} />
-                  <input type="hidden" name="redemptionId" value={item.id} />
-                  <strong>
-                    {(
-                      item.profiles as unknown as {
-                        display_name: string | null;
-                      } | null
-                    )?.display_name || (es ? "Usuario" : "User")}
-                  </strong>
-                  <button className="button primary small-btn" type="submit">
-                    {es ? "Confirmar entrega" : "Confirm handover"}
-                  </button>
-                </form>
-              ))}
-            </div>
-          </section>
         )}
 
         {pulseView && pulseEnabled && (

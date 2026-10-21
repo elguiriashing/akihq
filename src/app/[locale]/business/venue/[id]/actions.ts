@@ -1136,39 +1136,312 @@ export async function deleteVenue(formData: FormData) {
   redirect(`/${locale}/business?updated=venue-deleted`);
 }
 
+// All stamp-card mutations are scoped to a specific managed AkiPasa venue.
+// RLS is the second line of defence; do not rely on the UI or a submitted venue ID.
+async function requireStampManager(locale: "en" | "es", venueId: string) {
+  const { supabase, user } = await requireBusinessAccess(locale);
+  const [{ data: canEdit, error: accessError }, { data: venue }] =
+    await Promise.all([
+      supabase.rpc("is_venue_member", {
+        target_venue: venueId,
+        allowed_roles: ["owner", "manager"],
+      }),
+      supabase
+        .from("venues")
+        .select("id,discovery_vertical")
+        .eq("id", venueId)
+        .maybeSingle(),
+    ]);
+  if (
+    accessError ||
+    !canEdit ||
+    !venue ||
+    venue.discovery_vertical === "accommodation"
+  ) {
+    redirect(
+      destination(locale, venueId, "section=rewards&error=stamp-permission"),
+    );
+  }
+  return { supabase, user };
+}
+
+// The legacy reward_* text remains in loyalty_programs for old check-in clients.
+// The prize must ALSO be linked via loyalty_program_rewards to be claimable.
 export async function createStampCard(formData: FormData) {
-  const parsed = context
-    .extend({
-      title: z.string().trim().min(3).max(160),
-      reward: z.string().trim().min(3).max(500),
-      stampsRequired: z.coerce.number().int().min(2).max(50),
-    })
-    .safeParse(Object.fromEntries(formData));
+  const schema = context.extend({
+    programId: z
+      .union([z.string().uuid(), z.literal("")])
+      .optional()
+      .default(""),
+    title: z.string().trim().min(3).max(160),
+    reward: z
+      .string()
+      .trim()
+      .max(500)
+      .refine((value) => !value || value.length >= 3),
+    stampsRequired: z.coerce.number().int().min(2).max(50),
+    claimWindowDays: z.coerce.number().int().min(1).max(365),
+  });
+  const parsed = schema.safeParse(Object.fromEntries(formData));
   const locale = formData.get("locale") === "en" ? "en" : "es";
   const venueId = String(formData.get("venueId") || "");
-  if (!parsed.success) redirect(destination(locale, venueId, "error=stamp"));
-  const { supabase, user } = await requireBusinessAccess(locale);
+  if (!parsed.success)
+    redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+  const value = parsed.data;
+  const { supabase, user } = await requireStampManager(locale, venueId);
+  const editing = Boolean(value.programId);
+  const { data: existing, error: readError } = editing
+    ? await supabase
+        .from("loyalty_programs")
+        .select("id,active")
+        .eq("id", value.programId)
+        .eq("venue_id", venueId)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (readError || (editing && !existing))
+    redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+
+  const pendingText =
+    locale === "en" ? "Reward not configured" : "Premio sin configurar";
   let localized;
   try {
     localized = await translateLocalizedFields(
       locale,
-      { title: parsed.data.title, reward: parsed.data.reward },
+      { title: value.title, reward: value.reward || pendingText },
       user.id,
     );
   } catch {
-    redirect(destination(locale, venueId, "error=translation"));
+    redirect(destination(locale, venueId, "section=rewards&error=translation"));
   }
-  const { error } = await supabase.from("loyalty_programs").insert({
-    venue_id: parsed.data.venueId,
-    title_es: localized.title.es,
-    title_en: localized.title.en,
-    reward_es: localized.reward.es,
-    reward_en: localized.reward.en,
-    stamps_required: parsed.data.stampsRequired,
-    active: true,
+  const rewardEs = value.reward ? localized.reward.es : "Premio sin configurar";
+  const rewardEn = value.reward ? localized.reward.en : "Reward not configured";
+  let programId = value.programId;
+  if (!editing) {
+    const { data: inserted, error } = await supabase
+      .from("loyalty_programs")
+      .insert({
+        venue_id: venueId,
+        title_es: localized.title.es,
+        title_en: localized.title.en,
+        reward_es: rewardEs,
+        reward_en: rewardEn,
+        stamps_required: value.stampsRequired,
+        active: false,
+      })
+      .select("id")
+      .single();
+    if (error || !inserted)
+      redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+    programId = inserted.id;
+  }
+
+  if (value.reward) {
+    // A dedicated reward avoids altering a prize that old Passport or other cards reuse.
+    // Historical reward_claims still point to their original reward IDs.
+    const { data: reward, error: rewardError } = await supabase
+      .from("business_rewards")
+      .insert({
+        venue_id: venueId,
+        title_es: rewardEs.slice(0, 160),
+        title_en: rewardEn.slice(0, 160),
+        description_es: rewardEs,
+        description_en: rewardEn,
+        claim_window_days: value.claimWindowDays,
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (rewardError || !reward)
+      redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+    const { error: linkError } = await supabase
+      .from("loyalty_program_rewards")
+      .insert({ program_id: programId, reward_id: reward.id });
+    if (linkError) {
+      await supabase
+        .from("business_rewards")
+        .delete()
+        .eq("id", reward.id)
+        .eq("venue_id", venueId);
+      redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+    }
+    // Retire old associations only after a new prize is attached.
+    const { error: unlinkError } = await supabase
+      .from("loyalty_program_rewards")
+      .delete()
+      .eq("program_id", programId)
+      .neq("reward_id", reward.id);
+    if (unlinkError)
+      redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+  } else {
+    // A no-prize card is a draft and can never award stamps while unconfigured.
+    const { error } = await supabase
+      .from("loyalty_program_rewards")
+      .delete()
+      .eq("program_id", programId);
+    if (error)
+      redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+  }
+  const { error: updateError } = await supabase
+    .from("loyalty_programs")
+    .update({
+      title_es: localized.title.es,
+      title_en: localized.title.en,
+      reward_es: rewardEs,
+      reward_en: rewardEn,
+      stamps_required: value.stampsRequired,
+      active: Boolean(value.reward) && (existing ? existing.active : true),
+    })
+    .eq("venue_id", venueId)
+    .eq("id", programId);
+  redirect(
+    destination(
+      locale,
+      venueId,
+      updateError
+        ? "section=rewards&error=stamp"
+        : "section=rewards&updated=stamp",
+    ),
+  );
+}
+
+export async function setStampCardActive(formData: FormData) {
+  const parsed = context
+    .extend({
+      programId: z.string().uuid(),
+      active: z.enum(["true", "false"]),
+    })
+    .safeParse(Object.fromEntries(formData));
+  const locale = formData.get("locale") === "en" ? "en" : "es";
+  const venueId = String(formData.get("venueId") || "");
+  if (!parsed.success)
+    redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+  const { supabase } = await requireStampManager(locale, venueId);
+  if (parsed.data.active === "true") {
+    const { data: linked, error } = await supabase
+      .from("loyalty_program_rewards")
+      .select("reward_id,business_rewards!inner(venue_id,active)")
+      .eq("program_id", parsed.data.programId)
+      .eq("business_rewards.venue_id", venueId)
+      .eq("business_rewards.active", true)
+      .limit(1);
+    if (error || !linked?.length)
+      redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+  }
+  const { data, error } = await supabase
+    .from("loyalty_programs")
+    .update({ active: parsed.data.active === "true" })
+    .eq("id", parsed.data.programId)
+    .eq("venue_id", venueId)
+    .select("id")
+    .maybeSingle();
+  redirect(
+    destination(
+      locale,
+      venueId,
+      error || !data
+        ? "section=rewards&error=stamp"
+        : "section=rewards&updated=stamp",
+    ),
+  );
+}
+
+export async function removeStampCard(formData: FormData) {
+  const parsed = context
+    .extend({
+      programId: z.string().uuid(),
+      confirmRemoval: z.literal("yes"),
+    })
+    .safeParse(Object.fromEntries(formData));
+  const locale = formData.get("locale") === "en" ? "en" : "es";
+  const venueId = String(formData.get("venueId") || "");
+  if (!parsed.success)
+    redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+  const { supabase } = await requireStampManager(locale, venueId);
+  const { data: owned } = await supabase
+    .from("loyalty_programs")
+    .select("id")
+    .eq("id", parsed.data.programId)
+    .eq("venue_id", venueId)
+    .maybeSingle();
+  if (!owned)
+    redirect(destination(locale, venueId, "section=rewards&error=stamp"));
+
+  const counts = await Promise.all([
+    supabase
+      .from("loyalty_ledger")
+      .select("id", { count: "exact", head: true })
+      .eq("program_id", owned.id),
+    supabase
+      .from("reward_redemptions")
+      .select("id", { count: "exact", head: true })
+      .eq("program_id", owned.id),
+    supabase
+      .from("reward_claims")
+      .select("id", { count: "exact", head: true })
+      .eq("program_id", owned.id),
+  ]);
+  // Never cascade-delete customer stamps, pending redemptions or claims.
+  if (counts.some((row) => row.error || (row.count || 0) > 0)) {
+    const { error } = await supabase
+      .from("loyalty_programs")
+      .update({ active: false })
+      .eq("id", owned.id)
+      .eq("venue_id", venueId);
+    redirect(
+      destination(
+        locale,
+        venueId,
+        error
+          ? "section=rewards&error=stamp"
+          : "section=rewards&updated=stamp-paused",
+      ),
+    );
+  }
+  const { error } = await supabase
+    .from("loyalty_programs")
+    .delete()
+    .eq("id", owned.id)
+    .eq("venue_id", venueId);
+  redirect(
+    destination(
+      locale,
+      venueId,
+      error
+        ? "section=rewards&error=stamp"
+        : "section=rewards&updated=stamp-deleted",
+    ),
+  );
+}
+
+export async function confirmVenueStampRedemption(formData: FormData) {
+  const parsed = context
+    .extend({ redemptionId: z.string().uuid() })
+    .safeParse(Object.fromEntries(formData));
+  const locale = formData.get("locale") === "en" ? "en" : "es";
+  const venueId = String(formData.get("venueId") || "");
+  if (!parsed.success)
+    redirect(destination(locale, venueId, "section=rewards&error=redemption"));
+  const { supabase } = await requireStampManager(locale, venueId);
+  const { data: redemption } = await supabase
+    .from("reward_redemptions")
+    .select("id,loyalty_programs!inner(venue_id)")
+    .eq("id", parsed.data.redemptionId)
+    .eq("loyalty_programs.venue_id", venueId)
+    .eq("state", "requested")
+    .maybeSingle();
+  if (!redemption)
+    redirect(destination(locale, venueId, "section=rewards&error=redemption"));
+  const { error } = await supabase.rpc("confirm_reward_redemption", {
+    p_redemption: parsed.data.redemptionId,
   });
   redirect(
-    destination(locale, venueId, error ? "error=stamp" : "updated=stamp"),
+    destination(
+      locale,
+      venueId,
+      error
+        ? "section=rewards&error=redemption"
+        : "section=rewards&updated=redemption",
+    ),
   );
 }
 
