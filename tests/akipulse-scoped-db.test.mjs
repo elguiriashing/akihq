@@ -89,6 +89,7 @@ before(async () => {
     "20261021142517_akipulse_explicit_rental_workspace_links.sql",
     "20261021142549_akipulse_rental_workspace_owner_controls.sql",
     "20261021142652_akipulse_organisation_rental_cohorts.sql",
+    "20261021145321_akipulse_management_privacy_export.sql",
   ])
     await db.exec(
       await readFile(
@@ -787,6 +788,103 @@ test("rental organisation fanout and owned-workspace pagination remain bounded",
   await db.exec("set role anon");
   await assert.rejects(
     db.query("select akipulse_organisation_funnel($1,30)", [org]),
+    /permission denied/,
+  );
+});
+
+test("paused or restricted accounts can export only their own mapping activity without business access", async () => {
+  await db.exec(
+    `insert into crm_workspace_members values('unlinked','${owner}','active','owner');`,
+  );
+  await db.query("select set_akipulse_rental_workspace($1,$2)", [
+    fleet,
+    "unlinked",
+  ]);
+  await db.exec(
+    `insert into akipulse_private.rental_link_audit(company_id,old_workspace,new_workspace,actor) values('${foreignFleet}',null,'foreign','${other}')`,
+  );
+  await db.query("select set_config('test.account_allowed','false',false)");
+  await db.exec(
+    "update crm_workspace_members set status='inactive';set role authenticated",
+  );
+  const query = (section, after = null, limit = 500) =>
+    db
+      .query("select my_pulse_management_export_page($1,$2,$3) r", [
+        section,
+        after,
+        limit,
+      ])
+      .then((x) => x.rows[0].r);
+  const links = await query("akipulse_rental_workspace_links");
+  assert.equal(links.total, 1);
+  assert.equal(links.rows[0].data.company_id, fleet);
+  assert.equal(links.rows[0].data.linked_by_you, true);
+  const audit = await query("akipulse_rental_link_audit");
+  assert.equal(audit.total, 1);
+  assert.equal(audit.rows[0].data.actor_is_you, true);
+  assert.equal(JSON.stringify(audit).includes(foreignFleet), false);
+  assert.equal(JSON.stringify(audit).includes(other), false);
+  await actor(other);
+  const own = await query("akipulse_rental_link_audit");
+  assert.equal(own.total, 1);
+  assert.equal(own.rows[0].data.company_id, foreignFleet);
+  assert.equal((await query("akipulse_rental_workspace_links")).total, 0);
+  await db.exec("reset role;set role anon");
+  await assert.rejects(
+    query("akipulse_rental_link_audit"),
+    /permission denied/,
+  );
+  await db.exec("reset role;set role service_role");
+  await assert.rejects(
+    query("akipulse_rental_link_audit"),
+    /permission denied/,
+  );
+});
+test("own mapping audit export pages every retained row with strict cursors and no raw grant", async () => {
+  await db.exec(
+    `insert into akipulse_private.rental_link_audit(company_id,new_workspace,actor) select '${fleet}','unlinked','${owner}' from generate_series(1,1003)`,
+  );
+  let after = null,
+    total = 0;
+  const keys = new Set();
+  for (let page = 0; page < 3; page++) {
+    const r = (
+      await db.query(
+        "select my_pulse_management_export_page('akipulse_rental_link_audit',$1,500) r",
+        [after],
+      )
+    ).rows[0].r;
+    assert.equal(r.total, 1003);
+    for (const row of r.rows) {
+      assert.equal(keys.has(row.key), false);
+      keys.add(row.key);
+    }
+    total += r.rows.length;
+    after = r.next_cursor;
+  }
+  assert.equal(total, 1003);
+  assert.equal(after, null);
+  for (const limit of [0, 501, null])
+    await assert.rejects(
+      db.query(
+        "select my_pulse_management_export_page('akipulse_rental_link_audit',null,$1)",
+        [limit],
+      ),
+      /Invalid privacy/,
+    );
+  await assert.rejects(
+    db.query(
+      "select my_pulse_management_export_page('akipulse_rental_link_audit','unsafe''sql',500)",
+    ),
+    /Invalid privacy/,
+  );
+  await assert.rejects(
+    db.query("select my_pulse_management_export_page('other_person')"),
+    /Unknown privacy/,
+  );
+  await db.exec("set role authenticated");
+  await assert.rejects(
+    db.query("select * from akipulse_private.rental_link_audit"),
     /permission denied/,
   );
 });

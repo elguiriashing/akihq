@@ -1365,3 +1365,12 @@ A separate successor handles rejected browser/network Save requests locally,
 keeps the owner's selected draft and shows a non-confirming retry message.
 The actual responsive component is exercised with a throwing synthetic transport;
 no SQL, readiness, subscription or collection state changes.
+
+### Own rental-link activity portability
+
+A separate additive privacy projection exports only the caller's mapping actions
+and current links, with bounded indexed cursor pagination and no current product
+or onboarding eligibility requirement. Anonymous/service execution and raw table
+access stay denied. The central account export adapter must include both sections
+before rental-link activation; privacy access stays available while reader/native
+features are paused. No collection, billing, link mutation or retention changes.

@@ -119,3 +119,26 @@ Save now shows the same non-confirming error notice, retains the selected draft
 and allows retry. The 80-case responsive harness also throws a labelled synthetic
 transport error and verifies the actual component keeps its selection and buttons
 usable without an unhandled browser error. SQL, flags and reports are unchanged.
+
+## Own-activity privacy export prerequisite
+
+Before rental-link activation, install the separate additive 2,859-byte phase
+`20261021145321_akipulse_management_privacy_export.sql` and deploy the central
+account export adapter for its two sections. This is a privacy reader only and
+must remain available while dashboard/link/native gates are paused and retained
+own rows exist. It uses `auth.uid()` only, including restricted/incomplete users;
+there is no caller-selected identity or business-access bypass.
+
+`my_pulse_management_export_page(p_section,p_after,p_limit)` supports
+`akipulse_rental_workspace_links` (own `linked_by` rows) and
+`akipulse_rental_link_audit` (own `actor` rows), returning the existing bounded
+`section,total,rows:[{key,data}],next_cursor` account-export protocol. At most
+500 records plus one sentinel are read per page; indexed subject/cursor filters
+preserve complete pagination. Curated own action IDs/times and workspace/company
+references are included, without other-person identifiers, contacts, names or
+free-text snapshots. It exposes neither raw private tables nor product operations.
+
+33 PostgreSQL cases pass, including restricted-user export, foreign-row isolation,
+anonymous/service denial, invalid sections/cursors/limits and complete 1,003-row
+pagination. Existing FK actor nulling on profile deletion is unchanged. Installing
+this reader neither writes mapping rows nor enables analytics collection.

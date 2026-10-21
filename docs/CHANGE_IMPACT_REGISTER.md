@@ -1854,3 +1854,11 @@ Narrow client catch around the owner link server action prevents transport error
 from replacing the management view. Success/denial/network rejection retain the
 selected draft; network failures never display saved confirmation. No SQL or flags
 change. The 80-case real-component browser matrix includes a throwing transport.
+
+### Own rental-link activity portability
+
+Adds my_pulse_management_export_page and subject/cursor indexes only, plus actual
+PostgreSQL privacy tests. Fixed section allowlist, auth.uid identity and curated
+own actor/linked_by rows prevent foreign/private business data export. Restricted
+users retain privacy access without gaining operational access. Requires central
+account-export dispatch before rental mapping activation; no UI/flag changes.
