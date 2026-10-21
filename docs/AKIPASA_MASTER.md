@@ -1,5 +1,15 @@
 # AKIPASA MASTER SYSTEM CONTRACT
 
+## 2026-10-21 | Supported Cloudflare build runtime
+
+AkiHQ uses supported stable Next 16.4.2, OpenNext Cloudflare 1.20.12 and
+Wrangler 4.151.3 after OpenNext rejected the previous two-year-old Next 15
+major. Existing routes, fixed product origins, shared identity, host-local
+sessions, Supabase contracts, billing gates and deployment ownership remain
+unchanged. The Webpack build path and 60-second signed-image cache floor are
+explicit. An upgrade is not production evidence: exact-head checks, OpenNext
+packaging, hosted CI and live source verification remain mandatory.
+
 ## 2026-10-21 | Resilient Business home and compact AkiPulse
 
 The AkiHQ Business home reads the venue telephone through the current

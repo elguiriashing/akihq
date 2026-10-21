@@ -1,5 +1,15 @@
 # Change Impact Register
 
+## 2026-10-21 | Supported Next/OpenNext runtime
+
+- Replaces unsupported Next 15.5.28 with stable Next 16.4.2 and pins the
+  matching ESLint, OpenNext Cloudflare 1.20.12 and Wrangler 4.151.3 toolchain.
+- Preserves the existing Webpack/map alias, explicit server-action limit,
+  signed-image cache behavior and React Compiler-off hydration behavior.
+- No route, auth, role, RLS, schema, billing, customer data, Worker name/domain
+  or feature-gate change. Full tests, optimized build, clean OpenNext package,
+  dry-run, hosted CI and exact-SHA live acceptance are required before release.
+
 ## 2026-10-17 | AkiHQ management cross-site launcher
 
 - Scope: AkiHQ management portal's shared header menu and local suite assets.

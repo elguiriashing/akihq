@@ -1,6 +1,13 @@
 "use client";
 
-import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  Children,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 // prettier-ignore
 type EventSummary = { id: string; title: string; status: string; date: string | null };
@@ -13,9 +20,10 @@ export function VenueEventBrowser({ locale, events, children }: {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [renderedAt] = useState(Date.now);
   const childrenArray = Children.toArray(children);
-  const group = (e: EventSummary) => e.status === "archived" ? "archived" :
-    e.date && new Date(e.date).getTime() < Date.now() ? "past" : "current";
+  const group = useCallback((e: EventSummary) => e.status === "archived" ? "archived" :
+    e.date && new Date(e.date).getTime() < renderedAt ? "past" : "current", [renderedAt]);
   const categories = [
     ["all", es ? "Todos" : "All"],
     ["current", es ? "Actuales y próximos" : "Current and upcoming"],
@@ -26,7 +34,7 @@ export function VenueEventBrowser({ locale, events, children }: {
     .filter(({ event }) => (filter === "all" || group(event) === filter) &&
       (!query.trim() || [event.title, event.status].some(value =>
         value.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())))),
-    [events, query, filter]);
+    [events, query, filter, group]);
   const pages = Math.max(1, Math.ceil(filtered.length / SIZE));
   const current = Math.min(page, pages);
   const visible = filtered.slice((current - 1) * SIZE, current * SIZE);

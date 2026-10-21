@@ -267,7 +267,7 @@ export default async function BusinessPage({
       item.venues ? [[item.venues.id, item.venues.name] as const] : [],
     ),
   );
-  const now = Date.now();
+  const now = new Date().getTime();
   const archivedEvents = businessEvents.filter(
     (event) => event.status === "archived",
   );

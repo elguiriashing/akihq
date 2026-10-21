@@ -366,7 +366,7 @@ export function RentalOperatorDesk({
             type="button"
             aria-label={es ? "Switch to English" : "Cambiar a español"}
             onClick={() =>
-              location.assign(
+              window.location.assign(
                 location.pathname.replace(
                   /^\/(en|es)(?=\/|$)/,
                   es ? "/en" : "/es",
@@ -385,22 +385,23 @@ export function RentalOperatorDesk({
           <h1>{company.name}</h1>
         </div>
         {branches.length > 0 && (
-          <select
-            className={s.branchSelect}
-            aria-label={es ? "Cambiar sucursal" : "Switch branch"}
-            value={company.id}
-            onChange={(e) =>
-              location.assign(
-                `/${locale}/business/mobility?company=${e.target.value}`,
-              )
-            }
-          >
-            {branches.map((b) => (
-              <option value={b.id} key={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          <form method="get" action={`/${locale}/business/mobility`}>
+            <select
+              name="company"
+              className={s.branchSelect}
+              aria-label={es ? "Cambiar sucursal" : "Switch branch"}
+              defaultValue={company.id}
+            >
+              {branches.map((b) => (
+                <option value={b.id} key={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className={s.secondary}>
+              {es ? "Abrir" : "Open"}
+            </button>
+          </form>
         )}
         <span className={s.status}>
           {company.status === "published"
