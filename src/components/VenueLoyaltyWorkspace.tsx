@@ -2,12 +2,10 @@ import type { ReactNode } from "react";
 import { Icon } from "./Icons";
 
 type Action = (formData: FormData) => void | Promise<void>;
+type RewardDetails = { claim_window_days: number; active: boolean };
 type LinkedReward = {
   reward_id: string;
-  business_rewards?: {
-    claim_window_days: number;
-    active: boolean;
-  } | null;
+  business_rewards?: RewardDetails | RewardDetails[] | null;
 };
 export type StampCard = {
   id: string;
@@ -52,6 +50,10 @@ function HiddenContext({
 
 function StampFields({ es, card }: { es: boolean; card?: StampCard }) {
   const assigned = Boolean(card?.loyalty_program_rewards?.length);
+  const rewardDetails = card?.loyalty_program_rewards?.[0]?.business_rewards;
+  const claimWindowDays = Array.isArray(rewardDetails)
+    ? rewardDetails[0]?.claim_window_days
+    : rewardDetails?.claim_window_days;
   return (
     <>
       <div className="form-grid-two">
@@ -116,10 +118,7 @@ function StampFields({ es, card }: { es: boolean; card?: StampCard }) {
             min={1}
             max={365}
             required
-            defaultValue={
-              card?.loyalty_program_rewards?.[0]?.business_rewards
-                ?.claim_window_days || 30
-            }
+            defaultValue={claimWindowDays || 30}
           />
         </label>
       </div>
