@@ -1715,6 +1715,27 @@ postconditions reject silent no-op/inherited-grant repairs transactionally.
 See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
 geography acceptance and safe rollback. No live application is claimed by CI.
 
+## 2026-10-21 | Independent property listing foundation (gated)
+
+Native accommodation uses real property UUID ownership and CRM intersection,
+separate property listing entitlements and verified service-upload reservations.
+Free/Premium media quotas are8/250 with1920/3840 dimensions; retained old media
+survive downgrade. New property schema refuses ambiguous historical/native data
+for explicit reconciliation. No legacy venue inventory or billing state changes.
+See NATIVE_ACCOMMODATION_FOUNDATION.md for roles, evidence and rollout gates.
+This is implemented/tested source, not merged or production verified; native
+inventory adapter compatibility remains a separately tracked follow-on.
+
+## 2026-10-21 | Native property inventory compatibility (gated)
+
+Additive002500 uses distinct accommodation*property*\* inventory with immutable
+property scope, RLS, composite identity FKs, non-overlapping rates/occupancy and
+audited manager reservation status changes. AkiHQ maps native sections explicitly
+and never falls back to existing venue tables. Native runtime/database inventory
+gates default off; no customer booking/quote or payment path is enabled.
+See NATIVE_ACCOMMODATION_INVENTORY.md for tests, corrected001000 prerequisite,
+privacy preservation and actual-provider/concurrent acceptance requirements.
+
 ## Listing schema-reader source configuration
 
 Adds server-only LIMITS_READY and UPLOADS_READY runtime vars after the standalone
@@ -1770,3 +1791,24 @@ Next/eslint-config-next16.4.2, OpenNext1.20.12 and Wrangler4.151.3 replace the e
 ## Completion scope preservation — 21 October 2026
 
 Shared task contract now retains bounded legacy property/company/organisation names consumed by real management destinations. Regressions cover all5/EN/ES, duplicates/URL rejection, and actual HQ pending/underage-to-complete destination consumption. No dependency, billing, DB, ownership, consent or deployment configuration change.
+
+## 2026-10-21 | Bounded native gallery controls
+
+Premium250-photo media editing now shares one datalist for positions instead
+of rendering250 options in each of250 rows. Numeric per-photo position forms
+retain explicit Save and blank-private behavior, preserving the same backend
+position/entitlement rules and retained media. A full250-photo regression checks
+250 options total and the exact selected property's placement request.
+18 focused media/API/service-adapter cases pass with TypeScript and zero-warning
+lint. Native runtime/database activation remains gated; no live changes.
+
+## 2026-10-21 | Reconcile native property media with current management source
+
+Reconciles immutable native media69 into current main781d685, preserving the
+validated management task resume, venue loyalty workspace and supported Next16
+runtime. Verified server uploads and native property inventory adapters stay
+independently gated; no legacy venue inventory or direct browser upload fallback
+is introduced for native properties. The complete local test command passes.
+Canonical schema uses accommodation_property_private from corrected Pasa255.
+Hosted exact-head packaging and authenticated Storage acceptance remain gates;
+no live flags, customer records, deployment or primary branch changed here.
