@@ -1812,3 +1812,10 @@ is introduced for native properties. The complete local test command passes.
 Canonical schema uses accommodation_property_private from corrected Pasa255.
 Hosted exact-head packaging and authenticated Storage acceptance remain gates;
 no live flags, customer records, deployment or primary branch changed here.
+
+## 2026-10-21 | Native gallery current-policy retry
+
+A quota/resolution rejection refreshes authoritative property limits before a
+retry. The form stays mounted, preserving captions, while uploads fail closed if
+refresh fails. EN/ES expiry and refresh-failure regressions cover the stale Premium
+to Free transition. No entitlement, schema, billing or live activation changes.

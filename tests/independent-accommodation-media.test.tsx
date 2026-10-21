@@ -174,3 +174,99 @@ it("renders one shared position list for250Premium photos rather than62500 dupli
     ),
   ).toEqual({ action: "place", property, id: "media-249", position: 249 });
 });
+
+it.each(["en", "es"] as const)(
+  "refreshes an expired Premium policy before %s resolution retry without losing the caption",
+  async (locale) => {
+    let reads = 0;
+    request.mockImplementation(async (_url, opts) => ({
+      ok: opts?.method !== "POST",
+      json: async () =>
+        opts?.method === "POST"
+          ? { error: "resolution" }
+          : {
+              media: [],
+              limits:
+                ++reads === 1
+                  ? {
+                      premium: true,
+                      photos: 250,
+                      used: 2,
+                      max_dimension: 3840,
+                      uploads_enforced: true,
+                    }
+                  : {
+                      premium: false,
+                      photos: 8,
+                      used: 2,
+                      max_dimension: 1920,
+                      uploads_enforced: true,
+                    },
+            },
+    }));
+    render(
+      <IndependentAccommodationMedia property={property} locale={locale} />,
+    );
+    const caption = await screen.findByLabelText(
+      locale === "es" ? "Descripción de la imagen" : "Image description",
+    );
+    fireEvent.change(caption, { target: { value: "Keep this caption" } });
+    fireEvent.submit(caption.closest("form")!);
+    await screen.findByText(
+      locale === "es"
+        ? "Selecciona de nuevo el archivo para prepararlo con la resolución permitida."
+        : "Select the file again to prepare it at the permitted resolution.",
+    );
+    expect(reads).toBe(2);
+    expect(
+      screen.getByText(
+        locale === "es"
+          ? "Fotografías: 2 de 8. Resolución máxima: 1920 píxeles por lado."
+          : "Photos: 2 of 8. Maximum resolution: 1920 pixels per side.",
+      ),
+    ).toBeTruthy();
+    expect((caption as HTMLInputElement).value).toBe("Keep this caption");
+    expect(
+      screen.getByLabelText(
+        locale === "es" ? "Descripción de la imagen" : "Image description",
+      ),
+    ).toBe(caption);
+    expect((caption.closest("fieldset") as HTMLFieldSetElement).disabled).toBe(
+      false,
+    );
+  },
+);
+it("blocks retry if current limits cannot be refreshed, retaining the caption", async () => {
+  let reads = 0;
+  request.mockImplementation(async (_url, opts) => ({
+    ok: opts?.method !== "POST" && ++reads === 1,
+    json: async () =>
+      opts?.method === "POST"
+        ? { error: "resolution" }
+        : {
+            media: [],
+            limits: {
+              premium: true,
+              photos: 250,
+              used: 2,
+              max_dimension: 3840,
+              uploads_enforced: true,
+            },
+          },
+  }));
+  render(<IndependentAccommodationMedia property={property} locale="en" />);
+  const caption = await screen.findByLabelText("Image description");
+  fireEvent.change(caption, {
+    target: { value: "Retain failed refresh caption" },
+  });
+  fireEvent.submit(caption.closest("form")!);
+  await screen.findByText(
+    "Could not load or save media. Retry; this is not treated as an empty gallery.",
+  );
+  expect((caption as HTMLInputElement).value).toBe(
+    "Retain failed refresh caption",
+  );
+  expect((caption.closest("fieldset") as HTMLFieldSetElement).disabled).toBe(
+    true,
+  );
+});
