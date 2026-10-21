@@ -30,7 +30,7 @@ await build({
             contents:
               args.path === "next/navigation"
                 ? "export function useRouter(){return {refresh(){}}}"
-                : "export async function saveRentalPulseWorkspace(value){window.__syntheticLinkCalls=(window.__syntheticLinkCalls||[]).concat([value]);return window.__syntheticLinkFail?{ok:false,error:'forbidden'}:{ok:true}}",
+                : "export async function saveRentalPulseWorkspace(value){window.__syntheticLinkCalls=(window.__syntheticLinkCalls||[]).concat([value]);if(window.__syntheticLinkThrow)throw new Error('Synthetic offline transport');return window.__syntheticLinkFail?{ok:false,error:'forbidden'}:{ok:true}}",
             loader: "js",
           }),
         );
@@ -168,6 +168,32 @@ try {
             assert.equal(
               await page.locator('select[name="workspace"]').inputValue(),
               "",
+            );
+            await page.evaluate(() => {
+              window.__syntheticLinkThrow = true;
+            });
+            await page
+              .locator('select[name="workspace"]')
+              .selectOption("synthetic-owned");
+            await page
+              .getByRole("button", {
+                name: locale === "es" ? "Guardar vínculo" : "Save link",
+                exact: true,
+              })
+              .click();
+            await page
+              .getByRole("status")
+              .filter({
+                hasText:
+                  locale === "es" ? "No se pudo guardar" : "Could not save",
+              })
+              .waitFor();
+            await page.waitForFunction(
+              () => !document.querySelector('button[type="submit"]')?.disabled,
+            );
+            assert.equal(
+              await page.locator('select[name="workspace"]').inputValue(),
+              "synthetic-owned",
             );
           }
           for (const control of await page

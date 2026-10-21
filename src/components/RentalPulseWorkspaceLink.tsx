@@ -52,11 +52,16 @@ export function RentalPulseWorkspaceLink({
           const form = new FormData(event.currentTarget);
           const value = String(form.get("workspace") || "");
           start(async () => {
-            const result = await saveRentalPulseWorkspace({
-              company,
-              workspace: value || null,
-              locale,
-            });
+            let result: { ok: boolean };
+            try {
+              result = await saveRentalPulseWorkspace({
+                company,
+                workspace: value || null,
+                locale,
+              });
+            } catch {
+              result = { ok: false };
+            }
             setNotice(
               result.ok
                 ? es

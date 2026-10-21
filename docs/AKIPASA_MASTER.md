@@ -1358,3 +1358,10 @@ coverage and linked-workspace stage semantics remain explicit. Both new reader
 flags stay false pending exact release acceptance; shared collection stays false.
 See AKIPULSE_EXPLICIT_SCOPES.md for eight short transactional migration phases,
 source definitions, query bounds, security tests and rollback.
+
+### Rental workspace link transport recovery
+
+A separate successor handles rejected browser/network Save requests locally,
+keeps the owner's selected draft and shows a non-confirming retry message.
+The actual responsive component is exercised with a throwing synthetic transport;
+no SQL, readiness, subscription or collection state changes.

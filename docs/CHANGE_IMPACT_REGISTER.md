@@ -1847,3 +1847,10 @@ links and live management intersections drive every cohort; no owner-wide infere
 raw PII, invented revenue or duplicated claim summation. New flags stay false.
 Shared collection, billing, entitlements and existing source records are unchanged.
 See AKIPULSE_EXPLICIT_SCOPES.md for security boundaries, validation and rollback.
+
+### Rental workspace link transport recovery
+
+Narrow client catch around the owner link server action prevents transport errors
+from replacing the management view. Success/denial/network rejection retain the
+selected draft; network failures never display saved confirmation. No SQL or flags
+change. The 80-case real-component browser matrix includes a throwing transport.

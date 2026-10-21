@@ -113,3 +113,9 @@ rental link successful/denied save flows and retained draft selection with label
 synthetic action transport. Full lint/types/
 format checks, supported Cloudflare packaging and Wrangler dry-run pass. Hosted
 CI on the final exact commit remains required before merge; no source state is described as production activated.
+
+Transport follow-up: a browser/network rejection during the explicit rental link
+Save now shows the same non-confirming error notice, retains the selected draft
+and allows retry. The 80-case responsive harness also throws a labelled synthetic
+transport error and verifies the actual component keeps its selection and buttons
+usable without an unhandled browser error. SQL, flags and reports are unchanged.
