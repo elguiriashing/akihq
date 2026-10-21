@@ -1,5 +1,23 @@
 # AKIPASA MASTER SYSTEM CONTRACT
 
+## 2026-10-21 | Resilient Business home and compact AkiPulse
+
+The AkiHQ Business home reads the venue telephone through the current
+`venues.contact_phone` column and aliases it to the existing UI `phone` field.
+A failure in either the venue-membership or independently managed rental-branch
+source no longer suppresses valid places returned by the other source: the page
+shows the authorised partial result with an explicit retry notice, while two
+failed sources retain the blocking error state. No ownership inference, role,
+RLS, schema, record or product routing changes.
+
+AkiPulse keeps its membership-scoped analytics contract but presents the free
+overview as a compact signal dashboard. Filters, KPIs, action mix and listing
+readiness remain visible; methodology and the separate booking/coverage report
+are disclosed on demand, and the promotion request stays closed until requested.
+Promotion history uses localised customer-facing service and state labels rather
+than provider keys. No metric definition, billing gate, promotion workflow or
+analytics collection changes.
+
 ## 2026-10-15 | Rental company in Business home
 
 The independent Business home includes rental companies owned by the signed-in
