@@ -50,13 +50,7 @@ function HiddenContext({
   );
 }
 
-function StampFields({
-  es,
-  card,
-}: {
-  es: boolean;
-  card?: StampCard;
-}) {
+function StampFields({ es, card }: { es: boolean; card?: StampCard }) {
   const assigned = Boolean(card?.loyalty_program_rewards?.length);
   return (
     <>
@@ -68,7 +62,9 @@ function StampFields({
             minLength={3}
             maxLength={160}
             required
-            defaultValue={card ? (es ? card.title_es : card.title_en || card.title_es) : ""}
+            defaultValue={
+              card ? (es ? card.title_es : card.title_en || card.title_es) : ""
+            }
             placeholder={es ? "Cliente habitual" : "Regular visitor"}
           />
         </label>
@@ -86,14 +82,22 @@ function StampFields({
       </div>
       <div className="form-grid-two">
         <label>
-          {es ? "Premio al completar la tarjeta" : "Prize when the card is completed"}
+          {es
+            ? "Premio al completar la tarjeta"
+            : "Prize when the card is completed"}
           <input
             name="reward"
             minLength={3}
             maxLength={500}
             defaultValue={
-              card && (assigned || !/(?:Reward not configured|Premio sin configurar)/i.test(card.reward_es))
-                ? (es ? card.reward_es : card.reward_en || card.reward_es)
+              card &&
+              (assigned ||
+                !/(?:Reward not configured|Premio sin configurar)/i.test(
+                  card.reward_es,
+                ))
+                ? es
+                  ? card.reward_es
+                  : card.reward_en || card.reward_es
                 : ""
             }
             placeholder={es ? "Ej. Café gratis" : "E.g. Free coffee"}
@@ -112,7 +116,10 @@ function StampFields({
             min={1}
             max={365}
             required
-            defaultValue={card?.loyalty_program_rewards?.[0]?.business_rewards?.claim_window_days || 30}
+            defaultValue={
+              card?.loyalty_program_rewards?.[0]?.business_rewards
+                ?.claim_window_days || 30
+            }
           />
         </label>
       </div>
@@ -146,8 +153,12 @@ export function VenueLoyaltyWorkspace({
   feedback?: string;
 }) {
   const es = locale === "es";
-  const active = programs.filter((program) => program.active && program.loyalty_program_rewards?.length);
-  const draft = programs.filter((program) => !program.active || !program.loyalty_program_rewards?.length);
+  const active = programs.filter(
+    (program) => program.active && program.loyalty_program_rewards?.length,
+  );
+  const draft = programs.filter(
+    (program) => !program.active || !program.loyalty_program_rewards?.length,
+  );
   const renderCards = (cards: StampCard[]): ReactNode =>
     cards.map((card) => {
       const hasPrize = Boolean(card.loyalty_program_rewards?.length);
@@ -156,14 +167,31 @@ export function VenueLoyaltyWorkspace({
         <details className="stamp-card" key={card.id}>
           <summary>
             <span className="status-pill">
-              {ready ? (es ? "Activa" : "Active") : hasPrize ? (es ? "Pausada" : "Paused") : (es ? "Configurar premio" : "Prize needed")}
+              {ready
+                ? es
+                  ? "Activa"
+                  : "Active"
+                : hasPrize
+                  ? es
+                    ? "Pausada"
+                    : "Paused"
+                  : es
+                    ? "Configurar premio"
+                    : "Prize needed"}
             </span>
             <h3>{es ? card.title_es : card.title_en || card.title_es}</h3>
             <p>{es ? card.reward_es : card.reward_en || card.reward_es}</p>
-            <small>{card.stamps_required} {es ? "sellos" : "stamps"} · {es ? "Editar tarjeta" : "Edit card"} ↓</small>
+            <small>
+              {card.stamps_required} {es ? "sellos" : "stamps"} ·{" "}
+              {es ? "Editar tarjeta" : "Edit card"} ↓
+            </small>
           </summary>
           <form action={saveCard} className="stack compact-action-form">
-            <HiddenContext locale={locale} venueId={venueId} programId={card.id} />
+            <HiddenContext
+              locale={locale}
+              venueId={venueId}
+              programId={card.id}
+            />
             <StampFields es={es} card={card} />
             <button className="button primary" type="submit">
               {es ? "Guardar cambios" : "Save changes"}
@@ -171,17 +199,44 @@ export function VenueLoyaltyWorkspace({
           </form>
           <div className="stack">
             <form action={toggleCard} className="inline-form">
-              <HiddenContext locale={locale} venueId={venueId} programId={card.id} />
-              <input type="hidden" name="active" value={card.active ? "false" : "true"} />
-              <button type="submit" className="button secondary" disabled={!card.active && !hasPrize}>
-                {card.active ? (es ? "Pausar tarjeta" : "Pause card") : (es ? "Reactivar tarjeta" : "Reactivate card")}
+              <HiddenContext
+                locale={locale}
+                venueId={venueId}
+                programId={card.id}
+              />
+              <input
+                type="hidden"
+                name="active"
+                value={card.active ? "false" : "true"}
+              />
+              <button
+                type="submit"
+                className="button secondary"
+                disabled={!card.active && !hasPrize}
+              >
+                {card.active
+                  ? es
+                    ? "Pausar tarjeta"
+                    : "Pause card"
+                  : es
+                    ? "Reactivar tarjeta"
+                    : "Reactivate card"}
               </button>
             </form>
             <form action={removeCard} className="stack">
-              <HiddenContext locale={locale} venueId={venueId} programId={card.id} />
+              <HiddenContext
+                locale={locale}
+                venueId={venueId}
+                programId={card.id}
+              />
               <label>
-                <input type="checkbox" name="confirmRemoval" value="yes" required />
-                {" "}{es
+                <input
+                  type="checkbox"
+                  name="confirmRemoval"
+                  value="yes"
+                  required
+                />{" "}
+                {es
                   ? "Entiendo que se eliminará si no tiene historial; de lo contrario se archivará para conservar los sellos."
                   : "Remove this card. Cards with existing customer history are archived to preserve stamps."}
               </label>
@@ -197,19 +252,31 @@ export function VenueLoyaltyWorkspace({
     <section className="panel loyalty-workbench reward-hub">
       <div className="workspace-inline-heading">
         <div>
-          <span className="eyebrow">{es ? "Fidelidad del local" : "Venue loyalty"}</span>
-          <h2>{es ? "Tarjetas de sellos y premios" : "Stamp cards & prizes"}</h2>
-          <p>{es
-            ? "Crea la tarjeta y su premio en el mismo lugar. Pulsa una tarjeta para modificarla."
-            : "Create a card and its prize together. Open any card to edit, pause or remove it."}</p>
+          <span className="eyebrow">
+            {es ? "Fidelidad del local" : "Venue loyalty"}
+          </span>
+          <h2>
+            {es ? "Tarjetas de sellos y premios" : "Stamp cards & prizes"}
+          </h2>
+          <p>
+            {es
+              ? "Crea la tarjeta y su premio en el mismo lugar. Pulsa una tarjeta para modificarla."
+              : "Create a card and its prize together. Open any card to edit, pause or remove it."}
+          </p>
         </div>
-        <span className="status-pill">{active.length} {es ? "activas" : "active"}</span>
+        <span className="status-pill">
+          {active.length} {es ? "activas" : "active"}
+        </span>
       </div>
       {feedback && (
         <p className="notice notice-error" role="alert">
           {feedback === "stamp"
-            ? (es ? "No se pudo guardar la tarjeta. Comprueba los campos y permisos." : "The card could not be saved. Check the fields and your access.")
-            : (es ? "No se pudo completar la operación. Inténtalo de nuevo." : "The action failed. Please retry.")}
+            ? es
+              ? "No se pudo guardar la tarjeta. Comprueba los campos y permisos."
+              : "The card could not be saved. Check the fields and your access."
+            : es
+              ? "No se pudo completar la operación. Inténtalo de nuevo."
+              : "The action failed. Please retry."}
         </p>
       )}
       {active.length > 0 && (
@@ -220,56 +287,106 @@ export function VenueLoyaltyWorkspace({
       )}
       {draft.length > 0 && (
         <>
-          <h3>{es ? "Borradores y tarjetas pausadas" : "Drafts & paused cards"}</h3>
+          <h3>
+            {es ? "Borradores y tarjetas pausadas" : "Drafts & paused cards"}
+          </h3>
           <div className="reward-card-list">{renderCards(draft)}</div>
         </>
       )}
       <div className="reward-action-grid">
-        <details className="workspace-action-card reward-action-card" open={programs.length === 0}>
+        <details
+          className="workspace-action-card reward-action-card"
+          open={programs.length === 0}
+        >
           <summary>
             <span className="workspace-action-summary">
-              <span className="summary-icon"><Icon name="gift" /></span>
+              <span className="summary-icon">
+                <Icon name="gift" />
+              </span>
               <span>
-                <strong>{es ? "Nueva tarjeta de sellos" : "New stamp card"}</strong>
-                <small>{es ? "Un formulario para la tarjeta y el premio" : "Card and prize in one step"}</small>
+                <strong>
+                  {es ? "Nueva tarjeta de sellos" : "New stamp card"}
+                </strong>
+                <small>
+                  {es
+                    ? "Un formulario para la tarjeta y el premio"
+                    : "Card and prize in one step"}
+                </small>
               </span>
             </span>
           </summary>
           <form action={saveCard} className="stack compact-action-form">
             <HiddenContext locale={locale} venueId={venueId} />
             <StampFields es={es} />
-            <button type="submit" className="button primary">{es ? "Crear tarjeta" : "Create card"}</button>
+            <button type="submit" className="button primary">
+              {es ? "Crear tarjeta" : "Create card"}
+            </button>
           </form>
         </details>
         <details className="workspace-action-card reward-action-card">
           <summary>
             <span className="workspace-action-summary">
-              <span className="summary-icon"><Icon name="megaphone" /></span>
+              <span className="summary-icon">
+                <Icon name="megaphone" />
+              </span>
               <span>
                 <strong>{es ? "Oferta temporal" : "Limited-time offer"}</strong>
-                <small>{es ? "Una promoción con fecha de inicio y fin" : "A promotion with start and end dates"}</small>
+                <small>
+                  {es
+                    ? "Una promoción con fecha de inicio y fin"
+                    : "A promotion with start and end dates"}
+                </small>
               </span>
             </span>
           </summary>
           <form action={saveOffer} className="stack compact-action-form">
             <HiddenContext locale={locale} venueId={venueId} />
             <div className="form-grid-two">
-              <label>{es ? "Título" : "Title"}<input name="title" required placeholder={es ? "2x1 los martes" : "2-for-1 Tuesdays"} /></label>
-              <label>{es ? "Quién puede verla" : "Who can see it"}
+              <label>
+                {es ? "Título" : "Title"}
+                <input
+                  name="title"
+                  required
+                  placeholder={es ? "2x1 los martes" : "2-for-1 Tuesdays"}
+                />
+              </label>
+              <label>
+                {es ? "Quién puede verla" : "Who can see it"}
                 <select name="audience" defaultValue="public">
-                  <option value="public">{es ? "Todo el mundo" : "Everyone"}</option>
+                  <option value="public">
+                    {es ? "Todo el mundo" : "Everyone"}
+                  </option>
                   <option value="premium">Premium</option>
                 </select>
               </label>
             </div>
-            <label>{es ? "Condiciones" : "Terms"}
-              <textarea name="terms" required minLength={10} rows={3} placeholder={es ? "Solo consumo en local. No acumulable." : "Dine-in only. Cannot be combined with other offers."} />
+            <label>
+              {es ? "Condiciones" : "Terms"}
+              <textarea
+                name="terms"
+                required
+                minLength={10}
+                rows={3}
+                placeholder={
+                  es
+                    ? "Solo consumo en local. No acumulable."
+                    : "Dine-in only. Cannot be combined with other offers."
+                }
+              />
             </label>
             <div className="form-grid-two">
-              <label>{es ? "Empieza" : "Starts"}<input type="datetime-local" name="startsAt" required /></label>
-              <label>{es ? "Termina" : "Ends"}<input type="datetime-local" name="endsAt" required /></label>
+              <label>
+                {es ? "Empieza" : "Starts"}
+                <input type="datetime-local" name="startsAt" required />
+              </label>
+              <label>
+                {es ? "Termina" : "Ends"}
+                <input type="datetime-local" name="endsAt" required />
+              </label>
             </div>
-            <button type="submit" className="button">{es ? "Crear oferta" : "Create offer"}</button>
+            <button type="submit" className="button">
+              {es ? "Crear oferta" : "Create offer"}
+            </button>
           </form>
         </details>
       </div>
@@ -278,21 +395,40 @@ export function VenueLoyaltyWorkspace({
           <h3>{es ? "Ofertas existentes" : "Existing offers"}</h3>
           {offers.map((offer) => (
             <div className="managed-row" key={offer.id}>
-              <strong>{es ? offer.title_es : offer.title_en || offer.title_es}</strong>
-              <span>{offer.status} · {offer.audience === "premium" ? "Premium" : es ? "Pública" : "Public"}</span>
+              <strong>
+                {es ? offer.title_es : offer.title_en || offer.title_es}
+              </strong>
+              <span>
+                {offer.status} ·{" "}
+                {offer.audience === "premium"
+                  ? "Premium"
+                  : es
+                    ? "Pública"
+                    : "Public"}
+              </span>
             </div>
           ))}
         </div>
       )}
       {redemptions.length > 0 && (
         <div className="compact-managed-list">
-          <h3>{es ? "Premios pendientes de entrega" : "Pending reward handovers"}</h3>
+          <h3>
+            {es ? "Premios pendientes de entrega" : "Pending reward handovers"}
+          </h3>
           {redemptions.map((item) => (
-            <form action={confirmRedemption} className="managed-row" key={item.id}>
+            <form
+              action={confirmRedemption}
+              className="managed-row"
+              key={item.id}
+            >
               <HiddenContext locale={locale} venueId={venueId} />
               <input type="hidden" name="redemptionId" value={item.id} />
-              <strong>{item.profiles?.display_name || (es ? "Usuario" : "Customer")}</strong>
-              <button className="button primary" type="submit">{es ? "Confirmar entrega" : "Confirm handover"}</button>
+              <strong>
+                {item.profiles?.display_name || (es ? "Usuario" : "Customer")}
+              </strong>
+              <button className="button primary" type="submit">
+                {es ? "Confirmar entrega" : "Confirm handover"}
+              </button>
             </form>
           ))}
         </div>

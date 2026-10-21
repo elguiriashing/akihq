@@ -98,7 +98,8 @@ export default async function BusinessPage({
   if (!isLocale(locale)) notFound();
   const query = await searchParams;
   // Old loyalty bookmarks now lead to the shared per-venue workspace.
-  if (query.view === "loyalty") redirect(`/${locale}/business?notice=loyalty-moved`);
+  if (query.view === "loyalty")
+    redirect(`/${locale}/business?notice=loyalty-moved`);
   const view = [
     "venues",
     "events",

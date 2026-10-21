@@ -11,7 +11,11 @@ import Link from "next/link";
 import { OwnerReadiness } from "@/components/OwnerReadiness";
 import { Icon } from "@/components/Icons";
 import { VenueDashboard } from "@/components/VenueDashboard";
-import { VenueLoyaltyWorkspace, type StampCard, type PendingStampRedemption } from "@/components/VenueLoyaltyWorkspace";
+import {
+  VenueLoyaltyWorkspace,
+  type StampCard,
+  type PendingStampRedemption,
+} from "@/components/VenueLoyaltyWorkspace";
 import { VenueCatalogueEditor } from "@/components/VenueCatalogueEditor";
 import {
   AkiSuiteVenueTools,
@@ -216,7 +220,9 @@ export default async function VenueWorkspace({
   if (!venue) notFound();
   const { data: pendingStampRedemptions } = await supabase
     .from("reward_redemptions")
-    .select("id,requested_at,profiles(display_name),loyalty_programs!inner(venue_id)")
+    .select(
+      "id,requested_at,profiles(display_name),loyalty_programs!inner(venue_id)",
+    )
     .eq("loyalty_programs.venue_id", id)
     .eq("state", "requested")
     .order("requested_at");
@@ -1446,7 +1452,10 @@ export default async function VenueWorkspace({
             venueId={id}
             programs={(programs || []) as StampCard[]}
             offers={offers || []}
-            redemptions={(pendingStampRedemptions || []) as unknown as PendingStampRedemption[]}
+            redemptions={
+              (pendingStampRedemptions ||
+                []) as unknown as PendingStampRedemption[]
+            }
             saveCard={createStampCard}
             toggleCard={setStampCardActive}
             removeCard={removeStampCard}
