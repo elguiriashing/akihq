@@ -76,8 +76,22 @@ export function IndependentAccommodationMedia({
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setFailure(body.error ?? "unavailable");
-        throw new Error(body.error ?? "unavailable");
+        const code = body.error ?? "unavailable";
+        if (["quota", "resolution"].includes(code)) {
+          // Keep the form mounted so captions survive. Fail closed until the
+          // current policy is known; the user's previous plan may have expired.
+          setLimits(null);
+          const refreshed = await fetch(
+            `/api/business/accommodations/media?property=${encodeURIComponent(property)}`,
+            { cache: "no-store" },
+          );
+          if (!refreshed.ok) throw new Error("unavailable");
+          const current = await refreshed.json();
+          if (!current.limits) throw new Error("unavailable");
+          setLimits(current.limits);
+        }
+        setFailure(code);
+        throw new Error(code);
       }
       setRevision((v) => v + 1);
     } catch (error) {
