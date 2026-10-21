@@ -92,7 +92,7 @@ export async function GET(request: Request) {
   const profile = await db
     .from("accommodation_properties")
     .select(
-      "id,name,status,legacy_venue_id,workspace_id,slug,address,city,latitude,longitude,accommodation_type,website_url,description_es,description_en",
+      "id,name,status,revision_id,legacy_venue_id,workspace_id,slug,address,city,latitude,longitude,accommodation_type,website_url,description_es,description_en",
     )
     .eq("id", parsed.data)
     .maybeSingle();

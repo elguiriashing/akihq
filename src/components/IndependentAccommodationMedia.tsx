@@ -1,6 +1,14 @@
 "use client";
 import Image from "next/image";
+import { SafeMediaFileInput } from "@/components/SafeMediaFileInput";
 import { useEffect, useState, type FormEvent } from "react";
+type Limits = {
+  premium: boolean;
+  photos: number;
+  used: number;
+  max_dimension: number;
+  uploads_enforced: boolean;
+};
 type Media = {
   id: string;
   altText: string;
@@ -15,6 +23,8 @@ export function IndependentAccommodationMedia({
   locale: "en" | "es";
 }) {
   const es = locale === "es";
+  const [limits, setLimits] = useState<Limits | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const [items, setItems] = useState<Media[]>([]),
     [error, setError] = useState(false),
     [loading, setLoading] = useState(true),
@@ -23,6 +33,7 @@ export function IndependentAccommodationMedia({
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setLimits(null);
     setError(false);
     fetch(
       `/api/business/accommodations/media?property=${encodeURIComponent(property)}`,
@@ -33,7 +44,10 @@ export function IndependentAccommodationMedia({
         return response.json();
       })
       .then((result) => {
-        if (active) setItems(result.media || []);
+        if (active) {
+          setItems(result.media || []);
+          setLimits(result.limits ?? null);
+        }
       })
       .catch(() => {
         if (active) setError(true);
@@ -49,6 +63,7 @@ export function IndependentAccommodationMedia({
     if (busy) return;
     setBusy(true);
     setError(false);
+    setFailure(null);
     try {
       const response = await fetch("/api/business/accommodations/media", {
         method: "POST",
@@ -59,10 +74,19 @@ export function IndependentAccommodationMedia({
               headers: { "Content-Type": "application/json" },
             }),
       });
-      if (!response.ok) throw new Error();
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setFailure(body.error ?? "unavailable");
+        throw new Error(body.error ?? "unavailable");
+      }
       setRevision((v) => v + 1);
-    } catch {
-      setError(true);
+    } catch (error) {
+      setError(
+        !(
+          error instanceof Error &&
+          ["quota", "resolution"].includes(error.message)
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -80,6 +104,36 @@ export function IndependentAccommodationMedia({
           ? "Las imágenes permanecen privadas hasta colocarlas en la galería de una propiedad publicada. Máximo 10 MB por JPEG, PNG o WebP."
           : "Images remain private until placed in a published property's gallery. Maximum 10 MB per JPEG, PNG or WebP."}
       </p>
+      {limits && (
+        <p role="status">
+          {es
+            ? `Fotografías: ${limits.used} de ${limits.photos}. Resolución máxima: ${limits.max_dimension} píxeles por lado.`
+            : `Photos: ${limits.used} of ${limits.photos}. Maximum resolution: ${limits.max_dimension} pixels per side.`}
+        </p>
+      )}
+      {failure === "quota" && (
+        <p role="alert">
+          {es
+            ? "Se alcanzó el límite. Tus fotografías existentes se conservan. Premium ofrece hasta 250 fotografías."
+            : "The allowance is full. Your existing photos are retained. Premium provides up to 250 photos."}
+        </p>
+      )}
+      {failure === "resolution" && (
+        <p role="alert">
+          {es
+            ? "Selecciona de nuevo el archivo para prepararlo con la resolución permitida."
+            : "Select the file again to prepare it at the permitted resolution."}
+        </p>
+      )}
+      {limits && !limits.premium && (
+        <a
+          href={`https://akipasa.com/${locale}/account/subscription?app=akiduermo`}
+        >
+          {es
+            ? "Consultar Premium para este alojamiento"
+            : "View Premium for this accommodation"}
+        </a>
+      )}
       {error && (
         <p role="alert">
           {es
@@ -144,7 +198,7 @@ export function IndependentAccommodationMedia({
                     <option value="private">
                       {es ? "Privada" : "Private"}
                     </option>
-                    {Array.from({ length: 12 }, (_, i) => (
+                    {Array.from({ length: limits?.photos ?? 8 }, (_, i) => (
                       <option key={i} value={i}>
                         {i + 1}
                       </option>
@@ -164,15 +218,22 @@ export function IndependentAccommodationMedia({
             ))}
           </ul>
           <form onSubmit={upload}>
-            <fieldset disabled={busy || error}>
+            <fieldset
+              disabled={
+                busy ||
+                error ||
+                !limits?.uploads_enforced ||
+                limits.used >= limits.photos
+              }
+            >
               <legend>{es ? "Subir fotografía" : "Upload photo"}</legend>
               <label>
                 {es ? "Archivo" : "File"}
-                <input
-                  type="file"
+                <SafeMediaFileInput
                   name="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  locale={locale}
                   required
+                  listingPremium={limits?.premium ?? false}
                 />
               </label>
               <label>
