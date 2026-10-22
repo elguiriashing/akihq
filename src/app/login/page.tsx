@@ -14,5 +14,10 @@ export default async function LoginPage({
 }) {
   const query = await searchParams;
   const locale = query.lang === "es" || query.locale === "es" ? "es" : "en";
-  return <AuthPage params={Promise.resolve({ locale })} searchParams={Promise.resolve(query)} />;
+  return (
+    <AuthPage
+      params={Promise.resolve({ locale })}
+      searchParams={Promise.resolve(query)}
+    />
+  );
 }
