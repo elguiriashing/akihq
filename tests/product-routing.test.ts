@@ -85,6 +85,23 @@ describe("independent business boundary", () => {
         expect(businessRoute(`/${locale}/${path}`, "POST").kind).toBe("local");
     }
   });
+  it("keeps the free HQ membership local while account billing remains primary", () => {
+    for (const locale of ["en", "es"]) {
+      expect(businessRoute(`/${locale}/membership`).kind).toBe("local");
+      expect(businessRoute(`/${locale}/business/memberships`).kind).toBe(
+        "local",
+      );
+      expect(businessRoute(`/${locale}/account/subscription`).kind).toBe(
+        "primary",
+      );
+    }
+    const page = readFileSync("src/app/[locale]/membership/page.tsx", "utf8");
+    expect(page).toContain("AkiPasa Business Premium");
+    expect(page).toContain("AkiDuermo Business Premium");
+    expect(page).toContain("AkiCoches Business Premium");
+    expect(page).toMatch(/suiteHref\("business",\s*locale\)/);
+    expect(page).not.toContain("startAkiSuiteCheckout");
+  });
   it("retains management APIs without exposing billing or administrative endpoints", () => {
     for (const path of [
       "/api/business/venue-media",
