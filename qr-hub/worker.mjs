@@ -167,25 +167,40 @@ const PAGE = String.raw`<!doctype html>
 export default {
   async fetch(request) {
     const url = new URL(request.url);
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return new Response('Method Not Allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return new Response("Method Not Allowed", {
+        status: 405,
+        headers: { Allow: "GET, HEAD" },
+      });
     }
-    if (url.pathname === '/robots.txt') {
-      return new Response('User-agent: *\nAllow: /\n', {headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=86400'}});
+    if (url.pathname === "/robots.txt") {
+      return new Response("User-agent: *\nAllow: /\n", {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "public, max-age=86400",
+        },
+      });
     }
-    if (url.pathname !== '/' && url.pathname !== '/index.html') {
-      return new Response('Not Found', {status:404,headers:{'Content-Type':'text/plain; charset=utf-8','X-Content-Type-Options':'nosniff'}});
+    if (url.pathname !== "/" && url.pathname !== "/index.html") {
+      return new Response("Not Found", {
+        status: 404,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
     }
-    return new Response(request.method === 'HEAD' ? null : PAGE, {
+    return new Response(request.method === "HEAD" ? null : PAGE, {
       headers: {
-        'Content-Type':'text/html; charset=utf-8',
-        'Cache-Control':'public, max-age=300',
-        'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests",
-        'Strict-Transport-Security':'max-age=31536000; includeSubDomains',
-        'Referrer-Policy':'strict-origin-when-cross-origin',
-        'X-Content-Type-Options':'nosniff',
-        'Permissions-Policy':'camera=(), microphone=(), geolocation=()'
-      }
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=300",
+        "Content-Security-Policy":
+          "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "X-Content-Type-Options": "nosniff",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+      },
     });
-  }
+  },
 };
