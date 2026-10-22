@@ -164,7 +164,7 @@ const PAGE = String.raw`<!doctype html>
 </body>
 </html>`;
 
-export default {
+const qrHubWorker = {
   async fetch(request) {
     const url = new URL(request.url);
     if (request.method !== "GET" && request.method !== "HEAD") {
@@ -204,3 +204,5 @@ export default {
     });
   },
 };
+
+export default qrHubWorker;
