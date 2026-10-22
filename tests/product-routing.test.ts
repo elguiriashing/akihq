@@ -67,11 +67,9 @@ describe("independent business boundary", () => {
       ["section", "billing"],
     ]);
   });
-  it("uses its business homepage on every deployment host", () => {
-    expect(businessRoute("/")).toEqual({
-      kind: "redirect",
-      path: "/es/business",
-    });
+  it("serves public landing and login locally while preserving business routes", () => {
+    expect(businessRoute("/")).toEqual({ kind: "local", path: "/" });
+    expect(businessRoute("/login")).toEqual({ kind: "local", path: "/login" });
     for (const locale of ["en", "es"]) {
       expect(businessRoute(`/${locale}`)).toEqual({
         kind: "redirect",
