@@ -1,11 +1,7 @@
 import { redirect } from "next/navigation";
 
-/** All suite portals resolve to the same membership catalogue. */
-export default async function SuiteMembershipRedirect({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+/** The free HQ hub hosts its own product-specific listing upgrades. */
+export default async function SuiteMembershipRedirect({ params }: { params: Promise<{locale: string}> }) {
   const { locale } = await params;
-  redirect(`/${locale === "en" ? "en" : "es"}/membership?from=akibusiness`);
+  redirect(`/${locale === "en" ? "en" : "es"}/membership`);
 }
