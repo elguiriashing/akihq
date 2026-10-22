@@ -214,3 +214,23 @@ describe("existing identity security contracts", () => {
     expect(isTrustedBusinessHost("attacker.test")).toBe(false);
   });
 });
+
+describe("public AkiHQ product-link identity", () => {
+  it("renders the three discovery brands with existing PortalLogo assets and accessible destinations", () => {
+    const page = readFileSync("src/app/page.tsx", "utf8");
+    const logo = readFileSync("src/components/PortalLogo.tsx", "utf8");
+    const styles = readFileSync("src/app/landing.css", "utf8");
+    for (const [product, domain, source] of [
+      ["pasa", "akipasa.com", "/pwa/akipasa-512.png"],
+      ["duermo", "akiduermo.com", "/brand/duermo-icon.png"],
+      ["coches", "akicoches.com", "/brand/conduzco-icon.svg"],
+    ]) {
+      expect(page).toContain(`<PortalLogo product="${product}" />`);
+      expect(page).toContain(`href="https://${domain}/"`);
+      expect(logo).toContain(source);
+    }
+    expect(page).toContain("usedForTitle");
+    expect(page).toContain("PARA GESTIONAR");
+    expect(styles).toContain(".hq-used-for-logos");
+  });
+});
