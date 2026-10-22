@@ -1,0 +1,32 @@
+name: Format HQ landing branch
+on:
+  push:
+    branches: ["feature/public-product-homepages-20261022"]
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/public-product-homepages-20261022
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Apply repository Prettier
+        run: npx prettier --write src/app/page.tsx src/app/landing.css src/app/login/page.tsx src/app/robots.ts src/lib/business-routing.ts
+      - name: Commit formatting only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/page.tsx src/app/landing.css src/app/login/page.tsx src/app/robots.ts src/lib/business-routing.ts
+          if ! git diff --cached --quiet; then
+            git commit -m "style(hq): format landing with repository Prettier"
+            git push origin HEAD:feature/public-product-homepages-20261022
+          fi
