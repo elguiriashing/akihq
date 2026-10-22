@@ -99,7 +99,7 @@ describe("independent business boundary", () => {
     expect(page).toContain("AkiPasa Business Premium");
     expect(page).toContain("AkiDuermo Business Premium");
     expect(page).toContain("AkiCoches Business Premium");
-    expect(page).toMatch(/suiteHref\\("business",\\s*locale\\)/);
+    expect(page).toMatch(/suiteHref\("business",\s*locale\)/);
     expect(page).not.toContain("startAkiSuiteCheckout");
   });
   it("retains management APIs without exposing billing or administrative endpoints", () => {
