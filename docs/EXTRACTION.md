@@ -12,7 +12,6 @@ This is bilingual presentation/navigation only. No schema, checkout,
 customer, permissions or worker bindings changed. Browser, role/auth,
 responsive, source SHA, CI and live Worker verification remain release gates.
 
-
 Source: `080ea0ffb2dd6612436acd04c25b4daf8ff71129` from AkiPasa master.
 `EXTRACTION_SOURCE_GRAPH.json` records static source imports; this is dependency
 evidence, not proof of production runtime acceptance. All selected paths were

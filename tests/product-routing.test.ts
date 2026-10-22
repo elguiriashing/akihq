@@ -88,8 +88,12 @@ describe("independent business boundary", () => {
   it("keeps the free HQ membership local while account billing remains primary", () => {
     for (const locale of ["en", "es"]) {
       expect(businessRoute(`/${locale}/membership`).kind).toBe("local");
-      expect(businessRoute(`/${locale}/business/memberships`).kind).toBe("local");
-      expect(businessRoute(`/${locale}/account/subscription`).kind).toBe("primary");
+      expect(businessRoute(`/${locale}/business/memberships`).kind).toBe(
+        "local",
+      );
+      expect(businessRoute(`/${locale}/account/subscription`).kind).toBe(
+        "primary",
+      );
     }
     const page = readFileSync("src/app/[locale]/membership/page.tsx", "utf8");
     expect(page).toContain("AkiPasa Business Premium");
