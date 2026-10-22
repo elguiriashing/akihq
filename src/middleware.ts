@@ -34,7 +34,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, route.kind === "redirect" ? 308 : 307);
   }
   const response = await refreshSession(request);
-  response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  if (request.nextUrl.pathname !== "/")
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
