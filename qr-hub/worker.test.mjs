@@ -41,3 +41,24 @@ test("HEAD, robots, unknown routes and mutation requests behave safely", async (
   assert.equal(post.status, 405);
   assert.equal(post.headers.get("Allow"), "GET, HEAD");
 });
+
+test("QR product cards use the approved AkiSuite colour identities", async () => {
+  const html = await (await worker.fetch(new Request(base))).text();
+  const expected = [
+    ["hq", "https://akihq.app/", "#ffc533"],
+    ["business-product", "https://akibusiness.com/", "#c49dff"],
+    ["pasa", "https://akipasa.com/", "#ff9857"],
+    ["duermo", "https://akiduermo.com/", "#86e4c4"],
+    ["coches", "https://akicoches.com/", "#ff958e"],
+  ];
+  for (const [className, href, accent] of expected) {
+    assert.ok(
+      html.includes(`class="destination ${className}" href="${href}"`),
+      `Wrong destination class for ${href}`,
+    );
+    assert.ok(
+      html.includes(`.${className} {--accent:${accent};`),
+      `Wrong theme colour for ${className}`,
+    );
+  }
+});
