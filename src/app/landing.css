@@ -581,7 +581,9 @@
   justify-content: space-between;
   gap: 8px;
   background: linear-gradient(140deg, #142039, #0d1528);
-  transition: border-color 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
 }
 .hq-used-for-product:hover {
   transform: translateY(-2px);
@@ -591,20 +593,36 @@
   font-size: 15px;
   color: #8ea0bc;
 }
-.hq-used-for-product :is(img) {
+.hq-used-for-product img {
   width: 30px;
   height: 30px;
 }
-.hq-used-for-pasa:hover { border-color: #f26b1d; }
-.hq-used-for-duermo:hover { border-color: #6be1c8; }
-.hq-used-for-coches:hover { border-color: #ff3047; }
+.hq-used-for-pasa:hover {
+  border-color: #f26b1d;
+}
+.hq-used-for-duermo:hover {
+  border-color: #6be1c8;
+}
+.hq-used-for-coches:hover {
+  border-color: #ff3047;
+}
 @media (max-width: 970px) {
-  .hq-used-for { grid-template-columns: 1fr; }
+  .hq-used-for {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 620px) {
-  .hq-used-for { padding-top: 28px; padding-bottom: 30px; gap: 19px; }
-  .hq-used-for-logos { grid-template-columns: 1fr; }
-  .hq-used-for-product { min-height: 60px; }
+  .hq-used-for {
+    padding-top: 28px;
+    padding-bottom: 30px;
+    gap: 19px;
+  }
+  .hq-used-for-logos {
+    grid-template-columns: 1fr;
+  }
+  .hq-used-for-product {
+    min-height: 60px;
+  }
 }
 
 @media (max-width: 970px) {
