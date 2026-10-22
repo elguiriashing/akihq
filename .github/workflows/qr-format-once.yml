@@ -1,0 +1,30 @@
+name: Temporary QR Hub formatting
+
+on:
+  push:
+    branches:
+      - feat/qr-akisuite-immersive-hub-20261022
+    paths:
+      - .github/workflows/qr-format-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Format QR source with repository version
+        run: |
+          npx prettier --write qr-hub/worker.mjs qr-hub/worker.test.mjs qr-hub/wrangler.jsonc .github/workflows/qr-hub.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add qr-hub/worker.mjs qr-hub/worker.test.mjs qr-hub/wrangler.jsonc .github/workflows/qr-hub.yml
+          git diff --cached --quiet || (git commit -m "style(qr): apply Prettier formatting" && git push origin HEAD:feat/qr-akisuite-immersive-hub-20261022)
