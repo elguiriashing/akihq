@@ -36,7 +36,8 @@ const copy = {
     flowItems: ["AkiPasa", "AkiDuermo", "AkiCoches"],
     usedForEyebrow: "USED FOR",
     usedForTitle: "One hub. Three discovery platforms.",
-    usedForDescription: "Manage the public business presence for your venues, stays and rental branches across AkiSuite.",
+    usedForDescription:
+      "Manage the public business presence for your venues, stays and rental branches across AkiSuite.",
     toolsKicker: "BUILT FOR EVERYDAY MANAGEMENT",
     toolsTitle: "Less jumping between tabs. More getting things done.",
     toolsIntro:
@@ -126,7 +127,8 @@ const copy = {
     flowItems: ["AkiPasa", "AkiDuermo", "AkiCoches"],
     usedForEyebrow: "PARA GESTIONAR",
     usedForTitle: "Un centro. Tres plataformas de descubrimiento.",
-    usedForDescription: "Gestiona la presencia pública de tus locales, alojamientos y sucursales de alquiler en AkiSuite.",
+    usedForDescription:
+      "Gestiona la presencia pública de tus locales, alojamientos y sucursales de alquiler en AkiSuite.",
     toolsKicker: "PENSADO PARA TU DÍA A DÍA",
     toolsTitle: "Menos pestañas. Más cosas hechas.",
     toolsIntro:
@@ -309,15 +311,27 @@ export default async function Home({
           <p>{c.usedForDescription}</p>
         </div>
         <nav className="hq-used-for-logos" aria-label={c.usedForTitle}>
-          <a className="hq-used-for-product hq-used-for-pasa" href="https://akipasa.com/" aria-label="AkiPasa">
+          <a
+            className="hq-used-for-product hq-used-for-pasa"
+            href="https://akipasa.com/"
+            aria-label="AkiPasa"
+          >
             <PortalLogo product="pasa" />
             <span aria-hidden="true">↗</span>
           </a>
-          <a className="hq-used-for-product hq-used-for-duermo" href="https://akiduermo.com/" aria-label="AkiDuermo">
+          <a
+            className="hq-used-for-product hq-used-for-duermo"
+            href="https://akiduermo.com/"
+            aria-label="AkiDuermo"
+          >
             <PortalLogo product="duermo" />
             <span aria-hidden="true">↗</span>
           </a>
-          <a className="hq-used-for-product hq-used-for-coches" href="https://akicoches.com/" aria-label="AkiCoches">
+          <a
+            className="hq-used-for-product hq-used-for-coches"
+            href="https://akicoches.com/"
+            aria-label="AkiCoches"
+          >
             <PortalLogo product="coches" />
             <span aria-hidden="true">↗</span>
           </a>
