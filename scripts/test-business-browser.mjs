@@ -79,21 +79,22 @@ try {
           { data: {} },
         );
         assert.equal(blocked.status(), 404);
-        const external = await context.request.get(
+        const membershipAlias = await context.request.get(
           `${base}/${locale}/account/subscription?from=akibusiness&code=fixture-code&access_token=fixture-token&ACCESS_TOKEN=fixture-token&client_secret=fixture-secret&next=%2Fauth%2Fcallback%3Fcode%3Dfixture-code&context=%7B%22code%22%3A%22fixture-code%22%7D`,
           { maxRedirects: 0 },
         );
-        assert.equal(external.status(), 307);
-        const target = new URL(external.headers().location);
-        assert.equal(target.origin, "https://akipasa.com");
-        assert.equal(target.searchParams.get("from"), "akibusiness");
+        assert.equal(membershipAlias.status(), 307);
+        const target = new URL(membershipAlias.headers().location, base);
+        assert.equal(target.origin, new URL(base).origin);
+        assert.equal(target.pathname, `/${locale}/membership`);
+        assert.equal(target.searchParams.has("from"), false);
         assert.equal(target.searchParams.has("code"), false);
         assert.equal(target.searchParams.has("access_token"), false);
         assert.equal(target.searchParams.has("ACCESS_TOKEN"), false);
         assert.equal(target.searchParams.has("client_secret"), false);
         assert.equal(target.searchParams.has("next"), false);
         assert.equal(target.searchParams.has("context"), false);
-        assert.equal(target.hash, "#redirected");
+        assert.equal(target.hash, "");
         const untrusted = await context.request.get(`${base}/api/health`, {
           headers: { host: "attacker.test" },
           maxRedirects: 0,

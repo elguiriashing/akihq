@@ -1947,3 +1947,7 @@ verified by the no-horizontal-overflow browser assertion without relying on a
 product-global reset. Local profile/auth returns and account↔membership/explore
 links retain EN/ES explicitly. AkiBusiness persists its native language choice
 through the existing callback. No billing, role, schema or data changes.
+
+### 2026-10-24 — Native journey acceptance follow-up
+
+Updated anonymous browser acceptance to require the native membership alias on the current origin while still rejecting credential/query leakage; the previous assertion required the removed Pasa handoff.
