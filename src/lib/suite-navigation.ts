@@ -9,6 +9,13 @@ const origins: Record<SuiteProduct, string> = {
   business: "https://akibusiness.com",
 };
 
+/** Existing public referral bound, shared by navigation and completion tasks. */
+export function suiteReferralCode(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Z0-9]{8,24}$/.test(value)
+    ? value
+    : undefined;
+}
+
 /** Only a path is accepted: never forward auth tokens, next/return URLs or arbitrary queries. */
 export function suiteHref(
   product: SuiteProduct,
@@ -37,9 +44,8 @@ export function suiteHref(
     url.pathname = path;
     url.searchParams.set(product === "business" ? "locale" : "lang", language);
   }
-  if (options.referralCode && /^[A-Z0-9]{8,24}$/.test(options.referralCode)) {
-    url.searchParams.set("ref", options.referralCode);
-  }
+  const referral = suiteReferralCode(options.referralCode);
+  if (referral) url.searchParams.set("ref", referral);
   if (
     product === "business" &&
     options.workspaceId &&

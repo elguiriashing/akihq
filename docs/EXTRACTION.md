@@ -1,5 +1,17 @@
 # AkiBusiness extraction acceptance
 
+## 2026-10-22 | Free AkiHQ membership and three independent listings
+
+AkiHQ now owns a local `/{locale}/membership` catalogue (with the
+business/memberships alias) displaying the three €14.99 staged Business
+Premium listing upgrades for AkiPasa, AkiDuermo and AkiCoches, each linking
+to the discovery product for current purchase/readiness details. AkiHQ
+management remains free. A separately labelled AkiBusiness CTA leads to
+paid operations software, which listing Premium does not include.
+This is bilingual presentation/navigation only. No schema, checkout,
+customer, permissions or worker bindings changed. Browser, role/auth,
+responsive, source SHA, CI and live Worker verification remain release gates.
+
 Source: `080ea0ffb2dd6612436acd04c25b4daf8ff71129` from AkiPasa master.
 `EXTRACTION_SOURCE_GRAPH.json` records static source imports; this is dependency
 evidence, not proof of production runtime acceptance. All selected paths were
@@ -146,3 +158,52 @@ grants, extension ownership and existing reference rows. Effective table/column
 postconditions reject silent no-op/inherited-grant repairs transactionally.
 See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
 geography acceptance and safe rollback. No live application is claimed by CI.
+
+## 2026-10-20 | Validated referral task completion
+
+Account completion preserves a single public referral code matching the existing
+uppercase alphanumeric 8–24 character navigation bound. The canonical public
+`/{locale}/referrals?ref=CODE` task returns to AkiPasa's explicit confirmation page;
+other allowed product tasks retain their validated code and EN/ES choice through
+the same fixed-origin resume envelope. Duplicate, URL-shaped, lowercase and
+out-of-range codes are discarded. Direct unprefixed AkiPasa referral completion
+uses this same sanitizer rather than falling back to Account.
+
+This changes navigation only: pending/underage restrictions, legal and tracking
+choices, first-attribution immutability and the explicit confirmation action remain
+authoritative. No automatic attribution, referral cookie, identity transfer, schema,
+financial incentive or production write is introduced. Shared contract copies and
+role-controller regressions cover all five products and both languages. Hosted CI
+and exact-source release checks remain required; unit fixtures do not establish
+authenticated production browser acceptance.
+
+Actual management Home and Claims entry now preserve the validated referral alongside bounded view/location keys before requireManagementHomeAccess or requireUser. Server authorization, claim ownership and consent remain unchanged. Pending and underage requests still reach completion in the same language.
+
+Completion-resume scope correction retains the actual legacy property/company/organisation query names using the shared bounded allowlist; no scope authorisation or runtime pin change. See ACCOUNT_TASK_RESUME_V1.md.
+
+## 21 October 2026 — reconciled scoped commercial observations
+
+Reuses the reviewed HQ #63 read-only funnel projection on current main e2492a4f.
+The compact dashboard, loyalty and current Next 16 features remain intact. Exact
+listing scope plus unique active workspace mapping and current management access
+are required; unavailable/unsupported scopes never show fabricated counts or
+conversion rates. See TRUSTED_BUSINESS_FUNNEL.md for rollout and rollback.
+The shared stage schema is installed but collection remains disabled and retention
+NULL. This source does not change readiness flags, collection or billing state.
+The HQ projection must be installed and real-caller ACL checks accepted before
+reader readiness can be enabled.
+
+Release-owner follow-up: the exact read-only HQ projection is now installed and
+ACL-verified; AKISUITE_FUNNEL_READY=true is enabled for the reader only. Shared
+collection remains disabled with retention NULL and no observations. Financial
+checkout/tax gates remain false. Full current-source tests/build and 64 responsive
+component cases pass; final hosted CI and deployment acceptance remain required.
+
+## Explicit resource scope adapters
+
+Native property reporting reads the native inventory namespace, not venue tables.
+Independent rental workspace mapping is owner-confirmed and never creates a public
+venue, subscription or organisation attachment. Organisation reporting uses explicit
+operating_organisation_locations with current workspace/resource permission
+intersections and bounded fanout. Original legacy reports remain the fallback while
+the new adapter gates are false. See AKIPULSE_EXPLICIT_SCOPES.md.

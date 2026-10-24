@@ -7,6 +7,7 @@ const isDevelopment = process.env.NODE_ENV !== "production";
 const nextConfig: NextConfig = {
   typedRoutes: false,
   experimental: {
+    cpus: 2,
     serverActions: {
       bodySizeLimit: "10mb",
     },
@@ -20,6 +21,7 @@ const nextConfig: NextConfig = {
     return webpackConfig;
   },
   images: {
+    minimumCacheTTL: 60,
     remotePatterns: [
       {
         protocol: "https",

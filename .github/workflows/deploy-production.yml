@@ -2,6 +2,10 @@ name: Manual AkiHQ production fallback
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-production.yml"
 
 permissions:
   contents: read

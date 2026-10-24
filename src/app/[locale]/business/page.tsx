@@ -1,18 +1,20 @@
+import { readRentalPulseLinks } from "@/lib/pulse-rental-links";
+import { RentalPulseWorkspaceLink } from "@/components/RentalPulseWorkspaceLink";
+import { accountTaskFromSearch } from "@/lib/account-task-resume";
+import { readBusinessFunnel } from "@/lib/akipulse-funnel";
 import { roleSwapEnabled } from "@/lib/product-roles";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { config, isLocale } from "@/lib/config";
 import { loadFeatureFlags } from "@/lib/feature-flags";
 import { requireUser } from "@/lib/auth";
 import { requireManagementHomeAccess } from "@/lib/entitlements";
 import {
-  confirmRedemption,
   createOfficialEvent,
   createVenue,
   deleteManagedVenue,
   requestPromotion,
   reuseEvent,
-  saveLoyaltyProgram,
   submitVenueClaim,
 } from "./actions";
 import { SpainAddressAutocomplete } from "@/components/SpainAddressAutocomplete";
@@ -98,10 +100,12 @@ export default async function BusinessPage({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const query = await searchParams;
+  // Old loyalty bookmarks now lead to the shared per-venue workspace.
+  if (query.view === "loyalty")
+    redirect(`/${locale}/business?notice=loyalty-moved`);
   const view = [
     "venues",
     "events",
-    "loyalty",
     "growth",
     "analytics",
     "pulse",
@@ -111,7 +115,7 @@ export default async function BusinessPage({
     : "venues";
 
   const claimView = view === "claims";
-  const returnPath = `/${locale}/business?${new URLSearchParams({ view, ...(query.venueId ? { venueId: query.venueId } : {}) })}`;
+  const returnPath = `/${locale}${accountTaskFromSearch("hq", locale, "/business", { ...query, view }) || "/business"}`;
   const { supabase, user } = claimView
     ? await requireUser(locale, returnPath)
     : await requireManagementHomeAccess(locale, returnPath);
@@ -123,20 +127,31 @@ export default async function BusinessPage({
 
   const flags = await loadFeatureFlags(supabase);
   const es = locale === "es";
+  const promotionServiceLabels: Record<string, string> = {
+    featured_listing: es ? "Evento destacado" : "Featured event",
+    social_campaign: es ? "Campaña en redes" : "Social campaign",
+    content_package: es ? "Paquete de contenido" : "Content package",
+    other: es ? "Solicitud personalizada" : "Custom request",
+  };
+  const promotionStateLabels: Record<string, string> = {
+    requested: es ? "Solicitada" : "Requested",
+    reviewing: es ? "En revisión" : "In review",
+    won: es ? "Aprobada" : "Approved",
+    declined: es ? "No aprobada" : "Not approved",
+    cancelled: es ? "Cancelada" : "Cancelled",
+  };
   const platformStaff = canModerate(profile?.app_role || "");
 
   const [
     { data: members, error: membersError },
     { data: categories },
     { data: claims },
-    { data: programs },
-    { data: redemptions },
     { data: promotions },
   ] = await Promise.all([
     supabase
       .from("venue_members")
       .select(
-        "role,venues(id,name,slug,status,verified,discovery_vertical,address,description_es,description_en,phone,website_url)",
+        "role,venues(id,name,slug,status,verified,discovery_vertical,address,description_es,description_en,phone:contact_phone,website_url)",
       )
       .eq("profile_id", user.id),
     supabase.from("categories").select("id,name_es,name_en").order("name_es"),
@@ -145,18 +160,6 @@ export default async function BusinessPage({
       .select("id,status,created_at,venues(name)")
       .eq("claimant_id", user.id)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("loyalty_programs")
-      .select(
-        "id,venue_id,title_es,title_en,reward_es,reward_en,stamps_required,check_in_token,active",
-      ),
-    supabase
-      .from("reward_redemptions")
-      .select(
-        "id,requested_at,profiles(display_name),loyalty_programs(title_es,venue_id)",
-      )
-      .eq("state", "requested")
-      .order("requested_at"),
     supabase
       .from("promotion_requests")
       .select("id,venue_id,service,state,created_at")
@@ -254,7 +257,7 @@ export default async function BusinessPage({
       item.venues ? [[item.venues.id, item.venues.name] as const] : [],
     ),
   );
-  const now = Date.now();
+  const now = new Date().getTime();
   const archivedEvents = businessEvents.filter(
     (event) => event.status === "archived",
   );
@@ -287,25 +290,44 @@ export default async function BusinessPage({
     pulseView &&
     process.env.AKIPULSE_SCOPED_BOOKINGS_READY === "true";
   const scopedPulseQuery = pulseScopeQuery.parse(query);
-  const scopeList = scopedPulseEnabled
-    ? await supabase.rpc("akipulse_scopes", {
-        p_kind: scopedPulseQuery.pulseKind,
-        p_limit: 51,
-        p_offset: scopedPulseQuery.pulsePage * 50,
-      })
-    : { data: [], error: null };
+  const nativePulseReady =
+    process.env.AKIPULSE_NATIVE_PROPERTIES_READY === "true";
+  const v2PulseReady =
+    process.env.AKIPULSE_EXPLICIT_SCOPE_ADAPTERS_READY === "true";
+  const requestedScopeReady =
+    scopedPulseQuery.pulseKind !== "native_property" ||
+    (nativePulseReady && v2PulseReady);
+  const scopeList =
+    scopedPulseEnabled && requestedScopeReady
+      ? await supabase.rpc(
+          v2PulseReady ? "akipulse_scopes_v2" : "akipulse_scopes",
+          {
+            p_kind: scopedPulseQuery.pulseKind,
+            p_limit: 51,
+            p_offset: scopedPulseQuery.pulsePage * 50,
+          },
+        )
+      : { data: [], error: null };
   const pulseScopes: PulseScope[] = (scopeList.data || []).slice(0, 50);
   // A selection is never a permission grant: the aggregate RPC rechecks all underlying scopes.
   const pulseResource =
     scopedPulseQuery.pulseResource || pulseScopes[0]?.id || "";
   const scopeResult =
-    scopedPulseEnabled && pulseResource && !scopeList.error
-      ? await supabase.rpc("akipulse_scope_analytics", {
-          p_kind: scopedPulseQuery.pulseKind,
-          p_id: pulseResource,
-          p_days: days,
-          p_until: periodEnd.toISOString(),
-        })
+    scopedPulseEnabled &&
+    requestedScopeReady &&
+    pulseResource &&
+    !scopeList.error
+      ? await supabase.rpc(
+          v2PulseReady
+            ? "akipulse_scope_analytics_v2"
+            : "akipulse_scope_analytics",
+          {
+            p_kind: scopedPulseQuery.pulseKind,
+            p_id: pulseResource,
+            p_days: days,
+            p_until: periodEnd.toISOString(),
+          },
+        )
       : { data: null, error: null };
   const scopedPulseReport = scopeResult.data
     ? readPulseScopedReport(
@@ -317,6 +339,43 @@ export default async function BusinessPage({
       )
     : null;
 
+  const funnelResult =
+    scopedPulseReport && process.env.AKISUITE_FUNNEL_READY === "true"
+      ? await supabase.rpc(
+          v2PulseReady
+            ? "akipulse_business_funnel_v2"
+            : "akipulse_business_funnel",
+          {
+            p_kind: scopedPulseQuery.pulseKind,
+            p_id: pulseResource,
+            p_days: days,
+          },
+        )
+      : { data: null, error: null };
+  const businessFunnel = !funnelResult.error
+    ? readBusinessFunnel(
+        funnelResult.data,
+        scopedPulseQuery.pulseKind,
+        pulseResource,
+        days,
+      )
+    : null;
+
+  const rentalLinkResult =
+    scopedPulseEnabled &&
+    v2PulseReady &&
+    scopedPulseQuery.pulseKind === "fleet" &&
+    pulseResource &&
+    scopedPulseReport
+      ? await supabase.rpc("akipulse_rental_workspace_options", {
+          p_company: pulseResource,
+          p_limit: 51,
+          p_offset: scopedPulseQuery.pulseLinkPage * 50,
+        })
+      : { data: null, error: null };
+  const rentalLinks = rentalLinkResult.error
+    ? null
+    : readRentalPulseLinks(rentalLinkResult.data);
   const analytics = pulseView
     ? await Promise.all(
         (pulseEnabled ? scopedLocations.slice(0, 20) : scopedLocations).map(
@@ -384,12 +443,6 @@ export default async function BusinessPage({
       count: businessEvents.length || undefined,
     },
     {
-      href: `${base}?view=loyalty`,
-      label: es ? "Fidelidad" : "Loyalty",
-      icon: "gift",
-      count: redemptions?.length || undefined,
-    },
-    {
       href: `${base}?view=pulse`,
       label: pulseEnabled ? "AkiPulse" : es ? "Actividad" : "Activity",
       icon: "activity",
@@ -414,13 +467,20 @@ export default async function BusinessPage({
       eyebrow={es ? "Panel de negocio" : "Business workspace"}
       description={
         es
-          ? "Gestiona tus locales, fidelidad y crecimiento desde un solo espacio."
-          : "Manage venues, loyalty, and growth from one focused workspace."
+          ? "Gestiona tus negocios y abre cada local AkiPasa para administrar sus tarjetas de fidelidad."
+          : "Manage your businesses and open each AkiPasa venue to manage its loyalty cards."
       }
       homeHref={base}
       items={items}
       navigationTitle={es ? "Negocio" : "Business"}
     >
+      {query.notice === "loyalty-moved" && (
+        <p className="notice" role="status">
+          {es
+            ? "La fidelidad se gestiona ahora desde Recompensas dentro de cada local AkiPasa. Abre tu local a continuación."
+            : "Loyalty is now managed under Rewards inside each AkiPasa venue. Open a venue below to manage its cards."}
+        </p>
+      )}
       {(query.created || query.error) && (
         <p
           className={`notice ${query.created ? "notice-success" : "notice-error"}`}
@@ -507,7 +567,8 @@ export default async function BusinessPage({
         {view === "venues" && (
           <BusinessHome
             locale={locale}
-            readError={Boolean(membersError || rentalCompaniesError)}
+            readError={Boolean(membersError && rentalCompaniesError)}
+            partialError={Boolean(membersError || rentalCompaniesError)}
             places={[
               ...managed.flatMap((item) =>
                 item.venues
@@ -774,150 +835,33 @@ export default async function BusinessPage({
           </details>
         )}
 
-        {/* Loyalty & Stamps View */}
-        {view === "loyalty" && managed.length > 0 && (
-          <details className="panel catalogue-edit-card" open>
-            <summary>
-              <strong>
-                {es
-                  ? "Programa de Sellos y Recompensas"
-                  : "Stamps & Rewards Program"}
-              </strong>
-            </summary>
-
-            <AutoTranslationNote locale={locale} />
-            <form action={saveLoyaltyProgram} className="stack focused-form">
-              <input type="hidden" name="locale" value={locale} />
-
-              <div className="form-grid-two">
-                <label>
-                  {es ? "Local" : "Venue"}
-                  <select name="venueId" required>
-                    {managed.map(
-                      (m) =>
-                        m.venues && (
-                          <option key={m.venues.id} value={m.venues.id}>
-                            {m.venues.name}
-                          </option>
-                        ),
-                    )}
-                  </select>
-                </label>
-
-                <label>
-                  {es ? "Sellos necesarios" : "Stamps required"}
-                  <input
-                    name="stampsRequired"
-                    type="number"
-                    min="2"
-                    max="50"
-                    defaultValue="8"
-                    required
-                  />
-                </label>
-              </div>
-
-              <div className="form-grid-two">
-                <label>
-                  {es ? "Nombre del programa" : "Programme name"}
-                  <input
-                    name="title"
-                    required
-                    minLength={3}
-                    placeholder={es ? "Ej. Tarjeta VIP" : "e.g. VIP Card"}
-                  />
-                </label>
-              </div>
-
-              <div className="form-grid-two">
-                <label>
-                  {es ? "Recompensa" : "Reward"}
-                  <textarea
-                    name="reward"
-                    required
-                    minLength={3}
-                    rows={2}
-                    placeholder={
-                      es
-                        ? "Ej. Bebida gratis en tu 8ª visita"
-                        : "e.g. Free drink on 8th visit"
-                    }
-                  />
-                </label>
-              </div>
-
-              <div className="form-actions-right">
-                <button className="button primary" type="submit">
-                  {es ? "Guardar programa" : "Save programme"}
-                </button>
-              </div>
-            </form>
-
-            {programs && programs.length > 0 && (
-              <div className="managed-list">
-                {programs.map((program) => (
-                  <div className="managed-row" key={program.id}>
-                    <div>
-                      <strong>
-                        {locale === "en"
-                          ? program.title_en || program.title_es
-                          : program.title_es}
-                      </strong>
-                      <span className="managed-meta">
-                        <a
-                          href={`/${locale}/check-in/${program.check_in_token}`}
-                          className="inline-detail-link"
-                        >
-                          {es
-                            ? "Abrir enlace de check-in"
-                            : "Open check-in link"}
-                        </a>
-                      </span>
-                    </div>
-                    <span className="status-pill badge-neutral">
-                      {program.stamps_required} {es ? "sellos" : "stamps"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </details>
-        )}
-
-        {view === "loyalty" && redemptions && redemptions.length > 0 && (
-          <section className="panel catalogue-edit-card">
-            <h2>
-              {es
-                ? "Recompensas pendientes de canje"
-                : "Pending reward redemptions"}
-            </h2>
-            <div className="managed-list">
-              {redemptions.map((item) => (
-                <form
-                  action={confirmRedemption}
-                  className="managed-row"
-                  key={item.id}
-                >
-                  <input type="hidden" name="locale" value={locale} />
-                  <input type="hidden" name="redemptionId" value={item.id} />
-                  <strong>
-                    {(
-                      item.profiles as unknown as {
-                        display_name: string | null;
-                      } | null
-                    )?.display_name || (es ? "Usuario" : "User")}
-                  </strong>
-                  <button className="button primary small-btn" type="submit">
-                    {es ? "Confirmar entrega" : "Confirm handover"}
-                  </button>
-                </form>
-              ))}
-            </div>
-          </section>
+        {pulseView && pulseEnabled && (
+          <AkiPulse
+            locale={locale}
+            locations={analytics}
+            days={days}
+            selectedLocation={selectedLocation}
+            availableLocations={availableLocations}
+            truncated={scopedLocations.length > 20}
+          />
         )}
 
         {scopedPulseEnabled && (
           <AkiPulseScoped
+            funnel={businessFunnel}
+            nativeReady={nativePulseReady && v2PulseReady}
+            rentalLink={
+              rentalLinks ? (
+                <RentalPulseWorkspaceLink
+                  key={pulseResource}
+                  locale={locale}
+                  company={pulseResource}
+                  links={rentalLinks}
+                  page={scopedPulseQuery.pulseLinkPage}
+                  days={days}
+                />
+              ) : undefined
+            }
             locale={locale}
             kind={scopedPulseQuery.pulseKind}
             selected={pulseResource}
@@ -931,17 +875,6 @@ export default async function BusinessPage({
             page={scopedPulseQuery.pulsePage}
             hasMore={(scopeList.data || []).length > 50}
             days={days}
-          />
-        )}
-
-        {pulseView && pulseEnabled && (
-          <AkiPulse
-            locale={locale}
-            locations={analytics}
-            days={days}
-            selectedLocation={selectedLocation}
-            availableLocations={availableLocations}
-            truncated={scopedLocations.length > 20}
           />
         )}
 
@@ -962,8 +895,8 @@ export default async function BusinessPage({
         )}
 
         {/* Growth & Promotion Requests */}
-        {pulseView && managed.length > 0 && (
-          <details className="panel catalogue-edit-card" open>
+        {view === "pulse" && managed.length > 0 && (
+          <details className="panel catalogue-edit-card">
             <summary>
               <strong>
                 {es
@@ -1062,9 +995,11 @@ export default async function BusinessPage({
               <div className="managed-list">
                 {promotions.map((item) => (
                   <div className="managed-row" key={item.id}>
-                    <strong>{item.service}</strong>
+                    <strong>
+                      {promotionServiceLabels[item.service] || item.service}
+                    </strong>
                     <span className="status-pill badge-neutral">
-                      {item.state}
+                      {promotionStateLabels[item.state] || item.state}
                     </span>
                   </div>
                 ))}

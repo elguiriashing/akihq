@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/maplibre-attribution-patch.mjs --check && next dev",
-    "build": "node scripts/maplibre-attribution-patch.mjs --check && node scripts/run-product-command.mjs build",
+    "build": "node scripts/maplibre-attribution-patch.mjs --check && node scripts/run-product-command.mjs build --webpack",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/run-product-command.mjs test tests/spatial-reference-grants.test.ts tests/shared-account-eligibility.test.ts tests/akisuite-enforced-upload.test.ts tests/analytics-events-grants.test.ts tests/akisuite-image-policy.test.ts tests/akisuite-listing-ui.test.tsx tests/business-pathway.test.tsx tests/akipulse.test.tsx tests/akipulse-scoped.test.tsx tests/suite-referral.test.tsx tests/suite-selector.test.tsx tests/rental-actions.test.ts tests/rental-branch-api.test.ts tests/rental-desk.test.tsx tests/product-routing.test.ts tests/cross-product-query.test.ts tests/business-team-access.test.ts tests/business-onboarding.test.ts tests/business-packages.test.ts tests/business-event-workspace.test.ts tests/claim-submission-details.test.ts tests/claim-venue.test.ts tests/roles.test.ts tests/business-team-home.test.tsx tests/business-team-refresh.test.tsx tests/venue-dashboard.test.tsx tests/booking-manager.test.tsx tests/akiduermo-manager.test.tsx tests/accommodation-inventory-contract.test.ts tests/auth-recovery-continuity.test.ts tests/product-roles.test.ts tests/private-location-onboarding.test.ts tests/independent-accommodation-api.test.ts tests/independent-accommodation-manager.test.tsx tests/independent-accommodation-media.test.tsx tests/organisation-management.test.tsx tests/independent-accommodation-media-api.test.ts tests/independent-accommodation-terms.test.ts tests/akisuite-listing-library-ui.test.tsx tests/akisuite-listing-media-usage.test.ts && node --test tests/akipulse-scoped-db.test.mjs && npm run test:suite-navigation",
+    "test": "node scripts/run-product-command.mjs test tests/spatial-reference-grants.test.ts tests/shared-account-eligibility.test.ts tests/akisuite-enforced-upload.test.ts tests/analytics-events-grants.test.ts tests/akisuite-image-policy.test.ts tests/akisuite-listing-ui.test.tsx tests/business-pathway.test.tsx tests/akipulse.test.tsx tests/akipulse-scoped.test.tsx tests/suite-referral.test.tsx tests/suite-selector.test.tsx tests/rental-actions.test.ts tests/rental-branch-api.test.ts tests/rental-desk.test.tsx tests/product-routing.test.ts tests/cross-product-query.test.ts tests/business-team-access.test.ts tests/business-onboarding.test.ts tests/business-packages.test.ts tests/business-event-workspace.test.ts tests/claim-submission-details.test.ts tests/claim-venue.test.ts tests/roles.test.ts tests/business-team-home.test.tsx tests/business-team-refresh.test.tsx tests/venue-loyalty-workspace.test.tsx tests/venue-dashboard.test.tsx tests/booking-manager.test.tsx tests/akiduermo-manager.test.tsx tests/accommodation-inventory-contract.test.ts tests/auth-recovery-continuity.test.ts tests/product-roles.test.ts tests/private-location-onboarding.test.ts tests/independent-accommodation-api.test.ts tests/independent-accommodation-manager.test.tsx tests/independent-accommodation-media.test.tsx tests/organisation-management.test.tsx tests/independent-accommodation-media-api.test.ts tests/independent-accommodation-terms.test.ts tests/akisuite-listing-runtime.test.ts tests/accommodation-verified-upload.test.ts tests/akisuite-listing-library-ui.test.tsx tests/akisuite-listing-media-usage.test.ts && node --test tests/akipulse-scoped-db.test.mjs && npm run test:suite-navigation",
     "test:watch": "vitest --environment node tests/product-routing.test.ts",
     "build:cloudflare": "node scripts/maplibre-attribution-patch.mjs --check && node scripts/run-cloudflare.mjs build",
     "preview:cloudflare": "npm run build:cloudflare && opennextjs-cloudflare preview",
@@ -31,7 +31,7 @@
     "@supabase/supabase-js": "2.110.8",
     "clsx": "2.1.1",
     "maplibre-gl": "5.12.0",
-    "next": "15.5.28",
+    "next": "16.4.2",
     "pdfjs-dist": "5.4.296",
     "qrcode": "1.5.4",
     "react": "19.1.10",
@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",
-    "@opennextjs/cloudflare": "^1.20.2",
+    "@opennextjs/cloudflare": "1.20.12",
     "@playwright/test": "1.61.1",
     "@tailwindcss/postcss": "4.1.7",
     "@testing-library/jest-dom": "6.6.3",
@@ -51,7 +51,7 @@
     "@types/react-dom": "19.1.5",
     "esbuild": "0.28.1",
     "eslint": "9.27.0",
-    "eslint-config-next": "15.5.28",
+    "eslint-config-next": "16.4.2",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "26.1.0",
     "postgres": "^3.4.7",
@@ -60,7 +60,7 @@
     "tailwindcss": "4.1.7",
     "typescript": "5.8.3",
     "vitest": "3.2.7",
-    "wrangler": "^4.113.0"
+    "wrangler": "4.151.3"
   },
   "overrides": {
     "postcss": {

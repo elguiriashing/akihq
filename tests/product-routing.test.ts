@@ -67,11 +67,9 @@ describe("independent business boundary", () => {
       ["section", "billing"],
     ]);
   });
-  it("uses its business homepage on every deployment host", () => {
-    expect(businessRoute("/")).toEqual({
-      kind: "redirect",
-      path: "/es/business",
-    });
+  it("serves public landing and login locally while preserving business routes", () => {
+    expect(businessRoute("/")).toEqual({ kind: "local", path: "/" });
+    expect(businessRoute("/login")).toEqual({ kind: "local", path: "/login" });
     for (const locale of ["en", "es"]) {
       expect(businessRoute(`/${locale}`)).toEqual({
         kind: "redirect",
@@ -86,6 +84,23 @@ describe("independent business boundary", () => {
       ])
         expect(businessRoute(`/${locale}/${path}`, "POST").kind).toBe("local");
     }
+  });
+  it("keeps the free HQ membership local while account billing remains primary", () => {
+    for (const locale of ["en", "es"]) {
+      expect(businessRoute(`/${locale}/membership`).kind).toBe("local");
+      expect(businessRoute(`/${locale}/business/memberships`).kind).toBe(
+        "local",
+      );
+      expect(businessRoute(`/${locale}/account/subscription`).kind).toBe(
+        "primary",
+      );
+    }
+    const page = readFileSync("src/app/[locale]/membership/page.tsx", "utf8");
+    expect(page).toContain("AkiPasa Business Premium");
+    expect(page).toContain("AkiDuermo Business Premium");
+    expect(page).toContain("AkiCoches Business Premium");
+    expect(page).toMatch(/suiteHref\("business",\s*locale\)/);
+    expect(page).not.toContain("startAkiSuiteCheckout");
   });
   it("retains management APIs without exposing billing or administrative endpoints", () => {
     for (const path of [
@@ -197,5 +212,25 @@ describe("existing identity security contracts", () => {
     expect(isTrustedBusinessHost("akihq.app")).toBe(true);
     expect(isTrustedBusinessHost("akibusiness.com")).toBe(false);
     expect(isTrustedBusinessHost("attacker.test")).toBe(false);
+  });
+});
+
+describe("public AkiHQ product-link identity", () => {
+  it("renders the three discovery brands with existing PortalLogo assets and accessible destinations", () => {
+    const page = readFileSync("src/app/page.tsx", "utf8");
+    const logo = readFileSync("src/components/PortalLogo.tsx", "utf8");
+    const styles = readFileSync("src/app/landing.css", "utf8");
+    for (const [product, domain, source] of [
+      ["pasa", "akipasa.com", "/pwa/akipasa-512.png"],
+      ["duermo", "akiduermo.com", "/brand/duermo-icon.png"],
+      ["coches", "akicoches.com", "/brand/conduzco-icon.svg"],
+    ]) {
+      expect(page).toContain(`<PortalLogo product="${product}" />`);
+      expect(page).toContain(`href="https://${domain}/"`);
+      expect(logo).toContain(source);
+    }
+    expect(page).toContain("usedForTitle");
+    expect(page).toContain("PARA GESTIONAR");
+    expect(styles).toContain(".hq-used-for-logos");
   });
 });

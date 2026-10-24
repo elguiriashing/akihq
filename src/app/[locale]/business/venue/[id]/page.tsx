@@ -12,6 +12,11 @@ import Link from "next/link";
 import { OwnerReadiness } from "@/components/OwnerReadiness";
 import { Icon } from "@/components/Icons";
 import { VenueDashboard } from "@/components/VenueDashboard";
+import {
+  VenueLoyaltyWorkspace,
+  type StampCard,
+  type PendingStampRedemption,
+} from "@/components/VenueLoyaltyWorkspace";
 import { VenueCatalogueEditor } from "@/components/VenueCatalogueEditor";
 import {
   AkiSuiteVenueTools,
@@ -43,14 +48,15 @@ import {
   createAccommodationRate,
   createAccommodationRoomType,
   createAccommodationUnit,
-  assignReward,
   createBookingSlot,
   createBookingResource,
   createBookingOffering,
   createRecurringBookingSlots,
-  createBusinessReward,
   createCheckInCredential,
   createStampCard,
+  setStampCardActive,
+  removeStampCard,
+  confirmVenueStampRedemption,
   deleteEvent,
   deleteAccommodationBlock,
   deleteAccommodationRate,
@@ -120,8 +126,6 @@ export default async function VenueWorkspace({
     { data: ownedMedia },
     { data: programs },
     { data: credentials },
-    { data: rewards },
-    { data: passportOptions },
     { data: bookingSettings },
     { data: bookingNotificationSettings },
     { count: pendingBookingCount },
@@ -164,7 +168,7 @@ export default async function VenueWorkspace({
     supabase
       .from("loyalty_programs")
       .select(
-        "id,title_es,title_en,reward_es,reward_en,stamps_required,active,loyalty_program_rewards(reward_id)",
+        "id,title_es,title_en,reward_es,reward_en,stamps_required,active,loyalty_program_rewards(reward_id,business_rewards(claim_window_days,active))",
       )
       .eq("venue_id", id)
       .order("stamps_required"),
@@ -173,18 +177,6 @@ export default async function VenueWorkspace({
       .select("id,token,label,active")
       .eq("venue_id", id)
       .eq("active", true),
-    supabase
-      .from("business_rewards")
-      .select(
-        "id,title_es,title_en,description_es,description_en,claim_window_days,active",
-      )
-      .eq("venue_id", id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("passports")
-      .select("id,title_es,title_en,passport_steps!inner(venue_id)")
-      .eq("passport_steps.venue_id", id)
-      .eq("status", "published"),
     supabase
       .from("venue_booking_settings")
       .select(
@@ -227,6 +219,14 @@ export default async function VenueWorkspace({
     supabase.rpc("venue_owner_results", { p_venue: id }),
   ]);
   if (!venue) notFound();
+  const { data: pendingStampRedemptions } = await supabase
+    .from("reward_redemptions")
+    .select(
+      "id,requested_at,profiles(display_name),loyalty_programs!inner(venue_id)",
+    )
+    .eq("loyalty_programs.venue_id", id)
+    .eq("state", "requested")
+    .order("requested_at");
   const isAccommodation = venue.discovery_vertical === "accommodation";
   const { data: rentalCompany, error: rentalCompanyError } = !isAccommodation
     ? await supabase
@@ -1491,374 +1491,22 @@ export default async function VenueWorkspace({
           </section>
         ),
         rewards: (
-          <section className="panel loyalty-workbench reward-hub">
-            <div className="workspace-inline-heading">
-              <div>
-                <span className="eyebrow">{es ? "Fidelidad" : "Loyalty"}</span>
-                <h2>
-                  {es
-                    ? "Premia a la gente que vuelve"
-                    : "Reward people who come back"}
-                </h2>
-                <p>
-                  {es
-                    ? "Empieza por una tarjeta de sellos. Lo demás es opcional."
-                    : "Start with a stamp card. Everything else is optional."}
-                </p>
-              </div>
-              <span className="status-pill">
-                {
-                  (programs || []).filter((program: any) => program.active)
-                    .length
-                }{" "}
-                {es ? "activas" : "active"}
-              </span>
-            </div>
-
-            {!!programs?.length && (
-              <div className="reward-card-list">
-                {programs.map((program: any) => (
-                  <article className="stamp-card" key={program.id}>
-                    <span className="status-pill">
-                      {program.stamps_required} {es ? "sellos" : "stamps"}
-                    </span>
-                    <h3>
-                      {locale === "en"
-                        ? program.title_en || program.title_es
-                        : program.title_es}
-                    </h3>
-                    <p>
-                      {locale === "en"
-                        ? program.reward_en || program.reward_es
-                        : program.reward_es}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            )}
-
-            <div className="reward-action-grid">
-              <details
-                className="workspace-action-card reward-action-card"
-                name="reward-action"
-              >
-                <summary>
-                  <span className="workspace-action-summary">
-                    <span className="summary-icon">
-                      <Icon name="gift" />
-                    </span>
-                    <span>
-                      <strong>{es ? "Tarjeta de sellos" : "Stamp card"}</strong>
-                      <small>
-                        {es
-                          ? "Ej. 5 visitas = café gratis"
-                          : "E.g. 5 visits = a free coffee"}
-                      </small>
-                    </span>
-                  </span>
-                </summary>
-                <form
-                  action={createStampCard}
-                  className="stack compact-action-form"
-                >
-                  <input type="hidden" name="locale" value={locale} />
-                  <input type="hidden" name="venueId" value={id} />
-                  <div className="form-grid-three">
-                    <label>
-                      {es ? "Nombre de la tarjeta" : "Card name"}
-                      <input
-                        name="title"
-                        required
-                        minLength={3}
-                        placeholder={
-                          es ? "Cliente habitual" : "Regular visitor"
-                        }
-                      />
-                    </label>
-                    <label>
-                      {es ? "Premio" : "Reward"}
-                      <input
-                        name="reward"
-                        required
-                        minLength={3}
-                        placeholder={es ? "Café gratis" : "Free coffee"}
-                      />
-                    </label>
-                    <label>
-                      {es ? "Visitas necesarias" : "Visits needed"}
-                      <input
-                        name="stampsRequired"
-                        type="number"
-                        min="2"
-                        max="50"
-                        defaultValue="5"
-                        required
-                      />
-                    </label>
-                  </div>
-                  <button className="button" type="submit">
-                    {es ? "Crear tarjeta" : "Create card"}
-                  </button>
-                </form>
-              </details>
-
-              <details
-                className="workspace-action-card reward-action-card"
-                name="reward-action"
-              >
-                <summary>
-                  <span className="workspace-action-summary">
-                    <span className="summary-icon">
-                      <Icon name="star" />
-                    </span>
-                    <span>
-                      <strong>{es ? "Recompensa" : "Reward"}</strong>
-                      <small>
-                        {es
-                          ? "Crea un premio reutilizable"
-                          : "Create a reusable prize"}
-                      </small>
-                    </span>
-                  </span>
-                </summary>
-                <form
-                  action={createBusinessReward}
-                  className="stack compact-action-form"
-                >
-                  <input type="hidden" name="locale" value={locale} />
-                  <input type="hidden" name="venueId" value={id} />
-                  <div className="form-grid-two">
-                    <label>
-                      {es ? "Nombre" : "Name"}
-                      <input
-                        name="title"
-                        required
-                        placeholder={es ? "Postre gratis" : "Free dessert"}
-                      />
-                    </label>
-                    <label>
-                      {es ? "Días para usarlo" : "Days to redeem"}
-                      <input
-                        name="claimWindowDays"
-                        type="number"
-                        min="1"
-                        max="365"
-                        defaultValue="30"
-                        required
-                      />
-                    </label>
-                  </div>
-                  <label>
-                    {es ? "Qué incluye" : "What it includes"}
-                    <textarea
-                      name="description"
-                      required
-                      rows={3}
-                      placeholder={
-                        es
-                          ? "Explica el premio y cualquier condición importante."
-                          : "Explain the reward and any important conditions."
-                      }
-                    />
-                  </label>
-                  <button className="button" type="submit">
-                    {es ? "Crear recompensa" : "Create reward"}
-                  </button>
-                </form>
-              </details>
-
-              <details
-                className="workspace-action-card reward-action-card"
-                name="reward-action"
-              >
-                <summary>
-                  <span className="workspace-action-summary">
-                    <span className="summary-icon">
-                      <Icon name="megaphone" />
-                    </span>
-                    <span>
-                      <strong>
-                        {es ? "Oferta temporal" : "Limited-time offer"}
-                      </strong>
-                      <small>
-                        {es
-                          ? "Promoción con fecha de inicio y fin"
-                          : "A promotion with a start and end date"}
-                      </small>
-                    </span>
-                  </span>
-                </summary>
-                <form action={saveOffer} className="stack compact-action-form">
-                  <input type="hidden" name="locale" value={locale} />
-                  <input type="hidden" name="venueId" value={id} />
-                  <div className="form-grid-two">
-                    <label>
-                      {es ? "Título" : "Title"}
-                      <input
-                        name="title"
-                        required
-                        placeholder={es ? "2x1 los martes" : "2-for-1 Tuesdays"}
-                      />
-                    </label>
-                    <label>
-                      {es ? "Quién puede verla" : "Who can see it"}
-                      <select name="audience" defaultValue="public">
-                        <option value="public">
-                          {es ? "Todo el mundo" : "Everyone"}
-                        </option>
-                        <option value="premium">
-                          {es ? "Solo Premium" : "Premium only"}
-                        </option>
-                      </select>
-                    </label>
-                  </div>
-                  <label>
-                    {es ? "Condiciones" : "Terms"}
-                    <textarea
-                      name="terms"
-                      required
-                      minLength={10}
-                      rows={3}
-                      placeholder={
-                        es
-                          ? "Solo consumo en local. No acumulable."
-                          : "Dine-in only. Cannot be combined with other offers."
-                      }
-                    />
-                  </label>
-                  <div className="form-grid-two">
-                    <label>
-                      {es ? "Empieza" : "Starts"}
-                      <input type="datetime-local" name="startsAt" required />
-                    </label>
-                    <label>
-                      {es ? "Termina" : "Ends"}
-                      <input type="datetime-local" name="endsAt" required />
-                    </label>
-                  </div>
-                  <button className="button" type="submit">
-                    {es ? "Crear oferta" : "Create offer"}
-                  </button>
-                </form>
-              </details>
-
-              {!!rewards?.length && (
-                <details
-                  className="workspace-action-card reward-action-card"
-                  name="reward-action"
-                >
-                  <summary>
-                    <span className="workspace-action-summary">
-                      <span className="summary-icon">
-                        <Icon name="plus" />
-                      </span>
-                      <span>
-                        <strong>
-                          {es ? "Asignar recompensa" : "Assign a reward"}
-                        </strong>
-                        <small>
-                          {es
-                            ? "Conecta un premio a sellos o Pasaporte"
-                            : "Connect a prize to stamps or Passport"}
-                        </small>
-                      </span>
-                    </span>
-                  </summary>
-                  <form
-                    action={assignReward}
-                    className="stack compact-action-form"
-                  >
-                    <input type="hidden" name="locale" value={locale} />
-                    <input type="hidden" name="venueId" value={id} />
-                    <div className="form-grid-two">
-                      <label>
-                        {es ? "Recompensa" : "Reward"}
-                        <select name="rewardId" required>
-                          {rewards.map((reward: any) => (
-                            <option value={reward.id} key={reward.id}>
-                              {locale === "en"
-                                ? reward.title_en || reward.title_es
-                                : reward.title_es}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        {es ? "Dónde se consigue" : "Earned from"}
-                        <select name="targetType">
-                          <option value="stamp">
-                            {es ? "Tarjeta de sellos" : "Stamp card"}
-                          </option>
-                          <option value="passport">
-                            {es ? "Pasaporte" : "Passport"}
-                          </option>
-                        </select>
-                      </label>
-                    </div>
-                    <div className="form-grid-two">
-                      <label>
-                        {es ? "Tarjeta o pasaporte" : "Card or passport"}
-                        <select name="targetId" required>
-                          {(programs || []).map((program: any) => (
-                            <option value={program.id} key={program.id}>
-                              {es ? "Sellos" : "Stamps"}: {program.title_es}
-                            </option>
-                          ))}
-                          {(passportOptions || []).map((passport: any) => (
-                            <option value={passport.id} key={passport.id}>
-                              {es ? "Pasaporte" : "Passport"}:{" "}
-                              {locale === "en"
-                                ? passport.title_en || passport.title_es
-                                : passport.title_es}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        {es ? "Disponible para" : "Available to"}
-                        <select name="accessTier">
-                          <option value="free">
-                            {es ? "Todo el mundo" : "Everyone"}
-                          </option>
-                          <option value="premium">Premium</option>
-                        </select>
-                      </label>
-                    </div>
-                    <button className="button secondary" type="submit">
-                      {es ? "Asignar" : "Assign"}
-                    </button>
-                  </form>
-                </details>
-              )}
-            </div>
-
-            {!!offers?.length && (
-              <div className="compact-managed-list">
-                <div className="workspace-inline-heading">
-                  <div>
-                    <h3>{es ? "Ofertas creadas" : "Created offers"}</h3>
-                  </div>
-                </div>
-                {offers.map((offer) => (
-                  <div className="managed-row" key={offer.id}>
-                    <strong>
-                      {locale === "en"
-                        ? offer.title_en || offer.title_es
-                        : offer.title_es}
-                    </strong>
-                    <span>
-                      {offer.status} ·{" "}
-                      {offer.audience === "premium"
-                        ? "Premium"
-                        : es
-                          ? "Pública"
-                          : "Public"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+          <VenueLoyaltyWorkspace
+            locale={locale}
+            venueId={id}
+            programs={(programs || []) as unknown as StampCard[]}
+            offers={offers || []}
+            redemptions={
+              (pendingStampRedemptions ||
+                []) as unknown as PendingStampRedemption[]
+            }
+            saveCard={createStampCard}
+            toggleCard={setStampCardActive}
+            removeCard={removeStampCard}
+            saveOffer={saveOffer}
+            confirmRedemption={confirmVenueStampRedemption}
+            feedback={query.error}
+          />
         ),
         checkin: (
           <div className="venue-tool-columns">
@@ -2060,7 +1708,13 @@ export default async function VenueWorkspace({
                 placements={venueMediaSlots}
                 accommodation={false}
                 stayHeaderIds={[]}
-                premium={suiteToolsReady && venuePremium}
+                premium={
+                  listingLimitsEnabled
+                    ? listingPremium
+                    : suiteToolsReady && venuePremium
+                }
+                listingLimits={listingLimitsEnabled}
+                enhancedLibrary={suiteToolsReady || libraryReady}
               />
             }
           />

@@ -1,5 +1,30 @@
 # Change Impact Register
 
+## 2026-10-24 | Recover listing templates/media and fleet control parity
+
+- Reconciles #61 with current main b8496ec without replacing native property,
+  scoped Pulse, loyalty, membership or brand behavior. Both sides of independent
+  appended contract entries and every current-main test remain present.
+- Fixes the reviewed omission in the fleet media-studio caller: Premium, quota
+  and enhanced-library readiness now match the profile caller. Owned assets keep
+  folder controls when the library is available; shared assets remain read-only.
+- Shared library RPCs exist and deny anonymous execution. Database limits,
+  strict uploads and library activation remain false, as does the runtime library
+  gate. No feature flag, schema, customer image, booking or payment is changed.
+- Regression verifies actual rendered folder permissions and retained files in
+  EN/ES; full checks/build/CI remain mandatory. Actual strict Storage/provider
+  acceptance remains a separate activation requirement tracked by akipasa#284.
+
+## 2026-10-21 | Supported Next/OpenNext runtime
+
+- Replaces unsupported Next 15.5.28 with stable Next 16.4.2 and pins the
+  matching ESLint, OpenNext Cloudflare 1.20.12 and Wrangler 4.151.3 toolchain.
+- Preserves the existing Webpack/map alias, explicit server-action limit,
+  signed-image cache behavior and React Compiler-off hydration behavior.
+- No route, auth, role, RLS, schema, billing, customer data, Worker name/domain
+  or feature-gate change. Full tests, optimized build, clean OpenNext package,
+  dry-run, hosted CI and exact-SHA live acceptance are required before release.
+
 ## 2026-10-17 | AkiHQ management cross-site launcher
 
 - Scope: AkiHQ management portal's shared header menu and local suite assets.
@@ -1720,3 +1745,151 @@ Library picker usage: counts own media IDs plus actual slot/header/event uses,
 not all available workspace assets; deduplicates and retains unavailable-preview
 references. Per-venue component keys reset scope during navigation. Focused
 usage/template/owner tests and types pass; database gates remain disabled.
+
+## 2026-10-21 | Independent property listing foundation (gated)
+
+Native accommodation uses real property UUID ownership and CRM intersection,
+separate property listing entitlements and verified service-upload reservations.
+Free/Premium media quotas are8/250 with1920/3840 dimensions; retained old media
+survive downgrade. New property schema refuses ambiguous historical/native data
+for explicit reconciliation. No legacy venue inventory or billing state changes.
+See NATIVE_ACCOMMODATION_FOUNDATION.md for roles, evidence and rollout gates.
+This is implemented/tested source, not merged or production verified; native
+inventory adapter compatibility remains a separately tracked follow-on.
+
+## 2026-10-21 | Native property inventory compatibility (gated)
+
+Additive002500 uses distinct accommodation*property*\* inventory with immutable
+property scope, RLS, composite identity FKs, non-overlapping rates/occupancy and
+audited manager reservation status changes. AkiHQ maps native sections explicitly
+and never falls back to existing venue tables. Native runtime/database inventory
+gates default off; no customer booking/quote or payment path is enabled.
+See NATIVE_ACCOMMODATION_INVENTORY.md for tests, corrected001000 prerequisite,
+privacy preservation and actual-provider/concurrent acceptance requirements.
+
+## Listing schema-reader source configuration
+
+Adds server-only LIMITS_READY and UPLOADS_READY runtime vars after the standalone
+shared schema is installed. Database count/strict gates remain independently off;
+strictfalse retains legacy authenticated upload. No customer, billing, global old
+feature flag or library activation changes. See LISTING_SCHEMA_READINESS.md for
+actual owner paths, native-property dependency, acceptance and coordinated rollback.
+
+## 2026-10-21 | Business home recovery and compact AkiPulse
+
+- Reproduced the signed-in Home failure as a PostgREST 400 caused by selecting
+  removed `venues.phone`; the live schema retains `contact_phone`. The loader now
+  aliases `phone:contact_phone` and keeps a successful venue or rental source
+  visible when the other source fails. Both-source failure still blocks closed.
+- AkiPulse is condensed into glanceable KPIs, action bars and readiness rows.
+  Methodology and the separately scoped booking report are collapsed; promotion
+  request/history appears only in Pulse and opens on demand with localised labels.
+- Dependencies traced: authenticated venue membership, independent rental branch
+  RPC, venue/stay/rental routing, EN/ES, responsive Home/Pulse UI, analytics RPCs,
+  promotion action and shared Supabase RLS. No database, grants, subscription,
+  Stripe, identity, storage or deployment mapping change.
+- Regression evidence: the loader test asserts the exact current column alias and
+  all business/Pulse component and scoped SQL suites. TypeScript, lint, formatting,
+  full tests, Cloudflare build, hosted CI and live exact-SHA acceptance are release
+  gates. Roll back the source commit only; no customer-data rollback is required.
+
+## 2026-10-20 | Validated referral task completion
+
+Account completion preserves a single public referral code matching the existing
+uppercase alphanumeric 8–24 character navigation bound. The canonical public
+`/{locale}/referrals?ref=CODE` task returns to AkiPasa's explicit confirmation page;
+other allowed product tasks retain their validated code and EN/ES choice through
+the same fixed-origin resume envelope. Duplicate, URL-shaped, lowercase and
+out-of-range codes are discarded. Direct unprefixed AkiPasa referral completion
+uses this same sanitizer rather than falling back to Account.
+
+This changes navigation only: pending/underage restrictions, legal and tracking
+choices, first-attribution immutability and the explicit confirmation action remain
+authoritative. No automatic attribution, referral cookie, identity transfer, schema,
+financial incentive or production write is introduced. Shared contract copies and
+role-controller regressions cover all five products and both languages. Hosted CI
+and exact-source release checks remain required; unit fixtures do not establish
+authenticated production browser acceptance.
+
+Actual management Home and Claims entry now preserve the validated referral alongside bounded view/location keys before requireManagementHomeAccess or requireUser. Server authorization, claim ownership and consent remain unchanged. Pending and underage requests still reach completion in the same language.
+
+Referral resume followup also covers existing HQ locations, mobility, accommodation and application server loaders. All four pass the real pending/underage eligibility gate in EN/ES before any management query runs. Existing bounded task allowlist remains authoritative.
+
+## 2026-10-21 | Supported Next16 runtime for AkiHQ
+
+Next/eslint-config-next16.4.2, OpenNext1.20.12 and Wrangler4.151.3 replace the expired major support window without a bypass. Existing React, security overrides, edge middleware, tenant/authentication rules and one-minute image cache policy remain intact. Explicit Webpack and native flat lint preserve build behavior. Documented new compiler recommendations are deferred while compiler is disabled; original hooks/security/a11y rules remain. New internal-navigation findings use the Next router with regression evidence. See docs/NEXT16_RUNTIME_UPGRADE.md for primary sources, migration choices, verification and rollback. No billing, schemas, product roles, provider or production mutations are part of this dependency branch.
+
+## Completion scope preservation — 21 October 2026
+
+Shared task contract now retains bounded legacy property/company/organisation names consumed by real management destinations. Regressions cover all5/EN/ES, duplicates/URL rejection, and actual HQ pending/underage-to-complete destination consumption. No dependency, billing, DB, ownership, consent or deployment configuration change.
+
+## 2026-10-21 | Bounded native gallery controls
+
+Premium250-photo media editing now shares one datalist for positions instead
+of rendering250 options in each of250 rows. Numeric per-photo position forms
+retain explicit Save and blank-private behavior, preserving the same backend
+position/entitlement rules and retained media. A full250-photo regression checks
+250 options total and the exact selected property's placement request.
+18 focused media/API/service-adapter cases pass with TypeScript and zero-warning
+lint. Native runtime/database activation remains gated; no live changes.
+
+## 2026-10-21 | Reconcile native property media with current management source
+
+Reconciles immutable native media69 into current main781d685, preserving the
+validated management task resume, venue loyalty workspace and supported Next16
+runtime. Verified server uploads and native property inventory adapters stay
+independently gated; no legacy venue inventory or direct browser upload fallback
+is introduced for native properties. The complete local test command passes.
+Canonical schema uses accommodation_property_private from corrected Pasa255.
+Hosted exact-head packaging and authenticated Storage acceptance remain gates;
+no live flags, customer records, deployment or primary branch changed here.
+
+## 2026-10-21 | Native gallery current-policy retry
+
+A quota/resolution rejection refreshes authoritative property limits before a
+retry. The form stays mounted, preserving captions, while uploads fail closed if
+refresh fails. EN/ES expiry and refresh-failure regressions cover the stale Premium
+to Free transition. No entitlement, schema, billing or live activation changes.
+
+## 21 October 2026 — reconciled scoped commercial observations
+
+Reuses the reviewed HQ #63 read-only funnel projection on current main e2492a4f.
+The compact dashboard, loyalty and current Next 16 features remain intact. Exact
+listing scope plus unique active workspace mapping and current management access
+are required; unavailable/unsupported scopes never show fabricated counts or
+conversion rates. See TRUSTED_BUSINESS_FUNNEL.md for rollout and rollback.
+The shared stage schema is installed but collection remains disabled and retention
+NULL. This source does not change readiness flags, collection or billing state.
+The HQ projection must be installed and real-caller ACL checks accepted before
+reader readiness can be enabled.
+
+Release-owner follow-up: the exact read-only HQ projection is now installed and
+ACL-verified; AKISUITE_FUNNEL_READY=true is enabled for the reader only. Shared
+collection remains disabled with retention NULL and no observations. Financial
+checkout/tax gates remain false. Full current-source tests/build and 64 responsive
+component cases pass; final hosted CI and deployment acceptance remain required.
+
+## 21 October 2026 — explicit independent-resource analytics
+
+Touches scoped Pulse dispatch/contracts/components, an owner-only rental mapping
+server action, and eight additive short SQL phases. Native property identities and
+independent rental branch identities are preserved. Explicit org/workspace/resource
+links and live management intersections drive every cohort; no owner-wide inference,
+raw PII, invented revenue or duplicated claim summation. New flags stay false.
+Shared collection, billing, entitlements and existing source records are unchanged.
+See AKIPULSE_EXPLICIT_SCOPES.md for security boundaries, validation and rollback.
+
+### Rental workspace link transport recovery
+
+Narrow client catch around the owner link server action prevents transport errors
+from replacing the management view. Success/denial/network rejection retain the
+selected draft; network failures never display saved confirmation. No SQL or flags
+change. The 80-case real-component browser matrix includes a throwing transport.
+
+### Own rental-link activity portability
+
+Adds my_pulse_management_export_page and subject/cursor indexes only, plus actual
+PostgreSQL privacy tests. Fixed section allowlist, auth.uid identity and curated
+own actor/linked_by rows prevent foreign/private business data export. Restricted
+users retain privacy access without gaining operational access. Requires central
+account-export dispatch before rental mapping activation; no UI/flag changes.

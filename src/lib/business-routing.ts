@@ -12,13 +12,16 @@ export function scrubBusinessHandoffQuery(query: URLSearchParams) {
 
 /** Product boundary applies on canonical, localhost and preview hosts alike. */
 export function businessRoute(path: string, method = "GET") {
-  if (path === "/") return { kind: "redirect", path: "/es/business" } as const;
+  if (path === "/" || path === "/login")
+    return { kind: "local", path } as const;
   if (/^\/(en|es)\/?$/.test(path))
     return {
       kind: "redirect",
       path: `${path.replace(/\/$/, "")}/business`,
     } as const;
-  if (/^\/(en|es)\/(membership|memberships|account)(?:\/|$)/.test(path))
+  if (/^\/(en|es)\/(membership|memberships)(?:\/|$)/.test(path))
+    return { kind: "local", path } as const;
+  if (/^\/(en|es)\/account(?:\/|$)/.test(path))
     return { kind: "primary", path } as const;
   if (/^\/(en|es)\/(business|auth|terms|privacy)(?:\/|$)/.test(path))
     return { kind: "local", path } as const;
