@@ -176,10 +176,7 @@ try {
           name: locale === "es" ? "Ajustes" : "Settings",
           exact: true,
         });
-        assert.equal(
-          await settings.getAttribute("href"),
-          `https://akipasa.com/${locale}/account`,
-        );
+        assert.equal(await settings.getAttribute("href"), `/${locale}/account`);
         await page
           .getByRole("button", {
             name: locale === "es" ? "Cerrar sesión" : "Log out",

@@ -12,32 +12,22 @@ import {
 
 describe("independent business boundary", () => {
   it.each(["en", "es"])(
-    "removes nested credentials at the actual %s external handoff",
-    async (locale) => {
-      const { NextRequest } = await import("next/server");
-      const { middleware } = await import("../src/middleware");
-      const source = new URL(
-        `https://akihq.app/${locale}/account/subscription?lang=${locale}&q=Malaga&start=2027-01-01&end=2027-01-04&utm_source=instagram`,
-      );
-      source.searchParams.set("next", "/en/auth/callback?code=qa-dummy");
-      source.searchParams.set("context", '{"\\u0063ode":"qa-dummy"}');
-      const response = await middleware(
-        new NextRequest(source, { headers: { host: "akihq.app" } }),
-      );
-      expect(response.status).toBe(307);
-      const target = new URL(response.headers.get("location")!);
-      expect(target.origin).toBe("https://akipasa.com");
-      expect(target.pathname).toBe(`/${locale}/account/subscription`);
-      expect([...target.searchParams]).toEqual([
-        ["lang", locale],
-        ["q", "Malaga"],
-        ["start", "2027-01-01"],
-        ["end", "2027-01-04"],
-        ["utm_source", "instagram"],
-        ["from", "akibusiness"],
-      ]);
-      expect(target.hash).toBe("#redirected");
-      expect(target.href).not.toContain("qa-dummy");
+    "keeps %s account routes and callbacks local",
+    (locale) => {
+      for (const path of [
+        "account",
+        "account/settings",
+        "account/profile",
+        "account/subscription",
+      ])
+        expect(businessRoute(`/${locale}/${path}`).kind).toBe("local");
+      expect(
+        safeAuthDestinationForOrigin(
+          locale as "en" | "es",
+          `/${locale}/account`,
+          "https://akihq.app",
+        ),
+      ).toBe(`/${locale}/account`);
     },
   );
 
@@ -85,14 +75,14 @@ describe("independent business boundary", () => {
         expect(businessRoute(`/${locale}/${path}`, "POST").kind).toBe("local");
     }
   });
-  it("keeps the free HQ membership local while account billing remains primary", () => {
+  it("keeps the free HQ membership local while account settings remain local", () => {
     for (const locale of ["en", "es"]) {
       expect(businessRoute(`/${locale}/membership`).kind).toBe("local");
       expect(businessRoute(`/${locale}/business/memberships`).kind).toBe(
         "local",
       );
       expect(businessRoute(`/${locale}/account/subscription`).kind).toBe(
-        "primary",
+        "local",
       );
     }
     const page = readFileSync("src/app/[locale]/membership/page.tsx", "utf8");
@@ -117,7 +107,7 @@ describe("independent business boundary", () => {
       "/api/stays/bookings",
     ])
       expect(businessRoute(path, "POST").kind).toBe("reject");
-    expect(businessRoute("/es/account/subscription").kind).toBe("primary");
+    expect(businessRoute("/es/account/subscription").kind).toBe("local");
     expect(businessRoute("/es/admin", "POST").kind).toBe("reject");
   });
   it("accepts exact configured previews, rejects spoofed forwarded hosts", () => {
