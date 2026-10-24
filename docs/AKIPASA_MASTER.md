@@ -1,5 +1,16 @@
 # AKIPASA MASTER SYSTEM CONTRACT
 
+## 2026-10-24 | Reconciled gated listing library consumer
+
+The standalone library consumer preserves current native/Pulse/loyalty and
+membership work while enabling no new runtime or database flag. Profile and
+legacy fleet media studios receive the same Premium, quota and enhanced-library
+readiness values, retaining owned-image folder tools only when access is known.
+Installed shared library RPCs deny anonymous execution; enabled, library_enabled
+and uploads_enforced remain false. Source integration does not complete actual
+Storage/provider acceptance or authorize activation. The current-main test list
+and both independent appended contract histories remain intact.
+
 ## 2026-10-21 | Supported Cloudflare build runtime
 
 AkiHQ uses supported stable Next 16.4.2, OpenNext Cloudflare 1.20.12 and
@@ -1245,6 +1256,20 @@ grants, extension ownership and existing reference rows. Effective table/column
 postconditions reject silent no-op/inherited-grant repairs transactionally.
 See SPATIAL_REFERENCE_PRIVILEGES.md for role tests, executor prerequisites, live
 geography acceptance and safe rollback. No live application is claimed by CI.
+
+### Standalone listing template and media consumer
+
+HQ consumes AkiPasa's default-disabled233027 library contract, retaining current
+HQ organisation, identity, rental and operations boundaries. Canonical template/
+folder/shared-media controls use server-authoritative listing entitlements and
+current source/target venue plus CRM memberships. Template reuse creates drafts
+without dates; existing data and exact licensed placements survive downgrade.
+Library readiness does not enable the old broad billing bundle. Shared database
+migrations remain AkiPasa-owned; see LISTING_PREMIUM_LIBRARY.md for gates/rollback.
+
+Library usage refinement: upload allowance counts actual owned and locally placed
+assets, not every pickable organisation image. Referenced IDs without a preview
+still count. Server quota/entitlement guards remain authoritative.
 
 ## 2026-10-21 | Independent property listing foundation (gated)
 

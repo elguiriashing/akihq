@@ -12,6 +12,15 @@ function failure(locale: string, venue: string, reason: string): never {
   redirect(`/${locale}/business/venue/${venue}?section=events&error=${reason}`);
 }
 async function premiumContext(locale: "en" | "es", venue: string) {
+  if (process.env.AKISUITE_LISTING_LIBRARY_READY === "true") {
+    const context = await requireBusinessAccess(locale);
+    const { data, error } = await context.supabase.rpc("listing_limits_info", {
+      p_venue: venue,
+    });
+    if (error || data?.library_enabled !== true || data?.premium !== true)
+      failure(locale, venue, "premium_required");
+    return context;
+  }
   if (
     process.env.AKISUITE_FEATURES_READY !== "true" ||
     process.env.AKISUITE_SUBSCRIPTIONS_READY !== "true"
@@ -125,7 +134,11 @@ export async function setMediaFolder(form: FormData) {
   const parsed = input
     .extend({ mediaId: z.string().uuid(), name: z.string().trim().max(80) })
     .safeParse(Object.fromEntries(form));
-  if (!parsed.success || process.env.AKISUITE_FEATURES_READY !== "true")
+  if (
+    !parsed.success ||
+    (process.env.AKISUITE_FEATURES_READY !== "true" &&
+      process.env.AKISUITE_LISTING_LIBRARY_READY !== "true")
+  )
     return { ok: false as const };
   const { supabase } = await requireBusinessAccess(parsed.data.locale);
   const { error } = await supabase.rpc("set_akisuite_media_folder", {

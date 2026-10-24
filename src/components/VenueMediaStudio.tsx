@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element -- Venue media uses native images with existing layout controls. */
 "use client";
 
+import { listingMediaUsage } from "@/lib/listing-media-usage";
+
 import { config } from "@/lib/config";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -88,7 +90,10 @@ export function VenueMediaStudio({
   accommodation = false,
   stayHeaderIds = [],
   premium = false,
+  enhancedLibrary = false,
   listingLimits = false,
+  ownedMediaIds,
+  otherPlacedMediaIds = [],
 }: {
   locale: "es" | "en";
   venueId: string;
@@ -97,13 +102,30 @@ export function VenueMediaStudio({
   accommodation?: boolean;
   stayHeaderIds?: string[];
   premium?: boolean;
+  enhancedLibrary?: boolean;
   listingLimits?: boolean;
+  ownedMediaIds?: string[];
+  otherPlacedMediaIds?: string[];
 }) {
   const es = locale === "es";
   const [items, setItems] = useState(media);
+  const [retainedOwnedIds, setRetainedOwnedIds] = useState(
+    ownedMediaIds ||
+      media.filter((item) => item.canDelete !== false).map((item) => item.id),
+  );
   const [headerIds, setHeaderIds] = useState(stayHeaderIds);
   const [slotState, setSlotState] =
     useState<Partial<Record<VenueMediaPlacement, string>>>(placements);
+  const quotaUsed = listingMediaUsage(
+    [
+      ...retainedOwnedIds,
+      ...items
+        .filter((item) => item.canDelete !== false)
+        .map((item) => item.id),
+    ],
+    [...Object.values(slotState), ...headerIds],
+    otherPlacedMediaIds,
+  );
   const [busy, setBusy] = useState(false);
   const [pickerSlot, setPickerSlot] = useState<VenueMediaPlacement | null>(
     null,
@@ -280,7 +302,7 @@ export function VenueMediaStudio({
       );
     if (!files.length) return;
 
-    if (listingLimits && items.length + files.length > (premium ? 250 : 8)) {
+    if (listingLimits && quotaUsed + files.length > (premium ? 250 : 8)) {
       setUploadError(
         es
           ? "La selección supera el límite de fotos de esta ficha. Tus archivos y textos siguen aquí; selecciona menos archivos o consulta Premium."
@@ -457,6 +479,7 @@ export function VenueMediaStudio({
     const result = await removeVenueImage(fd);
     if (result?.ok) {
       setItems((current) => current.filter((item) => item.id !== mediaId));
+      setRetainedOwnedIds((current) => current.filter((id) => id !== mediaId));
       setHeaderIds((current) => current.filter((id) => id !== mediaId));
       setSlotState((current) => {
         const next = { ...current };
@@ -506,8 +529,8 @@ export function VenueMediaStudio({
           {listingLimits ? (
             <p role="status">
               {es
-                ? `${items.length} de ${premium ? 250 : 8} fotos. Las imágenes existentes se conservan al cambiar de plan.`
-                : `${items.length} of ${premium ? 250 : 8} photos. Existing images are retained when your plan changes.`}
+                ? `${quotaUsed} de ${premium ? 250 : 8} fotos. Las imágenes existentes se conservan al cambiar de plan.`
+                : `${quotaUsed} of ${premium ? 250 : 8} photos. Existing images are retained when your plan changes.`}
               {!premium ? (
                 <a
                   href={`${config.consumerUrl}/${locale}/account/subscription?app=${accommodation ? "akiduermo" : "akibusiness"}`}
@@ -799,7 +822,7 @@ export function VenueMediaStudio({
                     : ""}
                 </small>
               </div>
-              {premium && item.canDelete !== false && (
+              {premium && enhancedLibrary && item.canDelete !== false && (
                 <form
                   className="media-upload-form"
                   onSubmit={(event) => {

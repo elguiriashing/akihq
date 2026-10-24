@@ -5,8 +5,9 @@ export async function authorizedSuiteMedia(
   media: string,
 ) {
   if (
-    process.env.AKISUITE_FEATURES_READY === "true" &&
-    process.env.AKISUITE_SUBSCRIPTIONS_READY === "true"
+    process.env.AKISUITE_LISTING_LIBRARY_READY === "true" ||
+    (process.env.AKISUITE_FEATURES_READY === "true" &&
+      process.env.AKISUITE_SUBSCRIPTIONS_READY === "true")
   ) {
     const { data, error } = await supabase.rpc("akisuite_media_allowed", {
       p_venue: venue,
