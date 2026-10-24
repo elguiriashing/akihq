@@ -1,0 +1,180 @@
+{
+  "account": "acct_1SVLH2GfzDhsgsQZ",
+  "livemode": true,
+  "version": "2026-10-24",
+  "currency": "eur",
+  "interval": "month",
+  "existingSubscriptionsChanged": false,
+  "checkoutActivated": false,
+  "prices": [
+    {
+      "key": "operations_basic",
+      "id": "price_1UTt5EGfzDhsgsQZe6z78bZb",
+      "product": "akisuite_20261024_operations_basic",
+      "amount": 1999,
+      "tax_behavior": "inclusive",
+      "lookup_key": "akisuite_20261024_operations_basic_month",
+      "metadata": {
+        "catalogue": "2026-10-24",
+        "monthly_replacements": "1",
+        "release_status": "acceptance_pending",
+        "scope": "operating_location",
+        "tier": "basico",
+        "tool_count": "4"
+      }
+    },
+    {
+      "key": "operations_standard",
+      "id": "price_1UTt5XGfzDhsgsQZp5nKlb1r",
+      "product": "akisuite_20261024_operations_standard",
+      "amount": 4899,
+      "tax_behavior": "inclusive",
+      "lookup_key": "akisuite_20261024_operations_standard_month",
+      "metadata": {
+        "catalogue": "2026-10-24",
+        "monthly_replacements": "2",
+        "release_status": "acceptance_pending",
+        "scope": "operating_location",
+        "tier": "standard",
+        "tool_count": "8"
+      }
+    },
+    {
+      "key": "operations_pro",
+      "id": "price_1UTt5YGfzDhsgsQZhdYtU3YP",
+      "product": "akisuite_20261024_operations_pro",
+      "amount": 9799,
+      "tax_behavior": "inclusive",
+      "lookup_key": "akisuite_20261024_operations_pro_month",
+      "metadata": {
+        "catalogue": "2026-10-24",
+        "monthly_replacements": "12",
+        "release_status": "acceptance_pending",
+        "scope": "operating_location",
+        "tier": "pro",
+        "tool_count": "12"
+      }
+    },
+    {
+      "key": "akipasa_individual",
+      "id": "price_1UTt5YGfzDhsgsQZV1Fx5rt7",
+      "product": "akisuite_20261024_akipasa_individual",
+      "amount": 199,
+      "tax_behavior": "inclusive",
+      "lookup_key": "akisuite_20261024_akipasa_individual_month",
+      "metadata": {
+        "akisuite_interval": "month",
+        "akisuite_plan": "akipasa_premium",
+        "catalogue": "2026-10-24",
+        "release_status": "acceptance_pending",
+        "scope": "individual"
+      }
+    },
+    {
+      "key": "akipasa_business",
+      "id": "price_1UTt5ZGfzDhsgsQZNIatyDxl",
+      "product": "akisuite_20261024_akipasa_business",
+      "amount": 1199,
+      "tax_behavior": "inclusive",
+      "lookup_key": "akisuite_20261024_akipasa_business_month",
+      "metadata": {
+        "akisuite_interval": "month",
+        "akisuite_plan": "akibusiness_premium",
+        "catalogue": "2026-10-24",
+        "release_status": "acceptance_pending",
+        "scope": "listing_workspace"
+      }
+    },
+    {
+      "key": "akiduermo_individual",
+      "id": "price_1UTt5aGfzDhsgsQZnjkqPUSo",
+      "product": "akisuite_20261024_akiduermo_individual",
+      "amount": 199,
+      "tax_behavior": "inclusive",
+      "lookup_key": "akisuite_20261024_akiduermo_individual_month",
+      "metadata": {
+        "akisuite_interval": "month",
+        "akisuite_plan": "akiduermo_personal_premium",
+        "catalogue": "2026-10-24",
+        "release_status": "acceptance_pending",
+        "scope": "individual"
+      }
+    },
+    {
+      "key": "akiduermo_business",
+      "id": "price_1UTt5bGfzDhsgsQZmZB2pxfA",
+      "product": "akisuite_20261024_akiduermo_business",
+      "amount": 2499,
+      "tax_behavior": "inclusive",
+      "lookup_key": "akisuite_20261024_akiduermo_business_month",
+      "metadata": {
+        "akisuite_interval": "month",
+        "akisuite_plan": "akiduermo_premium",
+        "catalogue": "2026-10-24",
+        "release_status": "acceptance_pending",
+        "scope": "listing_workspace"
+      }
+    },
+    {
+      "key": "akicoches_individual",
+      "id": "price_1UTt5bGfzDhsgsQZ7td3zBQz",
+      "product": "akisuite_20261024_akicoches_individual",
+      "amount": 199,
+      "tax_behavior": "inclusive",
+      "lookup_key": "akisuite_20261024_akicoches_individual_month",
+      "metadata": {
+        "akisuite_interval": "month",
+        "akisuite_plan": "akicoches_personal_premium",
+        "catalogue": "2026-10-24",
+        "release_status": "acceptance_pending",
+        "scope": "individual"
+      }
+    },
+    {
+      "key": "akicoches_business",
+      "id": "price_1UTt5cGfzDhsgsQZzfbiH7R6",
+      "product": "akisuite_20261024_akicoches_business",
+      "amount": 1999,
+      "tax_behavior": "inclusive",
+      "lookup_key": "akisuite_20261024_akicoches_business_month",
+      "metadata": {
+        "akisuite_interval": "month",
+        "akisuite_plan": "akicoches_business_premium",
+        "catalogue": "2026-10-24",
+        "release_status": "acceptance_pending",
+        "scope": "rental_branch"
+      }
+    }
+  ],
+  "schemaReadback": {
+    "history": [
+      {
+        "name": "approved_monthly_pricing_20261024005500",
+        "version": "20261024005037"
+      }
+    ],
+    "checkouts": 0,
+    "functions": [
+      {
+        "name": "crm_operations_migration_status",
+        "owner": "postgres",
+        "body_md5": "a26842ce9636fca40bbcd0a1f768ea34",
+        "search_path": ["search_path=\"\""],
+        "anon_execute": false,
+        "security_definer": true,
+        "authenticated_execute": true
+      },
+      {
+        "name": "reserve_crm_operations_checkout",
+        "owner": "postgres",
+        "body_md5": "63493fb3e3228733412c73b979784b66",
+        "search_path": ["search_path=\"\""],
+        "anon_execute": false,
+        "security_definer": true,
+        "authenticated_execute": true
+      }
+    ],
+    "subscriptions": 3,
+    "scheduled_commands": 0
+  }
+}

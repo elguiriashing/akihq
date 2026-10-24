@@ -3,6 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isLocale } from "@/lib/config";
 import { suiteHref } from "@/lib/suite-navigation";
+import {
+  approvedPricing,
+  monthlyPrice,
+  premiumName,
+} from "@/lib/approved-pricing";
 import styles from "./membership.module.css";
 
 export default async function HQMembershipPage({
@@ -16,7 +21,8 @@ export default async function HQMembershipPage({
   const listings = [
     {
       key: "pasa",
-      title: "AkiPasa Business Premium",
+      title: premiumName("akipasa", "business", locale),
+      price: approvedPricing.discovery.akipasa.businessCents,
       image: "/brand/logo-stacked-light.svg",
       subject: es ? "tu local y sus eventos" : "your venue and events",
       details: es
@@ -33,7 +39,8 @@ export default async function HQMembershipPage({
     },
     {
       key: "duermo",
-      title: "AkiDuermo Business Premium",
+      title: premiumName("akiduermo", "business", locale),
+      price: approvedPricing.discovery.akiduermo.businessCents,
       image: "/brand/duermo-icon.png",
       subject: es ? "tu alojamiento" : "your accommodation",
       details: es
@@ -50,7 +57,8 @@ export default async function HQMembershipPage({
     },
     {
       key: "coches",
-      title: "AkiCoches Business Premium",
+      title: premiumName("akicoches", "business", locale),
+      price: approvedPricing.discovery.akicoches.businessCents,
       image: "/brand/conduzco-icon.svg",
       subject: es ? "tu sucursal de alquiler" : "your rental branch",
       details: es
@@ -121,11 +129,11 @@ export default async function HQMembershipPage({
               <h3>{item.title}</h3>
               <p>
                 {es
-                  ? `Mejora tu presencia y desbloquea herramientas Premium para gestionar ${item.subject} desde AkiHQ.`
-                  : `Upgrade your presence and unlock premium listing tools for ${item.subject} through AkiHQ.`}
+                  ? `Una ficha básica cuenta lo esencial. Da a tus clientes más motivos para elegir ${item.subject} con contenido ampliado y herramientas Premium en AkiHQ.`
+                  : `A basic listing covers the essentials. Give customers more reasons to choose ${item.subject} with enhanced media and Premium listing tools in AkiHQ.`}
               </p>
               <div className={styles.price}>
-                <strong>€14.99</strong>
+                <strong>{monthlyPrice(item.price, locale)}</strong>
                 <span>{es ? "/ mes por anuncio" : "/ month per listing"}</span>
               </div>
               <ul>
@@ -135,8 +143,8 @@ export default async function HQMembershipPage({
               </ul>
               <Link href={suiteHref(item.key, locale, { path: "/membership" })}>
                 {es
-                  ? "Ver opciones de esta plataforma"
-                  : "View this product's plans"}{" "}
+                  ? "Quiero destacar con Premium"
+                  : "Explore my Premium upgrade"}{" "}
                 ↗
               </Link>
               <small>
@@ -164,8 +172,8 @@ export default async function HQMembershipPage({
           </h2>
           <p>
             {es
-              ? "AkiBusiness Standard, Plus y Pro ofrecen TPV, inventario, CRM y más herramientas por ubicación. Son independientes de Premium para anuncios."
-              : "AkiBusiness Standard, Plus and Pro add PoS, inventory, CRM and more operating tools per location. They're separate from listing Premium."}
+              ? "AkiBusiness Basic, Standard y Pro ofrecen TPV, inventario, CRM y más herramientas por ubicación. Desde 19,99 € al mes. Son independientes de Premium para anuncios."
+              : "AkiBusiness Basic, Standard and Pro add PoS, inventory, CRM and more operating tools per location. From €19.99/month. They're separate from listing Premium."}
           </p>
         </div>
         <a href={suiteHref("business", locale)}>
