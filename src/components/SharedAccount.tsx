@@ -25,7 +25,10 @@ export async function SharedAccount({
   query?: Record<string, string | string[] | undefined>;
 }) {
   const es = locale === "es";
-  const { supabase, user } = await requireUser(locale, path);
+  const { supabase, user } = await requireUser(
+    locale,
+    path.startsWith(`/${locale}/`) ? path : `${path}?lang=${locale}`,
+  );
   const { data: profile, error } = await supabase
     .from("profiles")
     .select(

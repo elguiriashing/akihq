@@ -1941,3 +1941,9 @@ Bilingual new tests cover native profile forms, role/ID stripping, billing ident
 isolation, fixed destinations, partial failures, location idempotency and local
 logout. See `CUSTOMER_JOURNEYS_20261024.md` for all eight journeys, dependency/release
 order and explicit remaining shared safety/onboarding and provider acceptance.
+
+Native journey follow-up: shared account cards use scoped border-box sizing,
+verified by the no-horizontal-overflow browser assertion without relying on a
+product-global reset. Local profile/auth returns and account↔membership/explore
+links retain EN/ES explicitly. AkiBusiness persists its native language choice
+through the existing callback. No billing, role, schema or data changes.

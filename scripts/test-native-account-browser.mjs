@@ -123,6 +123,13 @@ try {
             exact: true,
           })
           .waitFor();
+        await page.screenshot({
+          path: path.join(
+            artifacts,
+            `initial-${locale}-${theme}-${viewport.width}.png`,
+          ),
+          fullPage: true,
+        });
         assert.ok(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth + 1,

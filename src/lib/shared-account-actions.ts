@@ -15,7 +15,10 @@ export async function saveSharedProfile(form: FormData) {
     path = settingsPath(locale);
   const parsed = sharedProfileSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) redirect(`${path}?error=validation&lang=${locale}`);
-  const { supabase, user } = await requireUser(locale, path);
+  const { supabase, user } = await requireUser(
+    locale,
+    path.startsWith(`/${locale}/`) ? path : `${path}?lang=${locale}`,
+  );
   // One atomic update, fixed columns and the verified identity. No caller-supplied ID or role.
   const { data, error } = await supabase
     .from("profiles")
@@ -33,7 +36,10 @@ export async function changeSharedEmail(form: FormData) {
     path = settingsPath(locale);
   const email = z.string().trim().email().max(254).safeParse(form.get("email"));
   if (!email.success) redirect(`${path}?error=email&lang=${locale}`);
-  const { supabase, user } = await requireUser(locale, path);
+  const { supabase, user } = await requireUser(
+    locale,
+    path.startsWith(`/${locale}/`) ? path : `${path}?lang=${locale}`,
+  );
   if (user.email?.toLowerCase() === email.data.toLowerCase())
     redirect(`${path}?error=email&lang=${locale}`);
   const origin = publicRequestOrigin(new Headers(await headers()));
@@ -49,7 +55,10 @@ export async function changeSharedEmail(form: FormData) {
 export async function resetSharedPassword(form: FormData) {
   const locale = form.get("locale") === "es" ? "es" : "en",
     path = settingsPath(locale);
-  const { supabase, user } = await requireUser(locale, path);
+  const { supabase, user } = await requireUser(
+    locale,
+    path.startsWith(`/${locale}/`) ? path : `${path}?lang=${locale}`,
+  );
   if (!user.email) redirect(`${path}?error=password&lang=${locale}`);
   const origin = publicRequestOrigin(new Headers(await headers()));
   const recovery = `/${locale}/auth/recover?next=${encodeURIComponent(path)}`;
@@ -64,7 +73,10 @@ export async function resetSharedPassword(form: FormData) {
 export async function openSharedBillingPortal(form: FormData) {
   const locale = form.get("locale") === "es" ? "es" : "en",
     path = settingsPath(locale);
-  await requireUser(locale, path);
+  await requireUser(
+    locale,
+    path.startsWith(`/${locale}/`) ? path : `${path}?lang=${locale}`,
+  );
   let target: string | undefined;
   try {
     target = (await sharedAccountBilling("portal", locale)).url;
@@ -89,7 +101,10 @@ export async function uploadSharedProfileMedia(form: FormData) {
     !["image/jpeg", "image/png", "image/webp"].includes(file.type)
   )
     redirect(`${path}?error=media&lang=${locale}`);
-  const { supabase, user } = await requireUser(locale, path);
+  const { supabase, user } = await requireUser(
+    locale,
+    path.startsWith(`/${locale}/`) ? path : `${path}?lang=${locale}`,
+  );
   const ext =
     file.type === "image/png"
       ? "png"
