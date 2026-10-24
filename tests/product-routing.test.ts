@@ -96,9 +96,9 @@ describe("independent business boundary", () => {
       );
     }
     const page = readFileSync("src/app/[locale]/membership/page.tsx", "utf8");
-    expect(page).toContain("AkiPasa Business Premium");
-    expect(page).toContain("AkiDuermo Business Premium");
-    expect(page).toContain("AkiCoches Business Premium");
+    expect(page).toContain('premiumName("akipasa", "business", locale)');
+    expect(page).toContain('premiumName("akiduermo", "business", locale)');
+    expect(page).toContain('premiumName("akicoches", "business", locale)');
     expect(page).toMatch(/suiteHref\("business",\s*locale\)/);
     expect(page).not.toContain("startAkiSuiteCheckout");
   });

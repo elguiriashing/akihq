@@ -1,0 +1,48 @@
+{
+  "version": "2026-10-24",
+  "currency": "EUR",
+  "interval": "month",
+  "operations": {
+    "basico": {
+      "name": "AkiBusiness Basic",
+      "monthlyCents": 1999,
+      "tools": 4,
+      "monthlyPriceId": "price_1UTt5EGfzDhsgsQZe6z78bZb"
+    },
+    "standard": {
+      "name": "AkiBusiness Standard",
+      "monthlyCents": 4899,
+      "tools": 8,
+      "monthlyPriceId": "price_1UTt5XGfzDhsgsQZp5nKlb1r"
+    },
+    "pro": {
+      "name": "AkiBusiness Pro",
+      "monthlyCents": 9799,
+      "tools": 12,
+      "monthlyPriceId": "price_1UTt5YGfzDhsgsQZhdYtU3YP"
+    }
+  },
+  "discovery": {
+    "akipasa": {
+      "name": "AkiPasa Premium",
+      "individualCents": 199,
+      "businessCents": 1199,
+      "individualPriceId": "price_1UTt5YGfzDhsgsQZV1Fx5rt7",
+      "businessPriceId": "price_1UTt5ZGfzDhsgsQZNIatyDxl"
+    },
+    "akiduermo": {
+      "name": "AkiDuermo Premium",
+      "individualCents": 199,
+      "businessCents": 2499,
+      "individualPriceId": "price_1UTt5aGfzDhsgsQZnjkqPUSo",
+      "businessPriceId": "price_1UTt5bGfzDhsgsQZmZB2pxfA"
+    },
+    "akicoches": {
+      "name": "AkiCoches Premium",
+      "individualCents": 199,
+      "businessCents": 1999,
+      "individualPriceId": "price_1UTt5bGfzDhsgsQZ7td3zBQz",
+      "businessPriceId": "price_1UTt5cGfzDhsgsQZzfbiH7R6"
+    }
+  }
+}
