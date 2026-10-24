@@ -27,15 +27,15 @@ export const metadata: Metadata = {
   icons: {
     icon:
       managementProduct.logo === "hq"
-        ? "/brand/hq-mark.svg"
+        ? "/brand/v3/hq.svg"
         : `/brand/${managementProduct.logo}-icon.png`,
     apple:
       managementProduct.logo === "hq"
-        ? "/brand/hq-v2-180.png"
+        ? "/brand/v3/hq-180.png"
         : `/brand/${managementProduct.logo}-icon.png`,
   },
 };
-export const viewport: Viewport = { themeColor: "#111111" };
+export const viewport: Viewport = { themeColor: "#252830" };
 export default async function RootLayout({
   children,
 }: {

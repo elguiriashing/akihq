@@ -1,9 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="22" fill="#08090b"/>
-  <path d="M18 60h7l7-19c1.4-3.7 4.4-6 8.4-6h25.2c4 0 7 2.3 8.4 6l7 19h7v17H18V60Z" fill="#f04455"/>
-  <path d="m36 41-5 14h38l-5-14c-.5-1.5-1.7-2.3-3.3-2.3H39.3c-1.6 0-2.8.8-3.3 2.3Z" fill="#f8f8f7"/>
-  <path d="M18 60h64" stroke="#f8f8f7" stroke-width="3" opacity=".5"/>
-  <circle cx="33" cy="74" r="7" fill="#08090b" stroke="#f8f8f7" stroke-width="3"/>
-  <circle cx="67" cy="74" r="7" fill="#08090b" stroke="#f8f8f7" stroke-width="3"/>
-  <path d="M50 10c-9 0-16 7-16 16 0 10 16 25 16 25s16-15 16-25c0-9-7-16-16-16Zm0 10a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z" fill="#fff"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AkiCoches icon"><rect width="128" height="128" rx="29" fill="#3B101B"/><g transform="translate(29.44 17.92) scale(1.024)"><path fill="#FF3047" fill-rule="evenodd" d="M27 6C13.2 6 2 17.2 2 31c0 17 25 43 25 43s25-26 25-43C52 17.2 40.8 6 27 6Zm0 15a10 10 0 1 1 0 20 10 10 0 0 1 0-20Z"/><path fill="#111111" stroke="#FF3047" stroke-width="1" d="m53 0 3.2 9.8L64 13l-7.8 3.2L53 26l-3.2-9.8L42 13l7.8-3.2Z"/></g></svg>

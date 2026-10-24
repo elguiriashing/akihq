@@ -41,7 +41,7 @@ export default async function HQMembershipPage({
       key: "duermo",
       title: premiumName("akiduermo", "business", locale),
       price: approvedPricing.discovery.akiduermo.businessCents,
-      image: "/brand/duermo-icon.png",
+      image: "/brand/v3/duermo.svg",
       subject: es ? "tu alojamiento" : "your accommodation",
       details: es
         ? [
@@ -59,7 +59,7 @@ export default async function HQMembershipPage({
       key: "coches",
       title: premiumName("akicoches", "business", locale),
       price: approvedPricing.discovery.akicoches.businessCents,
-      image: "/brand/conduzco-icon.svg",
+      image: "/brand/v3/coches.svg",
       subject: es ? "tu sucursal de alquiler" : "your rental branch",
       details: es
         ? [
@@ -79,7 +79,7 @@ export default async function HQMembershipPage({
       <header className={styles.hero}>
         <span className={styles.eyebrow}>AKIHQ / AKISUITE</span>
         <Image
-          src="/brand/hq-mark.svg"
+          src="/brand/v3/hq.svg"
           width={64}
           height={64}
           alt=""
@@ -158,7 +158,7 @@ export default async function HQMembershipPage({
       </section>
       <aside className={styles.software}>
         <Image
-          src="/brand/business-mark.svg"
+          src="/brand/v3/business.svg"
           width={56}
           height={56}
           alt=""

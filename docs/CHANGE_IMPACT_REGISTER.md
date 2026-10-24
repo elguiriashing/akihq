@@ -1951,3 +1951,17 @@ through the existing callback. No billing, role, schema or data changes.
 ### 2026-10-24 — Native journey acceptance follow-up
 
 Updated anonymous browser acceptance to require the native membership alias on the current origin while still rejecting credential/query leakage; the previous assertion required the removed Pasa handoff.
+
+## 2026-10-25 | Shared icon family v3
+
+Owner-requested burgundy Coches (#3B101B) and space-grey HQ (#252830) tiles
+are synchronized across all five product selectors, favicons, Apple/PWA and
+mobile icon sources. Coches uses the current car-free mark; black artwork has
+a fine brand-colour edge for legibility. Pasa, Duermo and the purple AB geometry
+are preserved. Default dark canvases match the tiles; light and selected owner
+themes remain available. Versioned URLs and the static operating suite cache
+refresh remove stale selector artwork. Stable PWA IDs and app identifiers remain.
+No roles, links, data, billing, analytics, storage or provider configuration change.
+See AKISUITE_ICON_FAMILY.md for dependencies, checks, native rebuild limitations
+and source-only rollback. Local visual/asset validation and required CI are
+separate from exact-source production and signed native-device acceptance.
