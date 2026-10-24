@@ -211,9 +211,9 @@ describe("public AkiHQ product-link identity", () => {
     const logo = readFileSync("src/components/PortalLogo.tsx", "utf8");
     const styles = readFileSync("src/app/landing.css", "utf8");
     for (const [product, domain, source] of [
-      ["pasa", "akipasa.com", "/pwa/akipasa-512.png"],
-      ["duermo", "akiduermo.com", "/brand/duermo-icon.png"],
-      ["coches", "akicoches.com", "/brand/conduzco-icon.svg"],
+      ["pasa", "akipasa.com", "/brand/v3/pasa.svg"],
+      ["duermo", "akiduermo.com", "/brand/v3/duermo.svg"],
+      ["coches", "akicoches.com", "/brand/v3/coches.svg"],
     ]) {
       expect(page).toContain(`<PortalLogo product="${product}" />`);
       expect(page).toContain(`href="https://${domain}/"`);

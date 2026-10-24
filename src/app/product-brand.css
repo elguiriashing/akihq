@@ -1,6 +1,6 @@
 /* AkiHQ free-management brand. Loaded after shared legacy styles. */
 :root {
-  --brand-navy: #0a1530;
+  --brand-navy: #252830;
   --brand-blue: #1686ff;
   --brand-blue-light: #25d4ff;
   --brand-gold: #ffce3b;
@@ -35,4 +35,18 @@ html[data-theme="light"] {
 ::selection {
   background: #ffce3b;
   color: #0a1530;
+}
+
+/* Space grey is the default dark canvas; explicit owner themes remain selectable. */
+html:not([data-theme="light"]):not([data-owner-background]),
+html:not([data-theme="light"])[data-owner-background="default"] {
+  --surface-alt: #252830;
+  --surface: #30343d;
+  --sand: #3b404a;
+  --line: #59606d;
+  --owner-canvas: #252830;
+  --background: #252830;
+}
+html:not([data-theme="light"]):not([data-owner-background]) body {
+  background: #252830;
 }

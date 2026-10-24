@@ -14,11 +14,11 @@ export function PortalLogo({
     coches: "Coches",
   }[product];
   const icon = {
-    pasa: "/pwa/akipasa-512.png",
-    business: "/brand/business-mark.svg",
-    duermo: "/brand/duermo-icon.png",
-    hq: "/brand/hq-mark.svg",
-    coches: "/brand/conduzco-icon.svg",
+    pasa: "/brand/v3/pasa.svg",
+    business: "/brand/v3/business.svg",
+    duermo: "/brand/v3/duermo.svg",
+    hq: "/brand/v3/hq.svg",
+    coches: "/brand/v3/coches.svg",
   }[product];
 
   return (
