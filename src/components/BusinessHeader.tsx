@@ -24,9 +24,9 @@ export function BusinessHeader({
       <PortalHeaderTools locale={locale} product="business">
         {signedIn && (
           <>
-            <a href={`https://akipasa.com/${locale}/account`}>
+            <Link href={`/${locale}/account`}>
               {locale === "es" ? "Ajustes" : "Settings"}
-            </a>
+            </Link>
             <form action={signOut} className="akibusiness-logout-form">
               <input type="hidden" name="locale" value={locale} />
               <button type="submit">

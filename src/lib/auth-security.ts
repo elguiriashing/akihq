@@ -42,9 +42,9 @@ export function safeAuthDestinationForOrigin(
     if (
       parsed.origin !== "https://akibusiness.com" ||
       parsed.pathname.includes("%") ||
-      !new RegExp(`^/${locale}/(?:business|auth/recover|terms)(?:/|$)`).test(
-        parsed.pathname,
-      )
+      !new RegExp(
+        `^/${locale}/(?:business|account|auth/recover|terms)(?:/|$)`,
+      ).test(parsed.pathname)
     )
       return fallback;
     return parsed.pathname + parsed.search + parsed.hash;

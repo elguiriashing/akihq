@@ -22,7 +22,7 @@ export function businessRoute(path: string, method = "GET") {
   if (/^\/(en|es)\/(membership|memberships)(?:\/|$)/.test(path))
     return { kind: "local", path } as const;
   if (/^\/(en|es)\/account(?:\/|$)/.test(path))
-    return { kind: "primary", path } as const;
+    return { kind: "local", path } as const;
   if (/^\/(en|es)\/(business|auth|terms|privacy)(?:\/|$)/.test(path))
     return { kind: "local", path } as const;
   const apis = [
