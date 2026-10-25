@@ -27,6 +27,7 @@ export function LanguageLink({
       search.set("next", requested.replace(/^\/(es|en)/, `/${locale}`));
     }
   }
+  if (pathname === "/" || pathname === "/login") search.set("lang", locale);
   const query = search.toString();
   return (
     <Link

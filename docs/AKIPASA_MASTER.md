@@ -1479,3 +1479,18 @@ No roles, links, data, billing, analytics, storage or provider configuration cha
 See AKISUITE_ICON_FAMILY.md for dependencies, checks, native rebuild limitations
 and source-only rollback. Local visual/asset validation and required CI are
 separate from exact-source production and signed native-device acceptance.
+
+## 2026-10-25 | AkiSuite navigation and surface continuity
+
+Owner-authorized tightening preserves identity, tenant permissions, booking and
+billing authority. Discovery membership audience now survives explicit Business
+handoffs, reload and browser history without enabling checkout. Duermo/Coches
+share one desktop rail/mobile dock component where available; Coches membership
+retains its product header. Pasa's auth selector uses all five canonical brands
+and origins. Duermo auth stays teal; HQ marketing and login use one request
+language, keep readable dark-surface text, and expose header controls. Business
+login gains local home/language/appearance controls retaining input only in memory.
+Each repository carries only its affected subset. No schema, feature activation,
+provider setting, customer record or native signing change. Source revert is the
+rollback. Full source, browser/CI and exact production checks remain required;
+device/authenticated acceptance must not be inferred from fixtures.

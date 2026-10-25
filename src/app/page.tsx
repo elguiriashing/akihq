@@ -1,3 +1,5 @@
+import { managementLocale } from "@/lib/management-locale";
+import { PortalHeaderTools } from "@/components/PortalHeaderTools";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PortalLogo } from "@/components/PortalLogo";
@@ -198,7 +200,7 @@ export default async function Home({
   searchParams: Promise<{ lang?: string; locale?: string }>;
 }) {
   const params = await searchParams;
-  const lang = params.lang === "es" || params.locale === "es" ? "es" : "en";
+  const lang = managementLocale("/", params);
   const c = copy[lang];
   const login = `/login?lang=${lang}`;
   return (
@@ -210,18 +212,15 @@ export default async function Home({
         <nav aria-label="Primary navigation">
           <a href="#tools">{c.navTools}</a>
           <a href="#pricing">{c.navPricing}</a>
-          <a
-            href={`/?lang=${lang === "en" ? "es" : "en"}`}
-            aria-label={
-              lang === "en" ? "Switch to Spanish" : "Cambiar a inglés"
-            }
-          >
-            {c.language}
-          </a>
           <Link className="hq-nav-login" href={login}>
             {c.navAccess} <span aria-hidden="true">↗</span>
           </Link>
         </nav>
+        <PortalHeaderTools
+          locale={lang}
+          product="business"
+          languageHref={`/?lang=${lang === "en" ? "es" : "en"}`}
+        />
       </header>
 
       <section className="hq-hero">

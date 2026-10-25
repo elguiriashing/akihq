@@ -1,3 +1,4 @@
+import { managementLocale } from "@/lib/management-locale";
 import { NextResponse, type NextRequest } from "next/server";
 import { refreshSession } from "@/lib/supabase/middleware";
 import { isTrustedBusinessHost } from "@/lib/public-request-origin";
@@ -13,7 +14,10 @@ export async function middleware(request: NextRequest) {
   request.headers.set("x-akipasa-product", "akibusiness");
   request.headers.set(
     "x-akipasa-locale",
-    request.nextUrl.pathname.split("/")[1] === "en" ? "en" : "es",
+    managementLocale(request.nextUrl.pathname, {
+      lang: request.nextUrl.searchParams.get("lang"),
+      locale: request.nextUrl.searchParams.get("locale"),
+    }),
   );
   const route = businessRoute(request.nextUrl.pathname, request.method);
   if (route.kind === "reject") return new NextResponse(null, { status: 404 });
