@@ -28,7 +28,7 @@ export async function GET(
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
         "Referrer-Policy": "no-referrer",
-        "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'`,
+        "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'`,
       },
     });
   }
