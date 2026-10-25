@@ -183,10 +183,8 @@ public final class MainActivity extends Activity {
         String callback = AppAuthCallback.toWebUrl(deepLink.toString());
         if (callback != null) return callback;
         if (!NavigationPolicy.isInternal(deepLink.toString())) return BuildConfig.APP_URL;
-        if ("1".equals(deepLink.getQueryParameter("android"))
-                && deepLink.getPath() != null && deepLink.getPath().matches("/(en|es)/auth/callback")) {
-            return deepLink.buildUpon().appendQueryParameter("native", "1").build().toString();
-        }
+        String legacy = AppAuthCallback.nativeHttpsCallback(deepLink.toString());
+        if (legacy != null) return legacy;
         return deepLink.toString();
     }
 

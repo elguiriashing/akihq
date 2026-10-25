@@ -17,6 +17,32 @@ final class AppAuthCallback {
     private static final Set<String> KEYS = Set.of("locale", "code", "next", "error", "error_code", "error_description");
     private AppAuthCallback() {}
 
+    /** Mark a legacy verified HTTPS return as native exactly once. */
+    static String nativeHttpsCallback(String value) {
+        if (value == null || value.length() > 8192) return null;
+        try {
+            URI uri = new URI(value);
+            if (!"https".equals(uri.getScheme()) || !"akihq.app".equals(uri.getRawAuthority())
+                    || uri.getRawFragment() != null || uri.getRawPath() == null
+                    || !uri.getRawPath().matches("/(en|es)/auth/callback")) return null;
+            boolean android = false, nativeReturn = false;
+            Set<String> seen = new java.util.HashSet<>();
+            if (uri.getRawQuery() == null) return null;
+            for (String pair : uri.getRawQuery().split("&", -1)) {
+                String[] parts = pair.split("=", 2);
+                String key = URLDecoder.decode(parts[0], "UTF-8");
+                String item = URLDecoder.decode(parts.length == 2 ? parts[1] : "", "UTF-8");
+                if (!seen.add(key)) return null;
+                if ("android".equals(key)) android = "1".equals(item);
+                if ("native".equals(key)) nativeReturn = "1".equals(item);
+            }
+            if (!android) return null;
+            return nativeReturn ? value : value + "&native=1";
+        } catch (URISyntaxException | IllegalArgumentException | java.io.UnsupportedEncodingException error) {
+            return null;
+        }
+    }
+
     static String toWebUrl(String value) {
         if (value == null || value.length() > 8192) return null;
         try {
