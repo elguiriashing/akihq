@@ -29,6 +29,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: node scripts/test-native-account-browser.mjs
+      - name: AkiSelector login acceptance
+        run: node scripts/test-workspace-selector-browser.mjs hq
       - uses: actions/upload-artifact@v4
         if: always()
         with:

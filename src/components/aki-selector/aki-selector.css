@@ -1,0 +1,419 @@
+/* AkiSelector: scoped, dependency-free presentation engine. No discovery side effects. */
+.aks-selector {
+  --aks-glow: 242, 107, 29;
+  --aks-energy: 1;
+  width: 100%;
+  max-width: 900px;
+  color: #fff6e9;
+  isolation: isolate;
+}
+.aks-selector[data-effect="ember"] {
+  --aks-glow: 255, 104, 62;
+}
+.aks-selector[data-effect="solar"] {
+  --aks-glow: 255, 203, 88;
+}
+.aks-selector[data-effect="bloom"] {
+  --aks-glow: 255, 108, 175;
+}
+.aks-selector[data-effect="breeze"] {
+  --aks-glow: 75, 238, 208;
+}
+.aks-selector[data-effect="aurora"] {
+  --aks-glow: 130, 130, 255;
+}
+.aks-selector[data-effect="quiet"] {
+  --aks-glow: 242, 107, 29;
+}
+.aks-selector[data-intensity="subtle"] {
+  --aks-energy: 0.38;
+}
+.aks-selector[data-intensity="cinematic"] {
+  --aks-energy: 1.5;
+}
+.aks-selector__scene {
+  position: relative;
+  width: 100%;
+  height: clamp(320px, 44vw, 440px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+  background:
+    radial-gradient(
+      ellipse 45% 44% at 50% 48%,
+      rgba(var(--aks-glow), 0.14),
+      transparent 100%
+    ),
+    radial-gradient(ellipse 90% 90% at 50% 90%, #152641 0%, transparent 80%),
+    #070f1e;
+  touch-action: pan-y;
+}
+.aks-selector__scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0 3px,
+    rgba(255, 255, 255, 0.025) 4px
+  );
+  pointer-events: none;
+}
+.aks-selector__ambient {
+  position: absolute;
+  width: min(74%, 460px);
+  aspect-ratio: 1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  filter: blur(42px);
+  background: radial-gradient(
+    circle,
+    rgba(var(--aks-glow), 0.31),
+    transparent 65%
+  );
+  opacity: var(--aks-energy);
+  transition:
+    background 0.45s ease,
+    opacity 0.4s ease;
+  pointer-events: none;
+}
+.aks-selector__floor {
+  position: absolute;
+  bottom: 13%;
+  left: 22%;
+  width: 56%;
+  height: 23px;
+  border-radius: 50%;
+  background: rgba(var(--aks-glow), 0.35);
+  filter: blur(21px);
+  opacity: var(--aks-energy);
+  pointer-events: none;
+}
+.aks-selector__card {
+  --aks-own-glow: 242, 107, 29;
+  position: absolute;
+  top: 45%;
+  width: clamp(100px, 24%, 142px);
+  height: clamp(162px, 39%, 206px);
+  padding: 0;
+  color: #f9fafc;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: linear-gradient(155deg, #192335, #080d19 80%);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transform: translate(-50%, -50%) scale(0.78);
+  opacity: 0.62;
+  z-index: calc(8 - var(--aks-order));
+  transition:
+    left 0.48s cubic-bezier(0.22, 0.84, 0.25, 1),
+    transform 0.48s cubic-bezier(0.22, 0.84, 0.25, 1),
+    opacity 0.35s ease,
+    box-shadow 0.4s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.aks-selector__card[data-effect="ember"] {
+  --aks-own-glow: 255, 104, 62;
+}
+.aks-selector__card[data-effect="solar"] {
+  --aks-own-glow: 255, 203, 88;
+}
+.aks-selector__card[data-effect="bloom"] {
+  --aks-own-glow: 255, 108, 175;
+}
+.aks-selector__card[data-effect="breeze"] {
+  --aks-own-glow: 75, 238, 208;
+}
+.aks-selector__card[data-effect="aurora"] {
+  --aks-own-glow: 130, 130, 255;
+}
+.aks-selector__card[data-selected="true"] {
+  z-index: 10;
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  border-color: rgba(var(--aks-own-glow), 0.8);
+  background: linear-gradient(
+    155deg,
+    rgba(var(--aks-own-glow), 0.7),
+    #321c37 52%,
+    #101a2e
+  );
+  box-shadow:
+    0 0 18px rgba(var(--aks-own-glow), 0.55),
+    inset 0 0 30px rgba(var(--aks-own-glow), 0.18),
+    0 24px 65px #0009;
+}
+.aks-selector__card[data-selected="false"]:hover {
+  opacity: 0.88;
+  transform: translate(-50%, -50%) scale(0.85);
+}
+.aks-selector__card:disabled {
+  cursor: default;
+}
+.aks-selector__card:focus-visible,
+.aks-selector__nav:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 6px;
+}
+.aks-selector__card-face {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 14px 7px;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.aks-selector__symbol {
+  font-size: clamp(28px, 4vw, 41px);
+  line-height: 1;
+}
+.aks-selector__label {
+  font-size: 0.91rem;
+  line-height: 1.2;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+.aks-selector__effect {
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  inset: -45%;
+  display: none;
+  opacity: var(--aks-energy);
+}
+.aks-selector__card[data-selected="true"] .aks-selector__effect {
+  display: block;
+}
+.aks-selector__effect-orbit,
+.aks-selector__effect-burst,
+.aks-selector__effect-sparks {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
+  animation: aks-spin 10s linear infinite;
+}
+.aks-selector__effect-orbit {
+  border: 3px solid rgba(var(--aks-own-glow), 0.62);
+  box-shadow:
+    0 0 22px rgba(var(--aks-own-glow), 0.8),
+    inset 0 0 16px rgba(var(--aks-own-glow), 0.35);
+}
+.aks-selector__effect-burst {
+  inset: -13%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(var(--aks-own-glow), 0.68) 0deg 2deg,
+    transparent 3deg 25deg
+  );
+  mask-image: radial-gradient(
+    circle,
+    transparent 0 37%,
+    black 46% 54%,
+    transparent 69%
+  );
+  animation: aks-spin 18s linear infinite reverse;
+}
+.aks-selector__effect-sparks {
+  inset: -7%;
+  background:
+    radial-gradient(
+      circle at 15% 30%,
+      rgba(var(--aks-own-glow), 0.85) 0 2px,
+      transparent 3px
+    ),
+    radial-gradient(
+      circle at 86% 67%,
+      rgba(var(--aks-own-glow), 0.95) 0 3px,
+      transparent 4px
+    ),
+    radial-gradient(
+      circle at 35% 9%,
+      rgba(var(--aks-own-glow), 0.95) 0 2px,
+      transparent 3px
+    ),
+    radial-gradient(
+      circle at 80% 13%,
+      rgba(var(--aks-own-glow), 0.7) 0 1px,
+      transparent 3px
+    );
+  animation: aks-float 3s ease-in-out infinite alternate;
+}
+.aks-selector__card[data-effect="ember"] .aks-selector__effect-orbit {
+  border-radius: 42% 58% 30% 70%;
+  animation: aks-flicker 1.6s ease-in-out infinite alternate;
+}
+.aks-selector__card[data-effect="ember"] .aks-selector__effect-burst {
+  background: conic-gradient(
+    from 45deg,
+    transparent,
+    rgba(255, 82, 36, 0.6),
+    transparent,
+    rgba(255, 185, 65, 0.95),
+    transparent
+  );
+  mask-image: radial-gradient(
+    ellipse,
+    transparent 28%,
+    black 48%,
+    transparent 70%
+  );
+  animation-duration: 5s;
+}
+.aks-selector__card[data-effect="solar"] .aks-selector__effect-burst {
+  mask-image: radial-gradient(
+    circle,
+    transparent 31%,
+    black 41% 70%,
+    transparent 74%
+  );
+  animation-duration: 23s;
+}
+.aks-selector__card[data-effect="bloom"] .aks-selector__effect-orbit {
+  border-radius: 20% 80% 20% 80%;
+  border-width: 6px;
+  animation: aks-bloom 4s ease-in-out infinite alternate;
+}
+.aks-selector__card[data-effect="bloom"] .aks-selector__effect-burst {
+  border-radius: 30% 70% 30% 70%;
+  animation-duration: 12s;
+}
+.aks-selector__card[data-effect="breeze"] .aks-selector__effect-orbit {
+  border: 5px dashed rgba(var(--aks-own-glow), 0.85);
+  border-radius: 45% 55% 65% 35%;
+  animation-duration: 4s;
+}
+.aks-selector__card[data-effect="breeze"] .aks-selector__effect-burst {
+  background: conic-gradient(
+    transparent 8%,
+    rgba(var(--aks-own-glow), 0.8) 22%,
+    transparent 35% 60%,
+    rgba(var(--aks-own-glow), 0.6),
+    transparent
+  );
+  animation-duration: 5s;
+}
+.aks-selector__card[data-effect="aurora"] .aks-selector__effect-orbit {
+  border-radius: 35% 65% 50% 50%;
+  filter: blur(8px);
+  border-width: 11px;
+  animation: aks-bloom 6s ease-in-out infinite alternate;
+}
+.aks-selector__card[data-effect="quiet"] .aks-selector__effect-burst,
+.aks-selector__card[data-effect="quiet"] .aks-selector__effect-sparks {
+  display: none;
+}
+.aks-selector__footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 10px 0;
+}
+.aks-selector__caption {
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  text-align: center;
+}
+.aks-selector__caption strong {
+  font-size: 1.1rem;
+}
+.aks-selector__caption span {
+  color: #b8c4d6;
+  font-size: 0.9rem;
+}
+.aks-selector__caption small {
+  color: #8495b1;
+  font-size: 0.72rem;
+}
+.aks-selector__nav {
+  width: 45px;
+  height: 45px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 1px solid #ffffff48;
+  color: inherit;
+  background: #1a2a42;
+  cursor: pointer;
+  font-size: 1.35rem;
+}
+.aks-selector__nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.aks-selector--empty {
+  padding: 2rem;
+  border: 1px solid #ffffff33;
+  border-radius: 16px;
+}
+@keyframes aks-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes aks-float {
+  to {
+    transform: translateY(-14px) scale(1.07);
+  }
+}
+@keyframes aks-flicker {
+  to {
+    transform: scale(1.14) rotate(-10deg);
+    border-radius: 70% 30% 65% 35%;
+  }
+}
+@keyframes aks-bloom {
+  to {
+    transform: rotate(65deg) scale(1.18);
+    border-radius: 70% 30% 75% 25%;
+  }
+}
+.aks-selector[data-motion="off"] *,
+.aks-selector[data-motion="off"] *::before,
+.aks-selector[data-motion="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aks-selector *,
+  .aks-selector *::before,
+  .aks-selector *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (max-width: 560px) {
+  .aks-selector__scene {
+    height: 325px;
+    border-radius: 20px;
+  }
+  .aks-selector__card {
+    width: 104px;
+    height: 166px;
+  }
+  .aks-selector__symbol {
+    font-size: 32px;
+  }
+  .aks-selector__label {
+    font-size: 0.82rem;
+  }
+  .aks-selector__effect {
+    inset: -36%;
+  }
+  .aks-selector__caption {
+    min-width: 135px;
+  }
+}
