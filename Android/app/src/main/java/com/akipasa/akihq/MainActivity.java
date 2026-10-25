@@ -75,7 +75,8 @@ public final class MainActivity extends Activity {
             );
         }
 
-        if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
+        if (savedInstanceState == null || (getIntent() != null && getIntent().getData() != null)
+                || webView.restoreState(savedInstanceState) == null) {
             loadLaunchUrl(getIntent());
         }
     }
@@ -164,7 +165,7 @@ public final class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setSupportMultipleWindows(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " AkiPasaAndroid/" + BuildConfig.VERSION_NAME);
+        settings.setUserAgentString(settings.getUserAgentString() + " AkiHQAndroid/" + BuildConfig.VERSION_NAME);
 
         webView.setBackgroundColor(Color.TRANSPARENT);
         webView.setWebViewClient(new AkiPasaWebViewClient());
@@ -174,9 +175,19 @@ public final class MainActivity extends Activity {
 
     private void loadLaunchUrl(Intent intent) {
         Uri deepLink = intent == null ? null : intent.getData();
-        webView.loadUrl(deepLink != null && NavigationPolicy.isInternal(deepLink.toString())
-                ? deepLink.toString()
-                : BuildConfig.APP_URL);
+        webView.loadUrl(resolveLaunchUrl(deepLink));
+    }
+
+    private String resolveLaunchUrl(Uri deepLink) {
+        if (deepLink == null) return BuildConfig.APP_URL;
+        String callback = AppAuthCallback.toWebUrl(deepLink.toString());
+        if (callback != null) return callback;
+        if (!NavigationPolicy.isInternal(deepLink.toString())) return BuildConfig.APP_URL;
+        if ("1".equals(deepLink.getQueryParameter("android"))
+                && deepLink.getPath() != null && deepLink.getPath().matches("/(en|es)/auth/callback")) {
+            return deepLink.buildUpon().appendQueryParameter("native", "1").build().toString();
+        }
+        return deepLink.toString();
     }
 
     private boolean openExternal(Uri uri) {
@@ -237,7 +248,10 @@ public final class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         Uri uri = intent.getData();
-        if (uri != null && NavigationPolicy.isInternal(uri.toString())) webView.loadUrl(uri.toString());
+        if (uri != null && (NavigationPolicy.isInternal(uri.toString())
+                || AppAuthCallback.toWebUrl(uri.toString()) != null)) {
+            webView.loadUrl(resolveLaunchUrl(uri));
+        }
     }
 
     @Override
