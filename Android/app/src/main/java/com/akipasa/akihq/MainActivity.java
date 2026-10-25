@@ -164,7 +164,7 @@ public final class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setSupportMultipleWindows(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " AkiPasaAndroid/" + BuildConfig.VERSION_NAME);
+        settings.setUserAgentString(settings.getUserAgentString() + " AkiHQAndroid/" + BuildConfig.VERSION_NAME);
 
         webView.setBackgroundColor(Color.TRANSPARENT);
         webView.setWebViewClient(new AkiPasaWebViewClient());

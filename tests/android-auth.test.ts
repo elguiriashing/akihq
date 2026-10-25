@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import nextConfig from "../next.config";
 import { ANDROID_RETURN_SCRIPT } from "../src/lib/android-auth";
 const mocks = vi.hoisted(() => ({
@@ -122,3 +123,27 @@ it.each(["AkiHQAndroid/1.0.0", "Chrome"])(
     expect(mocks.cookie.set).toHaveBeenCalled();
   },
 );
+
+it("recognises the user agent emitted by the actual Android application", async () => {
+  const activity = readFileSync(
+    new URL(
+      "../Android/app/src/main/java/com/akipasa/akihq/MainActivity.java",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const marker = activity.match(
+    /" (Aki[A-Za-z]+Android\/)" \+ BuildConfig.VERSION_NAME/,
+  );
+  expect(marker?.[1]).toBe("AkiHQAndroid/");
+  mocks.userAgent = `Mozilla/5.0 ${marker![1]}1.0.1`;
+  const form = new FormData();
+  form.set("locale", "en");
+  form.set("acceptTerms", "accepted");
+  form.set("next", "/en/business");
+  await expect(signInWithGoogle(form)).rejects.toMatchObject({
+    path: "https://accounts.google.com/oauth",
+  });
+  const callback = new URL(mocks.oauth.mock.calls[0][0].options.redirectTo);
+  expect(callback.searchParams.get("android")).toBe("1");
+});
