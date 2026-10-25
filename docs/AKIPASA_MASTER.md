@@ -1,5 +1,14 @@
 # AKIPASA MASTER SYSTEM CONTRACT
 
+## 2026-10-25 | Public privacy and human deletion instructions candidate
+
+EN/ES product privacy describes actual account/workspace or discovery data,
+optional analytics and map location, and links the central public deletion
+instructions from privacy and shared account views. See public-privacy-deletion.md
+for owner-approved retention policy and central implementation dependencies.
+No auth callback, booking, billing, RLS, provider or customer mutation is changed.
+Central workflow readiness, full checks and exact canonical readback gate rollout.
+
 ## 2026-10-25 Android OAuth return
 
 AkiHQ copies the working AkiPasa authorization-code handoff: an Android-marked

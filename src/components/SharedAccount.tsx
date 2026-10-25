@@ -281,6 +281,14 @@ export async function SharedAccount({
           )}{" "}
           ↗
         </Link>
+        <p>
+          <Link href={`https://akipasa.com/${locale}/account-deletion`}>
+            {t(
+              "Public account deletion instructions",
+              "Instrucciones públicas de eliminación",
+            )}
+          </Link>
+        </p>
       </section>
     </div>
   );
