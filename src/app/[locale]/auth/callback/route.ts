@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import { config, isLocale } from "@/lib/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publicRequestOrigin } from "@/lib/public-request-origin";
+import { androidAuthHandoff, androidAuthPage } from "@/lib/android-auth";
 import {
   safeAuthDestinationForOrigin,
   taskFromAuthCallback,
@@ -19,6 +20,18 @@ export async function GET(
   const { locale } = await params;
   const safeLocale = isLocale(locale) ? locale : "es";
   const url = new URL(request.url);
+  const handoff = androidAuthHandoff(url, safeLocale);
+  if (handoff) {
+    const nonce = crypto.randomUUID().replaceAll("-", "");
+    return new NextResponse(androidAuthPage(handoff, safeLocale, nonce), {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+        "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'`,
+      },
+    });
+  }
   const publicOrigin = publicRequestOrigin(request.headers, url.origin);
   const code = url.searchParams.get("code");
   const requested = url.searchParams.get("next");

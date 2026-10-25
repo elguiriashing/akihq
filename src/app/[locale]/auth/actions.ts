@@ -212,7 +212,7 @@ export async function signInWithGoogle(formData: FormData) {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${origin}/${locale}/auth/callback?next=${encodeURIComponent(next)}`,
+      redirectTo: `${origin}/${locale}/auth/callback?next=${encodeURIComponent(next)}${/\bAkiHQAndroid\//.test((await headers()).get("user-agent") ?? "") ? "&android=1" : ""}`,
       queryParams: { access_type: "offline", prompt: "consent" },
     },
   });
