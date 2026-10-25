@@ -141,6 +141,11 @@ try {
               .first()
               .evaluate((node) => getComputedStyle(node).animationName),
           ).toBe("none");
+        expect(
+          await page
+            .locator(".aks-selector__scene")
+            .evaluate((node) => node.scrollLeft),
+        ).toBe(0);
         expect(errors).toEqual([]);
         for (
           let i = 0;
@@ -151,6 +156,7 @@ try {
         await page.screenshot({
           path: path.join(output, `${product}-${locale}-${theme}-${width}.png`),
           fullPage: true,
+          animations: "disabled",
         });
         await page.close();
       }
