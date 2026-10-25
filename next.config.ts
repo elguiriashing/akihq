@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
+import { ANDROID_RETURN_SCRIPT } from "./src/lib/android-auth";
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 
@@ -74,6 +76,19 @@ const nextConfig: NextConfig = {
           {
             key: "Strict-Transport-Security",
             value: "max-age=31536000; includeSubDomains",
+          },
+        ],
+      },
+      {
+        source: "/:locale(en|es)/auth/callback",
+        has: [{ type: "query", key: "android", value: "1" }],
+        missing: [{ type: "query", key: "native", value: "1" }],
+        headers: [
+          { key: "Cache-Control", value: "no-store" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          {
+            key: "Content-Security-Policy",
+            value: `default-src 'none'; script-src 'sha256-${createHash("sha256").update(ANDROID_RETURN_SCRIPT).digest("base64")}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
           },
         ],
       },
