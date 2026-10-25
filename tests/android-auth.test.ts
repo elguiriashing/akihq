@@ -1,4 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import nextConfig from "../next.config";
+import { ANDROID_RETURN_SCRIPT } from "../src/lib/android-auth";
 const mocks = vi.hoisted(() => ({
   userAgent: "Chrome",
   client: vi.fn(),
@@ -73,6 +76,20 @@ it.each(["?code=one-time", "?android=1&native=1&code=one-time"])(
     expect(response.status).toBeLessThan(400);
   },
 );
+it("the final Next header rule permits exactly the serialized timer and suppresses callback referrers", async () => {
+  const rules = await nextConfig.headers!();
+  const rule = rules.at(-1)!;
+  expect(rule.source).toBe("/:locale(en|es)/auth/callback");
+  expect(rule.has).toEqual([{ type: "query", key: "android", value: "1" }]);
+  expect(rule.missing).toEqual([{ type: "query", key: "native", value: "1" }]);
+  const response = await GET(new Request("https://akihq.app/en/auth/callback?android=1&error=synthetic"), { params: Promise.resolve({ locale: "en" }) });
+  const html = await response.text();
+  const script = html.match(/<script[^>]*>([\s\S]*?)<\/script>/)![1];
+  expect(script).toBe(ANDROID_RETURN_SCRIPT);
+  const hash = createHash("sha256").update(script).digest("base64");
+  expect(rule.headers).toContainEqual({ key: "Referrer-Policy", value: "no-referrer" });
+  expect(rule.headers.find((header) => header.key === "Content-Security-Policy")?.value).toContain(`script-src 'sha256-${hash}'`);
+});
 it.each(["AkiHQAndroid/1.0.0", "Chrome"])(
   "marks the OAuth callback only for the matching app user agent %s",
   async (agent) => {
