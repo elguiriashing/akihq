@@ -7,7 +7,7 @@ const paletteMap = {
   hq: { primary: "#f4c653", secondary: "#ffe0a0", glow: "rgba(244,198,83,.22)", glow2: "rgba(120,130,148,.13)", buttonText: "#13151d" },
 } as const;
 const dictionary = {
-  en: { page: "Sign-in return", top: "Secure sign-in", description: "You’re signed in with your provider. Let’s finish opening your app.", count: "Returning in", seconds: "seconds", button: "Open {name} now", help: "App not opening? Tap the button above. Make sure the app is installed on this device.", footer: "Securely returning to your AkiSuite app" },
+  en: { page: "Sign-in return", top: "Secure sign-in", description: "You’ve finished with your provider. Let’s return to the app to complete sign-in.", count: "Returning in", seconds: "seconds", button: "Open {name} now", help: "App not opening? Tap the button above. Make sure the app is installed on this device.", footer: "Securely returning to your AkiSuite app" },
   es: { page: "Vuelta al inicio de sesión", top: "Inicio de sesión seguro", description: "Has terminado con tu proveedor. Vamos a abrir la aplicación para completar el inicio de sesión.", count: "Volviendo en", seconds: "segundos", button: "Abrir {name} ahora", help: "¿No se abre? Pulsa el botón de arriba y comprueba que tienes la aplicación instalada.", footer: "Regresando de forma segura a tu aplicación AkiSuite" },
 } as const;
 const esc = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
