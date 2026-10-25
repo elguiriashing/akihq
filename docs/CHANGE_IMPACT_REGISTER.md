@@ -2006,3 +2006,11 @@ no framework runtime or third-party dependency added. The private lab keeps
 its administrator-only route. No pricing, session, tenant, permissions or
 provider setting changes. Source revert is rollback. Source, responsive
 browser, exact live source and physical device acceptance remain distinct.
+
+### Login selector focus and clipping acceptance
+
+Keyboard selection focuses only after the selected card is committed, using
+preventScroll. The compact login scene clips without becoming a scroll container,
+so Home/End cannot shift the card stage sideways. This changes presentation
+focus only; application opening remains an explicit link. Browser evidence
+asserts zero scene scroll and captures settled transitions.

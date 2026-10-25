@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -72,6 +73,7 @@ export function AkiSelector({
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const startPoint = useRef<{ x: number; y: number; id: number } | null>(null);
   const suppressClick = useRef(false);
+  const pendingFocus = useRef<string | null>(null);
   const chosen = value === undefined ? uncontrolledValue : value;
   const chosenIndex = options.findIndex(
     (option) => option.id === chosen && !option.disabled,
@@ -83,11 +85,21 @@ export function AkiSelector({
   const active = activeIndex >= 0 ? options[activeIndex] : null;
   const es = locale === "es";
 
+  useEffect(() => {
+    if (pendingFocus.current && pendingFocus.current === active?.id) {
+      buttons.current[activeIndex]?.focus({ preventScroll: true });
+      pendingFocus.current = null;
+    }
+  }, [active?.id, activeIndex]);
+
   function choose(index: number, focus = false) {
     const candidate = options[index];
     if (!candidate || candidate.disabled) return;
-    if (focus) buttons.current[index]?.focus();
-    if (candidate.id === active?.id) return;
+    if (candidate.id === active?.id) {
+      if (focus) buttons.current[index]?.focus({ preventScroll: true });
+      return;
+    }
+    if (focus) pendingFocus.current = candidate.id;
     if (value === undefined) setUncontrolledValue(candidate.id);
     onValueChange?.(candidate.id, candidate);
   }

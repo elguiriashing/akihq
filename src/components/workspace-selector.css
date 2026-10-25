@@ -17,6 +17,7 @@
   text-transform: uppercase;
 }
 .aki-workspace-selector .aks-selector__scene {
+  overflow: clip;
   height: 216px;
   border-radius: 18px;
 }
