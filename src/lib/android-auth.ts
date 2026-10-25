@@ -25,9 +25,13 @@ export function androidAuthHandoff(url: URL, locale: "en" | "es") {
 }
 
 export const ANDROID_RETURN_SCRIPT =
-  "var seconds=5;var counter=document.getElementById(\"return-seconds\");var ticker=setInterval(function(){seconds=Math.max(0,seconds-1);if(counter)counter.textContent=String(seconds);if(seconds===0)clearInterval(ticker)},1000);setTimeout(function(){location.assign(document.getElementById(\"android-return\").href)},5000);";
+  'var seconds=5;var counter=document.getElementById("return-seconds");var ticker=setInterval(function(){seconds=Math.max(0,seconds-1);if(counter)counter.textContent=String(seconds);if(seconds===0)clearInterval(ticker)},1000);setTimeout(function(){location.assign(document.getElementById("android-return").href)},5000);';
 
-export function androidAuthPage(target: URL, locale: "en" | "es", nonce: string) {
+export function androidAuthPage(
+  target: URL,
+  locale: "en" | "es",
+  nonce: string,
+) {
   return renderAndroidReturnPage({
     brand: "hq",
     name: "AkiHQ",
