@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { managementProduct, operationsProduct } from "../lib/product-roles";
 import { useSuiteReferral } from "./useSuiteReferral";
@@ -14,11 +15,13 @@ export function PortalHeaderTools({
   locale,
   product,
   onLanguageChange,
+  languageHref,
   children,
 }: {
   locale: "en" | "es";
   product: "business" | "duermo";
   onLanguageChange?: () => void;
+  languageHref?: string;
   children?: ReactNode;
 }) {
   const referralCode = useSuiteReferral();
@@ -103,6 +106,16 @@ export function PortalHeaderTools({
         >
           {nextLocale.toUpperCase()}
         </button>
+      ) : languageHref ? (
+        <Link
+          className="language language--compact"
+          href={languageHref}
+          aria-label={
+            nextLocale === "en" ? "Switch to English" : "Cambiar a español"
+          }
+        >
+          {nextLocale.toUpperCase()}
+        </Link>
       ) : (
         <LanguageLink locale={nextLocale} compact />
       )}

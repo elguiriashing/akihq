@@ -650,7 +650,7 @@
   .hq-landing-header nav {
     gap: 12px;
   }
-  .hq-landing-header nav > a:nth-child(-n + 2) {
+  .hq-landing-header > nav:not(.portal-header-tools) > a:nth-child(-n + 2) {
     display: none;
   }
   .hq-landing-header nav .hq-nav-login {
@@ -730,4 +730,31 @@
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* The landing surface stays dark regardless of the saved application theme. */
+.hq-landing {
+  --ink: var(--hq-fg);
+  --muted: var(--hq-soft);
+}
+.hq-landing :is(h1, h2, h3) {
+  color: var(--hq-fg);
+}
+
+.hq-landing {
+  --surface: #14213d;
+  --surface-alt: #070d1d;
+  --line: var(--hq-line);
+}
+.hq-landing-header {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.hq-landing-header > .portal-header-tools {
+  gap: 8px;
+  margin-left: auto;
+}
+.hq-landing-header > .portal-header-tools :is(button, summary, a.language) {
+  min-width: 44px;
+  min-height: 44px;
 }
