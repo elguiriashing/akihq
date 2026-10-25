@@ -69,6 +69,7 @@ it.each(["en", "es"] as const)(
     const { container } = render(<ProductPrivacy locale={locale} />);
     expect(container.textContent).toContain("AkiHQ");
     expect(container.textContent).toContain("support@akipasa.com");
+    expect(container.textContent).toContain("AkiPasa Marketing S.L.");
     expect(container.textContent).toContain("48");
     expect(container.textContent).toContain("90");
     expect(container.textContent).toContain("12");

@@ -84,6 +84,11 @@ export function ProductPrivacy({ locale }: { locale: "en" | "es" }) {
         <h2>{es ? "Contacto y derechos" : "Contact and rights"}</h2>
         <p>
           {es
+            ? "Responsable del servicio: AkiPasa Marketing S.L."
+            : "Service operator: AkiPasa Marketing S.L."}
+        </p>
+        <p>
+          {es
             ? "Para acceso, exportación, corrección y otras consultas de privacidad: privacy@akipasa.com. Para eliminación y seguimiento de solicitudes: support@akipasa.com."
             : "For access, export, correction and other privacy questions: privacy@akipasa.com. For deletion and request follow-up: support@akipasa.com."}
         </p>
