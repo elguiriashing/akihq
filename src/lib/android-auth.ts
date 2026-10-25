@@ -1,3 +1,5 @@
+import { renderAndroidReturnPage } from "./android-return-page";
+
 // Adapted from the working AkiPasa master Android OAuth callback (2026-10-25).
 // Codes return to the initiating WebView; its host-only PKCE verifier cookie
 // must not be consumed by the external browser.
@@ -23,17 +25,20 @@ export function androidAuthHandoff(url: URL, locale: "en" | "es") {
 }
 
 export const ANDROID_RETURN_SCRIPT =
-  'setTimeout(function(){location.assign(document.getElementById("android-return").href)},2000);';
+  'var seconds=5;var counter=document.getElementById("return-seconds");var ticker=setInterval(function(){seconds=Math.max(0,seconds-1);if(counter)counter.textContent=String(seconds);if(seconds===0)clearInterval(ticker)},1000);setTimeout(function(){location.assign(document.getElementById("android-return").href)},5000);';
 
 export function androidAuthPage(
   target: URL,
   locale: "en" | "es",
   nonce: string,
 ) {
-  const href = target
-    .toString()
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;");
-  const text = locale === "es" ? "Volver a AkiHQ" : "Return to AkiHQ";
-  return `<!doctype html><html lang="${locale}"><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>AkiHQ</title></head><body><h1>AkiHQ</h1><p>${locale === "es" ? "Vuelve a AkiHQ para terminar de iniciar sesión." : "Return to AkiHQ to finish signing in."}</p><a id="android-return" href="${href}">${text}</a><script nonce="${nonce}">${ANDROID_RETURN_SCRIPT}</script></body></html>`;
+  return renderAndroidReturnPage({
+    brand: "hq",
+    name: "AkiHQ",
+    locale,
+    target,
+    nonce,
+    script: ANDROID_RETURN_SCRIPT,
+    id: "android-return",
+  });
 }

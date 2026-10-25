@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
 
 public class NavigationPolicyTest {
     @Test
@@ -29,5 +30,14 @@ public class NavigationPolicyTest {
         assertTrue(NavigationPolicy.canDownload("https://project.supabase.co/storage/object"));
         assertFalse(NavigationPolicy.canDownload("https://evil.example/payload.apk"));
         assertFalse(NavigationPolicy.canDownload("data:text/plain,secret"));
+    }
+    @Test
+    public void nativeOAuthCallbackRejectsOtherAppsAndMalformedLinks() {
+        // Android Uri.parse() is not executable in a plain JVM unit test.
+        // Positive deep-link mapping is covered by manual/instrumented device acceptance.
+        assertNull(NavigationPolicy.appCallbackUrl("akihq://wrong/callback?code=test"));
+        assertNull(NavigationPolicy.appCallbackUrl("akihq://auth/other?code=test"));
+        assertNull(NavigationPolicy.appCallbackUrl("akihq://auth/callback#token"));
+        assertNull(NavigationPolicy.appCallbackUrl("https://evil.example/auth/callback?code=test"));
     }
 }

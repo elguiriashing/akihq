@@ -88,7 +88,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "no-referrer" },
           {
             key: "Content-Security-Policy",
-            value: `default-src 'none'; script-src 'sha256-${createHash("sha256").update(ANDROID_RETURN_SCRIPT).digest("base64")}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+            value: `default-src 'none'; script-src 'sha256-${createHash("sha256").update(ANDROID_RETURN_SCRIPT).digest("base64")}'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
           },
         ],
       },
