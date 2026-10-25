@@ -1,5 +1,16 @@
 # AKIPASA MASTER SYSTEM CONTRACT
 
+## 2026-10-25 Android OAuth return
+
+AkiHQ copies the working AkiPasa authorization-code handoff: an Android-marked
+external-browser callback renders an automatic return plus manual link before
+creating a Supabase client. Only code, locale, next and provider errors cross the
+fixed akihq scheme; the initiating WebView retains the host-only PKCE verifier.
+Ordinary browser callbacks and native-return callbacks keep existing exchange,
+terms, eligibility and safe-destination checks. Other AkiSuite schemes are owned
+by their respective Android apps. Route/action regressions cover the boundary;
+full CI and actual signed-device Google round-trip remain required evidence.
+
 ## 2026-10-24 | Owner-approved monthly pricing and upgrade paths
 
 The current commercial catalogue is `APPROVED_PRICING_20261024.md` and

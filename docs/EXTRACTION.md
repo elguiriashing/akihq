@@ -1,5 +1,15 @@
 # AkiBusiness extraction acceptance
 
+## 2026-10-25 AkiHQ Android OAuth callback
+
+The management product uses its own akihq Android callback scheme and
+AkiHQAndroid user-agent marker. A browser handoff returns the unconsumed
+authorization code to the original WebView for PKCE exchange; it never carries
+access or refresh tokens. Shared database authorization, cookies, eligibility
+and public root-domain session separation remain intact. AkiPasa master is the
+protocol provenance, not a runtime checkout dependency. Deployment and signed
+device acceptance must be recorded separately from unit tests.
+
 ## 2026-10-24 | Owner-approved monthly pricing and upgrade paths
 
 The current commercial catalogue is `APPROVED_PRICING_20261024.md` and
