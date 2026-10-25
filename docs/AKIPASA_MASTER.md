@@ -1,5 +1,12 @@
 # AKIPASA MASTER SYSTEM CONTRACT
 
+## 2026-10-25 | Native user-agent detection
+
+The Android marker AkiHQAndroid must match this product's Google sign-in action.
+The callback regression reads the native emitted marker rather than supplying a
+hand-written test-only value. No cross-product sessions, auth settings or package
+identity changes are introduced; native rebuild and device acceptance are required.
+
 ## 2026-10-25 Android OAuth return
 
 AkiHQ copies the working AkiPasa authorization-code handoff: an Android-marked

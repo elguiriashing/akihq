@@ -1,5 +1,15 @@
 # Change Impact Register
 
+## 2026-10-25 | Android user-agent callback contract
+
+The native shell now emits AkiHQAndroid, matching the existing server Google
+OAuth initiator. The previous AkiPasaAndroid marker omitted android=1 and left
+the browser on the ordinary callback. A regression derives its input from the
+actual MainActivity source and invokes the real server action. Package/version,
+signing, provider configuration, cookie/PKCE flow and data permissions are unchanged.
+Native compile/tests/lint and hosted web checks must pass; actual signed-device
+Google return remains a separate acceptance check.
+
 ## 2026-10-24 | Owner-approved monthly pricing and upgrade paths
 
 The current commercial catalogue is `APPROVED_PRICING_20261024.md` and
