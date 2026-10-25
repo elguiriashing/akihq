@@ -55,7 +55,9 @@ it("external browser returns only the authorization code before opening a Supaba
   expect(html).not.toContain("secret");
   expect(html).not.toContain("<script>");
   expect(html).toContain("setTimeout(function(){location.assign(");
-  expect(html).toContain("},2000)");
+  expect(html).toContain("return-seconds");
+  expect(html).toContain("brand/v3/hq.svg");
+  expect(html).toContain("},5000)");
   expect(response.headers.get("content-security-policy")).toMatch(
     /script-src 'nonce-[a-f0-9]+'/,
   );
