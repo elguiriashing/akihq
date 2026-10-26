@@ -37,3 +37,15 @@ describe("approved AkiHQ product-specific Premium upgrades", () => {
     },
   );
 });
+
+it.each(["en", "es"])(
+  "uses the current Pasa app icon beside the other product icons in %s",
+  async (locale) => {
+    const { container } = render(
+      await Page({ params: Promise.resolve({ locale }) }),
+    );
+    const html = container.innerHTML;
+    expect(html).toContain("/brand/v3/pasa.svg");
+    expect(html).not.toContain("/brand/logo-stacked-light.svg");
+  },
+);
