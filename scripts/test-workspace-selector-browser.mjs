@@ -83,8 +83,10 @@ try {
         await page.goto(
           `http://127.0.0.1:${server.address().port}/?lang=${locale}&theme=${theme}&ref=AKI12345`,
         );
-        await expect(page.getByRole("radio")).toHaveCount(5);
-        const current = page.locator('[role="radio"][aria-checked="true"]');
+        await expect(page.getByRole("link")).toHaveCount(5);
+        const current = page.locator(
+          '.aks-selector__card[data-selected="true"]',
+        );
         await current.focus();
         await page.keyboard.press("Home");
         for (const name of [
@@ -95,19 +97,18 @@ try {
           "AkiBusiness",
         ]) {
           await expect(
-            page.getByRole("radio", { name, exact: true }),
-          ).toHaveAttribute("aria-checked", "true");
+            page.getByRole("link", { name, exact: true }),
+          ).toHaveAttribute("data-selected", "true");
           await expect(
-            page.getByRole("radio", { name, exact: true }),
+            page.getByRole("link", { name, exact: true }),
           ).toBeFocused();
           await expect(
             page.getByRole("textbox", { name: "Draft email" }),
           ).toHaveValue("fixture@example.invalid");
-          const link = page.locator(".aki-workspace-picker__action a");
-          if (await link.count()) {
-            const target = new URL(await link.getAttribute("href"));
-            expect(target.searchParams.get("ref")).toBe("AKI12345");
-          }
+          const link = page.getByRole("link", { name, exact: true });
+          expect(
+            new URL(await link.getAttribute("href")).searchParams.get("ref"),
+          ).toBe("AKI12345");
           await page.keyboard.press("ArrowRight");
         }
         expect(
@@ -123,7 +124,7 @@ try {
             ),
         ).toBe(true);
         const buttons = await page
-          .locator(".aks-selector__nav")
+          .locator(".aks-selector__card[data-selected=true]")
           .evaluateAll((nodes) =>
             nodes.map((node) => ({
               width: node.getBoundingClientRect().width,
@@ -158,6 +159,55 @@ try {
           fullPage: true,
           animations: "disabled",
         });
+        await expect(
+          page.locator(".aks-selector__footer, .aki-workspace-picker__action"),
+        ).toHaveCount(0);
+        const opened = [];
+        await page.route(
+          /^https:\/\/(akipasa\.com|akiduermo\.com|akicoches\.com|akihq\.app|akibusiness\.com)\//,
+          (route) => {
+            opened.push(route.request().url());
+            return route.fulfill({
+              contentType: "text/html",
+              body: "<h1>Workspace destination</h1>",
+            });
+          },
+        );
+        await page.locator(".aks-selector__card[data-selected=true]").focus();
+        await page.keyboard.press("Home");
+        const scene = page.locator(".aks-selector__scene");
+        await scene.dispatchEvent("pointerdown", {
+          pointerType: "touch",
+          pointerId: 7,
+          clientX: 240,
+          clientY: 80,
+          bubbles: true,
+        });
+        await scene.dispatchEvent("pointerup", {
+          pointerType: "touch",
+          pointerId: 7,
+          clientX: 130,
+          clientY: 82,
+          bubbles: true,
+        });
+        await expect(
+          page.getByRole("link", { name: "AkiDuermo", exact: true }),
+        ).toHaveAttribute("data-selected", "true");
+        await page
+          .getByRole("link", { name: "AkiPasa", exact: true })
+          .dispatchEvent("click", { bubbles: true, cancelable: true });
+        await expect(
+          page.getByRole("textbox", { name: "Draft email" }),
+        ).toHaveValue("fixture@example.invalid");
+        expect(opened).toEqual([]);
+        // A real tap on a neighbouring icon follows its href immediately.
+        await page
+          .getByRole("link", { name: "AkiCoches", exact: true })
+          .click();
+        await expect(page).toHaveURL(
+          `https://akicoches.com/account?lang=${locale}&ref=AKI12345`,
+        );
+        expect(opened).toHaveLength(1);
         await page.close();
       }
   console.log(

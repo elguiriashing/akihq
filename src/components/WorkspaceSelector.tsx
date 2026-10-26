@@ -46,7 +46,7 @@ const workspaces = [
   },
 ] as const;
 
-/** Browsing choices never leaves or changes the sign-in form. Navigation is explicit. */
+/** Swipe/keyboard browse in place; each icon is a direct workspace link. */
 export function WorkspaceSelector({
   locale,
   current,
@@ -57,7 +57,6 @@ export function WorkspaceSelector({
   const [selected, setSelected] = useState<LoginWorkspace>(current);
   const referralCode = useSuiteReferral();
   const es = locale === "es";
-  const item = workspaces.find((option) => option.id === selected)!;
   return (
     <aside
       className="auth-product-portals aki-workspace-picker"
@@ -71,6 +70,14 @@ export function WorkspaceSelector({
         ariaLabel={es ? "Espacios AkiSuite" : "AkiSuite workspaces"}
         locale={locale}
         intensity="subtle"
+        showControls={false}
+        currentId={current}
+        getOptionHref={(option) => {
+          const item = workspaces.find(
+            (workspace) => workspace.id === option.id,
+          )!;
+          return suiteHref(item.id, locale, { path: item.path, referralCode });
+        }}
         value={selected}
         onValueChange={(id) => setSelected(id as LoginWorkspace)}
         options={workspaces.map((option) => ({
@@ -92,23 +99,6 @@ export function WorkspaceSelector({
               : "",
         }))}
       />
-      <div className="aki-workspace-picker__action">
-        {selected === current ? (
-          <span className="aki-workspace-picker__current">
-            {es ? "Estás en" : "You’re in"} {item.label}
-          </span>
-        ) : (
-          <a
-            href={suiteHref(selected, locale, {
-              path: item.path,
-              referralCode,
-            })}
-          >
-            {es ? "Abrir" : "Open"} {item.label}{" "}
-            <span aria-hidden="true">↗</span>
-          </a>
-        )}
-      </div>
     </aside>
   );
 }

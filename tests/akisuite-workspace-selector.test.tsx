@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import {
   WorkspaceSelector,
@@ -24,37 +24,32 @@ beforeEach(() =>
 );
 afterEach(cleanup);
 it.each(products)(
-  "shows all five choices with %s selected initially",
+  "makes the five icons direct links with %s current",
   (current) => {
-    render(<WorkspaceSelector current={current} locale="en" />);
-    expect(screen.getAllByRole("radio")).toHaveLength(5);
+    const { container } = render(
+      <WorkspaceSelector current={current} locale="en" />,
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(5);
+    const active = screen.getByRole("link", {
+      name: names[products.indexOf(current)],
+    });
+    expect(active).toHaveAttribute("aria-current", "page");
+    expect(active).toHaveAttribute("data-selected", "true");
+    expect(screen.queryByRole("button")).toBeNull();
     expect(
-      screen.getByRole("radio", { name: names[products.indexOf(current)] }),
-    ).toHaveAttribute("aria-checked", "true");
-    expect(screen.queryByRole("link")).toBeNull();
+      container.querySelector(
+        ".aks-selector__footer, .aki-workspace-picker__action",
+      ),
+    ).toBeNull();
   },
 );
 it.each(["en", "es"] as const)(
-  "previews all destinations without altering the login draft in %s",
+  "puts safe localized destinations on every icon in %s",
   (locale) => {
-    const action = vi.fn();
-    render(
-      <>
-        <input
-          aria-label="Draft email"
-          defaultValue="fixture@example.invalid"
-        />
-        <WorkspaceSelector current="pasa" locale={locale} />
-        <button onClick={action}>Existing sign-in action</button>
-      </>,
-    );
-    for (let i = 1; i < products.length; i++) {
-      fireEvent.click(screen.getByRole("radio", { name: names[i] }));
-      const target = new URL(
-        screen
-          .getByRole("link", { name: new RegExp(names[i]) })
-          .getAttribute("href")!,
-      );
+    render(<WorkspaceSelector current="pasa" locale={locale} />);
+    for (let i = 0; i < products.length; i++) {
+      const card = screen.getByRole("link", { name: names[i] });
+      const target = new URL(card.getAttribute("href")!);
       expect(target.host).toBe(
         [
           "akipasa.com",
@@ -66,34 +61,38 @@ it.each(["en", "es"] as const)(
       );
       expect(target.searchParams.get("ref")).toBe("AKI12345");
       expect(target.searchParams.has("access_token")).toBe(false);
-      if (i === 3) expect(target.pathname).toBe(`/${locale}/auth`);
+      if (i === 0 || i === 3) expect(target.pathname).toBe(`/${locale}/auth`);
       else
         expect(target.searchParams.get(i === 4 ? "locale" : "lang")).toBe(
           locale,
         );
-      expect(screen.getByRole("textbox", { name: "Draft email" })).toHaveValue(
-        "fixture@example.invalid",
-      );
-      expect(action).not.toHaveBeenCalled();
-      expect(window.location.pathname).toBe("/en/auth");
+      expect(card).not.toHaveAttribute("role", "radio");
     }
   },
 );
-it("supports keyboard selection and explicit opening as separate steps", () => {
-  render(<WorkspaceSelector current="pasa" locale="en" />);
-  const initial = screen.getByRole("radio", { name: "AkiPasa" });
+it("browses by keyboard without opening an app or changing the login draft", () => {
+  render(
+    <>
+      <input aria-label="Draft email" defaultValue="fixture@example.invalid" />
+      <WorkspaceSelector current="pasa" locale="en" />
+    </>,
+  );
+  const initial = screen.getByRole("link", { name: "AkiPasa" });
   initial.focus();
   fireEvent.keyDown(initial, { key: "End" });
-  expect(screen.getByRole("radio", { name: "AkiBusiness" })).toHaveFocus();
-  expect(
-    screen.getByRole("link", { name: /Open AkiBusiness/ }),
-  ).toHaveAttribute(
+  const last = screen.getByRole("link", { name: "AkiBusiness" });
+  expect(last).toHaveFocus();
+  expect(last).toHaveAttribute("data-selected", "true");
+  expect(last).toHaveAttribute(
     "href",
     "https://akibusiness.com/login?locale=en&ref=AKI12345",
   );
-  fireEvent.keyDown(screen.getByRole("radio", { name: "AkiBusiness" }), {
-    key: "Home",
-  });
+  fireEvent.keyDown(last, { key: "Home" });
   expect(initial).toHaveFocus();
-  expect(screen.queryByRole("link")).toBeNull();
+  fireEvent.keyDown(initial, { key: "ArrowRight" });
+  expect(screen.getByRole("link", { name: "AkiDuermo" })).toHaveFocus();
+  expect(screen.getByRole("textbox", { name: "Draft email" })).toHaveValue(
+    "fixture@example.invalid",
+  );
+  expect(window.location.pathname).toBe("/en/auth");
 });

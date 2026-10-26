@@ -40,6 +40,9 @@ export type AkiSelectorProps = {
   motion?: "auto" | "off";
   locale?: "en" | "es";
   className?: string;
+  getOptionHref?: (option: AkiSelectorOption) => string;
+  currentId?: string;
+  showControls?: boolean;
 };
 
 function nearestEnabled(
@@ -66,11 +69,14 @@ export function AkiSelector({
   motion = "auto",
   locale = "en",
   className = "",
+  getOptionHref,
+  currentId,
+  showControls = true,
 }: AkiSelectorProps) {
   const [uncontrolledValue, setUncontrolledValue] = useState(
     defaultValue ?? options.find((option) => !option.disabled)?.id ?? "",
   );
-  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const buttons = useRef<(HTMLButtonElement | HTMLAnchorElement | null)[]>([]);
   const startPoint = useRef<{ x: number; y: number; id: number } | null>(null);
   const suppressClick = useRef(false);
   const pendingFocus = useRef<string | null>(null);
@@ -109,7 +115,7 @@ export function AkiSelector({
     if (next >= 0) choose(next, focus);
   }
 
-  function handleKey(event: KeyboardEvent<HTMLButtonElement>) {
+  function handleKey(event: KeyboardEvent<HTMLElement>) {
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
       move(1, true);
@@ -169,7 +175,7 @@ export function AkiSelector({
     >
       <div
         className="aks-selector__scene"
-        role="radiogroup"
+        role={getOptionHref ? "group" : "radiogroup"}
         aria-label={ariaLabel}
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
@@ -190,32 +196,21 @@ export function AkiSelector({
             "--aks-order": String(Math.abs(distance)),
             ...(option.accent ? { "--aks-own-glow": option.accent } : {}),
           } as CSSProperties;
-          return (
-            <button
-              key={option.id}
-              ref={(element) => {
-                buttons.current[index] = element;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              aria-label={option.label}
-              aria-hidden={farAway || undefined}
-              tabIndex={selected ? 0 : -1}
-              disabled={option.disabled || farAway}
-              data-selected={selected}
-              data-effect={option.effect ?? "quiet"}
-              className="aks-selector__card"
-              style={style}
-              onClick={() => {
-                if (suppressClick.current) {
-                  suppressClick.current = false;
-                  return;
-                }
-                choose(index);
-              }}
-              onKeyDown={handleKey}
-            >
+          const attributes = {
+            ref: (element: HTMLButtonElement | HTMLAnchorElement | null) => {
+              buttons.current[index] = element;
+            },
+            "aria-label": option.label,
+            "aria-hidden": farAway || undefined,
+            tabIndex: selected && !option.disabled ? 0 : -1,
+            "data-selected": selected,
+            "data-effect": option.effect ?? "quiet",
+            className: "aks-selector__card",
+            style,
+            onKeyDown: handleKey,
+          };
+          const content = (
+            <>
               <span className="aks-selector__effect" aria-hidden="true">
                 <span className="aks-selector__effect-orbit" />
                 <span className="aks-selector__effect-burst" />
@@ -227,41 +222,80 @@ export function AkiSelector({
                 </span>
                 <span className="aks-selector__label">{option.label}</span>
               </span>
+            </>
+          );
+          return getOptionHref ? (
+            <a
+              key={option.id}
+              {...attributes}
+              href={
+                option.disabled || farAway ? undefined : getOptionHref(option)
+              }
+              aria-current={option.id === currentId ? "page" : undefined}
+              aria-disabled={option.disabled || farAway || undefined}
+              onClick={(event) => {
+                if (suppressClick.current || option.disabled || farAway) {
+                  event.preventDefault();
+                  suppressClick.current = false;
+                }
+              }}
+            >
+              {content}
+            </a>
+          ) : (
+            <button
+              key={option.id}
+              {...attributes}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={option.disabled || farAway}
+              onClick={() => {
+                if (suppressClick.current) {
+                  suppressClick.current = false;
+                  return;
+                }
+                choose(index);
+              }}
+            >
+              {content}
             </button>
           );
         })}
       </div>
-      <div className="aks-selector__footer">
-        <button
-          type="button"
-          className="aks-selector__nav"
-          onClick={() => move(-1, true)}
-          aria-label={es ? "Opción anterior" : "Previous option"}
-          disabled={options.filter((option) => !option.disabled).length < 2}
-        >
-          <span aria-hidden="true">←</span>
-        </button>
-        <div
-          className="aks-selector__caption"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          <strong>{active.label}</strong>
-          <span>{active.subtitle ?? (es ? "Seleccionado" : "Selected")}</span>
-          <small>
-            {activeIndex + 1} / {options.length}
-          </small>
+      {showControls && (
+        <div className="aks-selector__footer">
+          <button
+            type="button"
+            className="aks-selector__nav"
+            onClick={() => move(-1, true)}
+            aria-label={es ? "Opción anterior" : "Previous option"}
+            disabled={options.filter((option) => !option.disabled).length < 2}
+          >
+            <span aria-hidden="true">←</span>
+          </button>
+          <div
+            className="aks-selector__caption"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <strong>{active.label}</strong>
+            <span>{active.subtitle ?? (es ? "Seleccionado" : "Selected")}</span>
+            <small>
+              {activeIndex + 1} / {options.length}
+            </small>
+          </div>
+          <button
+            type="button"
+            className="aks-selector__nav"
+            onClick={() => move(1, true)}
+            aria-label={es ? "Opción siguiente" : "Next option"}
+            disabled={options.filter((option) => !option.disabled).length < 2}
+          >
+            <span aria-hidden="true">→</span>
+          </button>
         </div>
-        <button
-          type="button"
-          className="aks-selector__nav"
-          onClick={() => move(1, true)}
-          aria-label={es ? "Opción siguiente" : "Next option"}
-          disabled={options.filter((option) => !option.disabled).length < 2}
-        >
-          <span aria-hidden="true">→</span>
-        </button>
-      </div>
+      )}
     </section>
   );
 }
