@@ -1635,3 +1635,42 @@ passed, plus the added 2/2 header tests. The earlier full check passed all401
 existing tests and the Next production build. The shared stylesheet remains
 byte-identical to the static Business copy. Cloudflare packaging and hosted
 required checks are separate release evidence; no live publication is claimed.
+
+## 2026-10-26 | Mouse dragging, corner arrows and branded login names
+
+The public login AkiSelector supports primary-button mouse dragging alongside
+touch/pen swipes. Cards follow a bounded horizontal pointer offset; capture
+starts only after 10px of horizontal intent, leaving ordinary clicks and
+vertical touch scrolling intact. Release outside the scene is supported. A
+45px horizontal release browses one enabled option, with wraparound; shorter
+drags snap back and suppress their compatibility click. Pointer cancellation
+and capture loss clear temporary offsets. Modified/right/middle clicks retain
+ordinary link behavior, and starting a later pointer/keyboard action clears the
+click guard. Native HTML link/image dragging is prevented within the scene.
+
+Two localized, keyboard-accessible 44px circular arrows sit in the lower scene
+corners. They browse in place without submitting, navigating or replacing the
+login form; the separate footer/caption stays hidden. Generic lab callers opt
+in via showBrowseArrows. Names use the individual product accent and self-hosted
+Poppins Semibold 600, with a dark label backing for legibility over effects.
+The Latin WOFF2 is vendored from @fontsource/poppins 5.3.0 with its SIL OFL;
+requests stay on the app's own origin. Existing startup/idle artwork, motion-off,
+reduced motion, EN/ES/referral-safe hrefs, current-product semantics, drafts and
+auth/session/role behavior remain. No API, database, billing, analytics, provider
+or native Android binary change.
+
+Shared React engine, adapter, CSS and font assets are copied across four Next
+apps; Business has an equivalent DOM adapter and matching assets. Business
+engine/adapter CSS v4, JS v5 and paid release cache v158 include the font and
+retain production assertions. Acceptance covers real mouse capture/release
+outside the scene, follow-pointer geometry, short-drag suppression, immediate
+subsequent clicks, arrows/wraparound/keyboard, touch and cancelled gestures,
+loaded font/brand colours and responsive label bounds. Regression evidence is
+recorded in the PR; exact-head CI and production verification gate release.
+Rollback restores source with fresh static cache/asset versions; no data rollback.
+
+Capture-transfer follow-up: descendant lostpointercapture events are ignored;
+only loss on the scene cancels its gesture. Mouse movement with no primary
+button held clears a pending gesture after an uncaptured outside release.
+Acceptance now uses real Chromium touch input originating on a card descendant,
+and covers outside vertical release followed by ordinary mouse hover.

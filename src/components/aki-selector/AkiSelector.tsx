@@ -45,6 +45,7 @@ export type AkiSelectorProps = {
   getOptionHref?: (option: AkiSelectorOption) => string;
   currentId?: string;
   showControls?: boolean;
+  showBrowseArrows?: boolean;
 };
 
 function nearestEnabled(
@@ -74,6 +75,7 @@ export function AkiSelector({
   getOptionHref,
   currentId,
   showControls = true,
+  showBrowseArrows = false,
 }: AkiSelectorProps) {
   const [uncontrolledValue, setUncontrolledValue] = useState(
     defaultValue ?? options.find((option) => !option.disabled)?.id ?? "",
@@ -82,7 +84,12 @@ export function AkiSelector({
   // under the pointer so a first click always reaches the intended destination.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const buttons = useRef<(HTMLButtonElement | HTMLAnchorElement | null)[]>([]);
-  const startPoint = useRef<{ x: number; y: number; id: number } | null>(null);
+  const startPoint = useRef<{
+    x: number;
+    y: number;
+    id: number;
+    dragging: boolean;
+  } | null>(null);
   const suppressClick = useRef(false);
   const pendingFocus = useRef<string | null>(null);
   const chosen = value === undefined ? uncontrolledValue : value;
@@ -144,19 +151,65 @@ export function AkiSelector({
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
     // A new gesture must not inherit an unconsumed synthetic-click guard.
+    if (
+      event.isPrimary === false ||
+      (event.pointerType === "mouse" && event.button !== 0)
+    )
+      return;
     suppressClick.current = false;
-    startPoint.current =
-      event.pointerType === "touch" || event.pointerType === "pen"
-        ? { x: event.clientX, y: event.clientY, id: event.pointerId }
-        : null;
+    setHoveredId(null);
+    startPoint.current = {
+      x: event.clientX,
+      y: event.clientY,
+      id: event.pointerId,
+      dragging: false,
+    };
+  }
+
+  function resetDrag(scene: HTMLDivElement, pointerId: number) {
+    delete scene.dataset.dragging;
+    scene.style.removeProperty("--aks-drag-offset");
+    if (scene.hasPointerCapture?.(pointerId))
+      scene.releasePointerCapture(pointerId);
+  }
+
+  function onPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const start = startPoint.current;
+    if (!start || start.id !== event.pointerId) return;
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      startPoint.current = null;
+      resetDrag(event.currentTarget, event.pointerId);
+      return;
+    }
+    const dx = event.clientX - start.x,
+      dy = event.clientY - start.y;
+    if (
+      !start.dragging &&
+      (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.3)
+    )
+      return;
+    if (!start.dragging) {
+      start.dragging = true;
+      suppressClick.current = true;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      event.currentTarget.dataset.dragging = "true";
+    }
+    event.preventDefault();
+    const limit = event.currentTarget.clientWidth * 0.3;
+    event.currentTarget.style.setProperty(
+      "--aks-drag-offset",
+      `${Math.max(-limit, Math.min(limit, dx))}px`,
+    );
   }
 
   function onPointerUp(event: PointerEvent<HTMLDivElement>) {
     const start = startPoint.current;
-    startPoint.current = null;
     if (!start || start.id !== event.pointerId) return;
+    startPoint.current = null;
+    resetDrag(event.currentTarget, event.pointerId);
     const dx = event.clientX - start.x;
     const dy = event.clientY - start.y;
+    if (Math.hypot(dx, dy) >= 10) suppressClick.current = true;
     if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
     suppressClick.current = true;
     move(dx < 0 ? 1 : -1);
@@ -188,10 +241,23 @@ export function AkiSelector({
         role={getOptionHref ? "group" : "radiogroup"}
         aria-label={ariaLabel}
         onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => {
+        onPointerCancel={(event) => {
+          if (startPoint.current?.id !== event.pointerId) return;
           startPoint.current = null;
+          resetDrag(event.currentTarget, event.pointerId);
         }}
+        onLostPointerCapture={(event) => {
+          if (
+            event.target === event.currentTarget &&
+            startPoint.current?.id === event.pointerId
+          ) {
+            startPoint.current = null;
+            resetDrag(event.currentTarget, event.pointerId);
+          }
+        }}
+        onDragStart={(event) => event.preventDefault()}
         onPointerLeave={() => setHoveredId(null)}
       >
         <div className="aks-selector__ambient" aria-hidden="true" />
@@ -222,7 +288,12 @@ export function AkiSelector({
             style,
             onKeyDown: handleKey,
             onPointerEnter: (event: PointerEvent<HTMLElement>) => {
-              if (event.pointerType === "mouse" && !option.disabled && !farAway)
+              if (
+                event.pointerType === "mouse" &&
+                !startPoint.current &&
+                !option.disabled &&
+                !farAway
+              )
                 setHoveredId(option.id);
             },
             onPointerDown: () => setHoveredId(null),
@@ -298,6 +369,38 @@ export function AkiSelector({
             </button>
           );
         })}
+        {showBrowseArrows && (
+          <>
+            <button
+              className="aks-selector__browse aks-selector__browse--previous"
+              type="button"
+              aria-label={es ? "Opción anterior" : "Previous option"}
+              disabled={options.filter((option) => !option.disabled).length < 2}
+              onPointerDown={(event) => event.stopPropagation()}
+              onKeyDown={handleKey}
+              onClick={() => {
+                setHoveredId(null);
+                move(-1);
+              }}
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+            <button
+              className="aks-selector__browse aks-selector__browse--next"
+              type="button"
+              aria-label={es ? "Opción siguiente" : "Next option"}
+              disabled={options.filter((option) => !option.disabled).length < 2}
+              onPointerDown={(event) => event.stopPropagation()}
+              onKeyDown={handleKey}
+              onClick={() => {
+                setHoveredId(null);
+                move(1);
+              }}
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          </>
+        )}
       </div>
       {showControls && (
         <div className="aks-selector__footer">

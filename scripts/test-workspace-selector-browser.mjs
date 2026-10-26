@@ -1,4 +1,5 @@
 import { build } from "esbuild";
+import exercisePointerBrowsing from "./selector-pointer-acceptance.cjs";
 import { chromium, expect } from "@playwright/test";
 import { createServer } from "node:http";
 import { mkdtemp, readFile, mkdir, rm } from "node:fs/promises";
@@ -18,6 +19,7 @@ await build({
   },
   outfile: path.join(folder, "app.js"),
   bundle: true,
+  external: ["/assets/fonts/*"],
   jsx: "automatic",
   define: { "process.env.NODE_ENV": '"production"' },
   plugins: [
@@ -47,6 +49,11 @@ const server = createServer(async (req, res) => {
         url.pathname.endsWith("js") ? "text/javascript" : "text/css",
       );
       res.end(await readFile(path.join(folder, url.pathname.slice(1))));
+      return;
+    }
+    if (url.pathname === "/assets/fonts/aki-selector-poppins-semibold.woff2") {
+      res.setHeader("Content-Type", "font/woff2");
+      res.end(await readFile(path.join(process.cwd(), "public", url.pathname)));
       return;
     }
     if (
@@ -84,6 +91,7 @@ try {
           `http://127.0.0.1:${server.address().port}/?lang=${locale}&theme=${theme}&ref=AKI12345`,
         );
         await expect(page.getByRole("link")).toHaveCount(5);
+        await exercisePointerBrowsing(page, expect, locale);
         if (locale === "en" && theme === "light" && width === 820) {
           const scene = page.locator(".aks-selector__scene");
           const first = page.getByRole("link", {
@@ -294,6 +302,7 @@ try {
         const scene = page.locator(".aks-selector__scene");
         await scene.dispatchEvent("pointerdown", {
           pointerType: "touch",
+          isPrimary: true,
           pointerId: 7,
           clientX: 240,
           clientY: 80,
@@ -301,6 +310,7 @@ try {
         });
         await scene.dispatchEvent("pointerup", {
           pointerType: "touch",
+          isPrimary: true,
           pointerId: 7,
           clientX: 130,
           clientY: 82,
