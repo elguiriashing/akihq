@@ -2041,3 +2041,10 @@ no footer/actions, localized/referral-safe URLs and zero scene scroll. Complete
 hosted source/browser/Cloudflare checks and exact live-source verification are
 required before release; installed native/device acceptance remains separate.
 Rollback is a source revert and renewed Business asset/cache versions.
+
+### 2026-10-26 | HQ membership Pasa artwork
+
+Use the v3 Pasa app icon beside the existing Duermo/Coches app icons in both
+languages; the stacked wordmark is inappropriate in the square package badge.
+No package, price, entitlement or destination changes. Rendered membership
+regressions cover the selected icon; required CI/live verification remains.

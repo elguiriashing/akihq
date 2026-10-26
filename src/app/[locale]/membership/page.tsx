@@ -23,7 +23,7 @@ export default async function HQMembershipPage({
       key: "pasa",
       title: premiumName("akipasa", "business", locale),
       price: approvedPricing.discovery.akipasa.businessCents,
-      image: "/brand/logo-stacked-light.svg",
+      image: "/brand/v3/pasa.svg",
       subject: es ? "tu local y sus eventos" : "your venue and events",
       details: es
         ? [
