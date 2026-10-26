@@ -1,0 +1,220 @@
+html:has(.suite-marketing-header) {
+  scrollbar-gutter: stable;
+}
+/* AkiSuite marketing header v1. Identical in AkiHQ and AkiBusiness. */
+.suite-marketing-header {
+  --header-accent: #ffc533;
+  --header-ink: #f8faff;
+  --header-soft: #c4ccdf;
+  --header-line: #ffffff26;
+  --header-surface: #10182b;
+  position: relative;
+  z-index: 80;
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) auto auto 104px;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 1280px;
+  min-height: 88px;
+  margin: 0 auto;
+  padding: 16px clamp(20px, 4vw, 54px);
+  border-bottom: 1px solid var(--header-line);
+  box-sizing: border-box;
+  color: var(--header-ink);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+.suite-marketing-header[data-brand="business"] {
+  --header-accent: #b794ff;
+  --header-surface: #211839;
+}
+.suite-marketing-header .suite-marketing-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  color: var(--header-ink);
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+.suite-marketing-brand > img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+.suite-marketing-brand strong {
+  font-weight: inherit;
+  color: var(--header-accent);
+}
+.suite-marketing-header .suite-marketing-links {
+  display: grid;
+  grid-template-columns: 112px 72px 104px;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+.suite-marketing-links > a {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 44px;
+  color: var(--header-soft);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.suite-marketing-header .portal-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  flex-wrap: nowrap;
+}
+.suite-marketing-header .portal-header-tools > :is(a, button),
+.suite-marketing-header .portal-product-menu > summary {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  margin: 0;
+  border: 1px solid var(--header-line);
+  border-radius: 999px;
+  box-shadow: none;
+  background: transparent;
+  color: var(--header-ink);
+  text-decoration: none;
+  font:
+    750 13px/1 Inter,
+    "Segoe UI",
+    Arial,
+    sans-serif;
+  cursor: pointer;
+  list-style: none;
+}
+.suite-marketing-header .portal-product-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.suite-marketing-header svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.suite-marketing-header .suite-marketing-signin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--header-accent);
+  border-radius: 999px;
+  color: var(--header-ink);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.suite-marketing-header :is(a, button, summary):focus-visible {
+  outline: 2px solid var(--header-accent);
+  outline-offset: 3px;
+}
+.suite-marketing-header .portal-product-menu {
+  position: relative;
+}
+.suite-marketing-header .portal-product-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 156px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--header-line);
+  border-radius: 16px;
+  background: var(--header-surface);
+  color: var(--header-ink);
+  box-shadow: 0 16px 40px #0005;
+}
+.suite-marketing-header .portal-product-popover a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px;
+  border-radius: 10px;
+  color: var(--header-ink);
+  font-size: 14px;
+  text-decoration: none;
+}
+.suite-marketing-header .portal-product-popover img {
+  width: 36px;
+  height: 36px;
+}
+.suite-marketing-header .portal-product-popover a:hover,
+.suite-marketing-header .portal-header-tools > :is(a, button):hover,
+.suite-marketing-header .portal-product-menu > summary:hover {
+  background: #ffffff0d;
+}
+@media (max-width: 900px) {
+  .suite-marketing-header {
+    gap: 10px;
+    grid-template-columns: minmax(150px, 1fr) auto auto 96px;
+    padding-inline: 20px;
+  }
+  .suite-marketing-header .suite-marketing-links {
+    grid-template-columns: 104px 64px;
+  }
+  .suite-marketing-links > .suite-marketing-peer {
+    display: none;
+  }
+}
+@media (max-width: 680px) {
+  .suite-marketing-header {
+    grid-template-columns: minmax(0, 1fr) 96px;
+    gap: 8px 12px;
+    padding-block: 12px;
+  }
+  .suite-marketing-header .suite-marketing-brand {
+    grid-row: 1;
+    grid-column: 1;
+    font-size: 22px;
+  }
+  .suite-marketing-header .suite-marketing-signin {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .suite-marketing-header .suite-marketing-links {
+    grid-row: 2;
+    grid-column: 1;
+    grid-template-columns: auto auto;
+    justify-content: start;
+    gap: 14px;
+  }
+  .suite-marketing-header .portal-header-tools {
+    grid-row: 2;
+    grid-column: 2;
+    justify-self: end;
+  }
+  .suite-marketing-header .portal-header-tools > :is(a, button),
+  .suite-marketing-header .portal-product-menu > summary {
+    width: 44px;
+    min-width: 44px;
+  }
+  .suite-marketing-header .suite-marketing-links > a {
+    font-size: 12px;
+  }
+}

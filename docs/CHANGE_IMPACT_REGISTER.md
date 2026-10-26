@@ -2048,3 +2048,36 @@ Use the v3 Pasa app icon beside the existing Duermo/Coches app icons in both
 languages; the stacked wordmark is inappropriate in the square package badge.
 No package, price, entitlement or destination changes. Rendered membership
 regressions cover the selected icon; required CI/live verification remains.
+
+## 2026-10-26 | Aligned AkiHQ and AkiBusiness marketing headers
+
+The homepage uses SuiteMarketingHeader with a byte-identical shared stylesheet
+in AkiBusiness assets. Order is brand, Tools, Pricing, sibling product, language,
+appearance, Aki Apps and sign-in. Fixed link/control slots, 40px brand artwork,
+44px controls, 88px desktop header, common padding and a stable scrollbar gutter
+keep corresponding buttons in the same position across both products. At <=680px
+there are two compact rows; the sibling remains in Apps when its direct link is
+hidden at <=900px. Each product retains its own colour and wordmark.
+
+Dependencies: root marketing page, PortalHeaderTools, ThemeToggle, canonical
+suiteHref/referral destinations, EN/ES managementLocale and /login language.
+Account/management headers, authentication, session boundaries, tenant/RLS,
+subscription/price/readiness, APIs, data, analytics, provider config and native
+shell are untouched. No sibling-checkout import. Rollback is a source revert.
+The independent main branch and existing Worker remain the release authority.
+
+Validation: actual header rendered assertions pass both locales and retain
+control order/localized login/peer links. A Chromium harness using actual
+components and production styles compared all corresponding header slots with
+the static Business adapter: 40 surfaces across EN/ES, light/dark and widths
+360/600/900/1280/1536 passed within 1 CSS pixel. Menu opening, Escape, bounds,
+40px branding, 44px sign-in and horizontal overflow were checked; desktop/mobile
+screenshots inspected. The initial full HQ check passed 401 tests and its Next
+production build; added header regressions pass 2/2. Final lint/types, packaging,
+required hosted CI and actual deployed source remain separate release gates.
+
+Verification update: final full-repository formatting, lint and TypeScript checks
+passed, plus the added 2/2 header tests. The earlier full check passed all401
+existing tests and the Next production build. The shared stylesheet remains
+byte-identical to the static Business copy. Cloudflare packaging and hosted
+required checks are separate release evidence; no live publication is claimed.
