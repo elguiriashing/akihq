@@ -83,6 +83,40 @@ module.exports = async function exercisePointerBrowsing(page, expect, locale) {
   await previous.press("Space");
   await selected("AkiPasa");
   expect(page.url()).toBe(original);
+  // A release outside the scene before capture must not turn hover into dragging.
+  const pending = await card("AkiPasa").boundingBox();
+  await page.mouse.move(pending.x + pending.width / 2, pending.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(pending.x + pending.width / 2, bounds.y - 20);
+  await page.mouse.up();
+  await page.mouse.move(bounds.x + 20, bounds.y + 20);
+  await expect(scene).not.toHaveAttribute("data-dragging");
+  // Use browser touch input so implicit capture begins on the card descendant.
+  const touch = await page.context().newCDPSession(page);
+  await touch.send("Emulation.setTouchEmulationEnabled", { enabled: true });
+  await card("AkiPasa").press("Home");
+  const touchBounds = await card("AkiPasa").boundingBox();
+  const touchX = touchBounds.x + touchBounds.width / 2;
+  const touchY = touchBounds.y + touchBounds.height / 2;
+  await touch.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: touchX, y: touchY }],
+  });
+  for (const offset of [20, 40, 65, 85]) {
+    await touch.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: touchX - offset, y: touchY }],
+    });
+  }
+  await touch.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await selected("AkiDuermo");
+  expect(page.url()).toBe(original);
+  await card("AkiDuermo").press("Home");
+  await touch.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+  await touch.detach();
   await page.evaluate(() =>
     document.fonts.load('600 11px "Aki Selector Poppins"'),
   );

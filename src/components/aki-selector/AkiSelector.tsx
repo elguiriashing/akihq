@@ -176,6 +176,11 @@ export function AkiSelector({
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
     const start = startPoint.current;
     if (!start || start.id !== event.pointerId) return;
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      startPoint.current = null;
+      resetDrag(event.currentTarget, event.pointerId);
+      return;
+    }
     const dx = event.clientX - start.x,
       dy = event.clientY - start.y;
     if (
@@ -244,7 +249,10 @@ export function AkiSelector({
           resetDrag(event.currentTarget, event.pointerId);
         }}
         onLostPointerCapture={(event) => {
-          if (startPoint.current?.id === event.pointerId) {
+          if (
+            event.target === event.currentTarget &&
+            startPoint.current?.id === event.pointerId
+          ) {
             startPoint.current = null;
             resetDrag(event.currentTarget, event.pointerId);
           }

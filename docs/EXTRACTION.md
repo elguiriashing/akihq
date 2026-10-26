@@ -419,3 +419,9 @@ subsequent clicks, arrows/wraparound/keyboard, touch and cancelled gestures,
 loaded font/brand colours and responsive label bounds. Regression evidence is
 recorded in the PR; exact-head CI and production verification gate release.
 Rollback restores source with fresh static cache/asset versions; no data rollback.
+
+Capture-transfer follow-up: descendant lostpointercapture events are ignored;
+only loss on the scene cancels its gesture. Mouse movement with no primary
+button held clears a pending gesture after an uncaptured outside release.
+Acceptance now uses real Chromium touch input originating on a card descendant,
+and covers outside vertical release followed by ordinary mouse hover.
