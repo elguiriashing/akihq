@@ -35,7 +35,7 @@ it.each(products)(
     });
     expect(active).toHaveAttribute("aria-current", "page");
     expect(active).toHaveAttribute("data-selected", "true");
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(2);
     expect(
       container.querySelector(
         ".aks-selector__footer, .aki-workspace-picker__action",
@@ -141,5 +141,82 @@ it("assigns each product its own decorative opening independently from its idle 
   expect(screen.getByRole("link", { name: "AkiCoches" })).toHaveAttribute(
     "data-effect",
     "bloom",
+  );
+});
+
+it.each(["en", "es"] as const)(
+  "browses with localized corner arrows without navigation in %s",
+  (locale) => {
+    render(<WorkspaceSelector current="pasa" locale={locale} />);
+    const next = screen.getByRole("button", {
+      name: locale === "es" ? "Opción siguiente" : "Next option",
+    });
+    fireEvent.click(next);
+    expect(screen.getByRole("link", { name: "AkiDuermo" })).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: locale === "es" ? "Opción anterior" : "Previous option",
+      }),
+    );
+    expect(screen.getByRole("link", { name: "AkiPasa" })).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    expect(window.location.pathname).toBe("/en/auth");
+  },
+);
+
+it("drags with mouse, suppresses only its compatibility click, and cleans up cancelled drags", () => {
+  const { container } = render(
+    <WorkspaceSelector current="pasa" locale="en" />,
+  );
+  const scene = container.querySelector(".aks-selector__scene") as HTMLElement;
+  const send = (type: string, x: number, y = 100) => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.assign(event, {
+      pointerType: "mouse",
+      pointerId: 4,
+      clientX: x,
+      clientY: y,
+      button: 0,
+      isPrimary: true,
+    });
+    fireEvent(scene, event);
+  };
+  send("pointerdown", 240);
+  send("pointermove", 150);
+  expect(scene).toHaveAttribute("data-dragging", "true");
+  send("pointerup", 130);
+  expect(screen.getByRole("link", { name: "AkiDuermo" })).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
+  expect(scene).not.toHaveAttribute("data-dragging");
+  const outcomes: boolean[] = [];
+  const observe = (event: MouseEvent) => {
+    outcomes.push(event.defaultPrevented);
+    event.preventDefault();
+  };
+  document.addEventListener("click", observe);
+  try {
+    fireEvent.click(screen.getByRole("link", { name: "AkiCoches" }));
+    send("pointerdown", 200);
+    send("pointerup", 202);
+    fireEvent.click(screen.getByRole("link", { name: "AkiCoches" }));
+    expect(outcomes).toEqual([true, false]);
+  } finally {
+    document.removeEventListener("click", observe);
+  }
+  send("pointerdown", 200);
+  send("pointermove", 130);
+  send("pointercancel", 130);
+  expect(scene).not.toHaveAttribute("data-dragging");
+  expect(scene.style.getPropertyValue("--aks-drag-offset")).toBe("");
+  expect(screen.getByRole("link", { name: "AkiDuermo" })).toHaveAttribute(
+    "data-selected",
+    "true",
   );
 });

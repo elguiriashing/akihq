@@ -1,3 +1,11 @@
+/* Self-hosted Poppins 600 Latin; SIL OFL, see /assets/fonts/OFL-Poppins.txt. */
+@font-face {
+  font-family: "Aki Selector Poppins";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/assets/fonts/aki-selector-poppins-semibold.woff2") format("woff2");
+}
 /* AkiSelector login adapter: identical across all five products. */
 .aki-workspace-picker,
 .auth-product-theme .auth-product-portals.aki-workspace-picker {
@@ -22,6 +30,8 @@
   border-radius: 18px;
 }
 .aki-workspace-selector .aks-selector__card {
+  opacity: 1;
+  cursor: grab;
   width: 100px;
   height: 132px;
   top: 47%;
@@ -36,10 +46,16 @@
   object-fit: contain;
 }
 .aki-workspace-selector .aks-selector__label {
+  font-family: "Aki Selector Poppins", Poppins, sans-serif;
+  font-weight: 600;
+  color: rgb(var(--aks-own-glow));
   font-size: 12px;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.04em;
   white-space: nowrap;
   overflow-wrap: normal;
+  padding: 2px 4px;
+  border-radius: 5px;
+  background: #080f1ef0;
 }
 /* The icon card is the action; keep the login footer free of controls. */
 .aki-workspace-selector a.aks-selector__card {

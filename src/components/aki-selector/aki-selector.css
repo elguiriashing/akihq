@@ -78,7 +78,8 @@
     0 14px 30px #0005,
     inset 0 1px #ffffff0a;
   cursor: pointer;
-  transform: translate(-50%, -50%) scale(0.78);
+  transform: translate(calc(-50% + var(--aks-drag-offset, 0px)), -50%)
+    scale(0.78);
   opacity: 0.58;
   z-index: calc(8 - var(--aks-order));
   transition:
@@ -107,7 +108,7 @@
 .aks-selector__card[data-selected="true"] {
   z-index: 10;
   opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+  transform: translate(calc(-50% + var(--aks-drag-offset, 0px)), -50%) scale(1);
   border-color: rgba(var(--aks-own-glow), 0.65);
   box-shadow:
     0 18px 35px #0007,
@@ -124,7 +125,8 @@
     inset 0 0 24px rgba(var(--aks-own-glow), 0.08);
 }
 .aks-selector__card[data-selected="false"]:hover {
-  transform: translate(-50%, -50%) scale(0.86);
+  transform: translate(calc(-50% + var(--aks-drag-offset, 0px)), -50%)
+    scale(0.86);
 }
 .aks-selector__card:disabled {
   cursor: default;
@@ -1245,4 +1247,55 @@
   .aks-selector .aks-selector__arrival {
     display: none;
   }
+}
+
+/* Drag offsets follow the pointer; the ordinary easing resumes on release. */
+.aks-selector__scene {
+  cursor: grab;
+}
+.aks-selector__scene[data-dragging="true"],
+.aks-selector__scene[data-dragging="true"] .aks-selector__card {
+  cursor: grabbing;
+}
+.aks-selector__scene[data-dragging="true"] .aks-selector__card {
+  transition: none;
+}
+.aks-selector .aks-selector__browse {
+  position: absolute;
+  bottom: 6px;
+  width: 44px;
+  height: 44px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid #ffffff35;
+  background: #121b2ce8;
+  color: #f7f5ef;
+  box-shadow: 0 4px 12px #0004;
+  cursor: pointer;
+  touch-action: manipulation;
+  font: 400 30px/1 system-ui;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+.aks-selector .aks-selector__browse--previous {
+  left: 10px;
+}
+.aks-selector .aks-selector__browse--next {
+  right: 10px;
+}
+.aks-selector .aks-selector__browse:hover {
+  background: #24334e;
+  border-color: #ffffff85;
+}
+.aks-selector .aks-selector__browse:focus-visible {
+  outline: 3px solid white;
+  outline-offset: 2px;
+}
+.aks-selector .aks-selector__browse:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
