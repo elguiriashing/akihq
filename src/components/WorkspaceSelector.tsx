@@ -82,6 +82,7 @@ export function WorkspaceSelector({
         onValueChange={(id) => setSelected(id as LoginWorkspace)}
         options={workspaces.map((option) => ({
           ...option,
+          arrival: option.id,
           symbol: (
             <Image
               src={`/brand/v3/${option.id}.svg`}

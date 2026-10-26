@@ -84,6 +84,122 @@ try {
           `http://127.0.0.1:${server.address().port}/?lang=${locale}&theme=${theme}&ref=AKI12345`,
         );
         await expect(page.getByRole("link")).toHaveCount(5);
+        if (locale === "en" && theme === "light" && width === 820) {
+          const scene = page.locator(".aks-selector__scene");
+          const first = page.getByRole("link", {
+            name: "AkiPasa",
+            exact: true,
+          });
+          const second = page.getByRole("link", {
+            name: "AkiDuermo",
+            exact: true,
+          });
+          await page.locator('[data-selected="true"]').focus();
+          await page.keyboard.press("Home");
+          await expect(first).toHaveAttribute("data-energized", "true");
+          await expect
+            .poll(() =>
+              first
+                .locator(".aks-selector__effect")
+                .evaluate((node) => +getComputedStyle(node).opacity),
+            )
+            .toBeGreaterThan(0.6);
+          const before = await second.getAttribute("style");
+          await second.hover();
+          await expect(second).toHaveAttribute("data-energized", "true");
+          await expect(first).toHaveAttribute("data-selected", "true");
+          expect(await second.getAttribute("style")).toBe(before);
+          // Sample real interpolated frames, including both incoming and outgoing
+          // material. A display:none switch fails this assertion.
+          const crossfade = await page.evaluate(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 90));
+            return [...document.querySelectorAll(".aks-selector__card")]
+              .filter((node) =>
+                ["AkiPasa", "AkiDuermo"].includes(
+                  node.getAttribute("aria-label"),
+                ),
+              )
+              .map(
+                (node) =>
+                  +getComputedStyle(node.querySelector(".aks-selector__effect"))
+                    .opacity,
+              );
+          });
+          expect(
+            crossfade.every((opacity) => opacity > 0 && opacity < 0.65),
+          ).toBe(true);
+          await page.mouse.move(0, 0);
+          await expect(first).toHaveAttribute("data-energized", "true");
+          await first.focus();
+          for (const name of ["pasa", "duermo", "coches", "hq", "business"]) {
+            await expect
+              .poll(() =>
+                page
+                  .locator('[data-energized="true"] .aks-selector__effect')
+                  .evaluate((node) => +getComputedStyle(node).opacity),
+              )
+              .toBeGreaterThan(0.6);
+            const story = page.locator(
+              '[data-energized="true"] .aks-selector__arrival-actor',
+            );
+            await expect
+              .poll(() =>
+                story.evaluate((node) => +getComputedStyle(node).opacity),
+              )
+              .toBeGreaterThan(0.4);
+            expect(
+              await story.evaluate(
+                (node) => getComputedStyle(node).animationIterationCount,
+              ),
+            ).toBe("1");
+            await scene.screenshot({
+              path: path.join(output, `arrival-${name}.png`),
+            });
+            await expect
+              .poll(() =>
+                story.evaluate((node) => +getComputedStyle(node).opacity),
+              )
+              .toBe(0);
+            await expect
+              .poll(() =>
+                page
+                  .locator('[data-energized="true"] .aks-selector__sustain')
+                  .evaluate((node) => +getComputedStyle(node).opacity),
+              )
+              .toBe(1);
+            await scene.screenshot({
+              path: path.join(output, `material-${name}.png`),
+            });
+            await page.keyboard.press("ArrowRight");
+          }
+          // Interrupted transitions must converge to the last input.
+          await page.keyboard.press("End");
+          await page.keyboard.press("Home");
+          await page.keyboard.press("ArrowRight");
+          await expect(second).toHaveAttribute("data-energized", "true");
+          await expect
+            .poll(() =>
+              first
+                .locator(".aks-selector__effect")
+                .evaluate((node) => +getComputedStyle(node).opacity),
+            )
+            .toBe(0);
+          await expect(page.locator('[data-energized="true"]')).toHaveCount(1);
+          await page.emulateMedia({ reducedMotion: "reduce" });
+          expect(
+            await page
+              .locator(".aks-selector__ignition")
+              .first()
+              .evaluate((node) => getComputedStyle(node).display),
+          ).toBe("none");
+          expect(
+            await page
+              .locator(".aks-selector__arrival")
+              .first()
+              .evaluate((node) => getComputedStyle(node).display),
+          ).toBe("none");
+          await page.emulateMedia({ reducedMotion: "no-preference" });
+        }
         const current = page.locator(
           '.aks-selector__card[data-selected="true"]',
         );

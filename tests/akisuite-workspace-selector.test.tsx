@@ -96,3 +96,50 @@ it("browses by keyboard without opening an app or changing the login draft", () 
   );
   expect(window.location.pathname).toBe("/en/auth");
 });
+
+it("previews hover energy while preserving the current app, selected card and first-click destination", () => {
+  const { container } = render(
+    <WorkspaceSelector current="pasa" locale="en" />,
+  );
+  const current = screen.getByRole("link", { name: "AkiPasa" });
+  const preview = screen.getByRole("link", { name: "AkiDuermo" });
+  const destination = preview.getAttribute("href");
+  const position = preview.getAttribute("style");
+  const event = new Event("pointerover", { bubbles: true });
+  Object.assign(event, { pointerType: "mouse" });
+  fireEvent(preview, event);
+  expect(preview).toHaveAttribute("data-energized", "true");
+  expect(current).toHaveAttribute("data-selected", "true");
+  expect(current).toHaveAttribute("aria-current", "page");
+  expect(preview.getAttribute("href")).toBe(destination);
+  expect(preview.getAttribute("style")).toBe(position);
+  fireEvent.keyDown(current, { key: "End" });
+  expect(screen.getByRole("link", { name: "AkiBusiness" })).toHaveAttribute(
+    "data-energized",
+    "true",
+  );
+  expect(container.querySelectorAll('[data-energized="true"]')).toHaveLength(1);
+});
+
+it("assigns each product its own decorative opening independently from its idle effect", () => {
+  const { container } = render(
+    <WorkspaceSelector current="coches" locale="en" />,
+  );
+  products.forEach((product, index) => {
+    const card = screen.getByRole("link", { name: names[index] });
+    expect(card).toHaveAttribute("data-arrival", product);
+    expect(card.querySelector(".aks-selector__arrival")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(
+      card.querySelector(".aks-selector__arrival-actor"),
+    ).toBeInTheDocument();
+    expect(card.querySelector(".aks-selector__sustain")).toBeInTheDocument();
+  });
+  expect(container.querySelectorAll("[data-energized=true]")).toHaveLength(1);
+  expect(screen.getByRole("link", { name: "AkiCoches" })).toHaveAttribute(
+    "data-effect",
+    "bloom",
+  );
+});
