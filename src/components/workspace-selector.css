@@ -38,6 +38,8 @@
 .aki-workspace-selector .aks-selector__label {
   font-size: 12px;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 /* The icon card is the action; keep the login footer free of controls. */
 .aki-workspace-selector a.aks-selector__card {

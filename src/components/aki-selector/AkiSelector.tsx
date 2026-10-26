@@ -26,6 +26,8 @@ export type AkiSelectorOption = {
   symbol: ReactNode;
   accent?: string;
   effect?: AkiSelectorEffect;
+  /** Optional product story; generic lab effects remain independent. */
+  arrival?: "pasa" | "duermo" | "coches" | "hq" | "business";
   subtitle?: string;
   disabled?: boolean;
 };
@@ -76,6 +78,9 @@ export function AkiSelector({
   const [uncontrolledValue, setUncontrolledValue] = useState(
     defaultValue ?? options.find((option) => !option.disabled)?.id ?? "",
   );
+  // Hover previews energy, never selection or navigation. Geometry stays stable
+  // under the pointer so a first click always reaches the intended destination.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const buttons = useRef<(HTMLButtonElement | HTMLAnchorElement | null)[]>([]);
   const startPoint = useRef<{ x: number; y: number; id: number } | null>(null);
   const suppressClick = useRef(false);
@@ -89,6 +94,9 @@ export function AkiSelector({
       ? chosenIndex
       : options.findIndex((option) => !option.disabled);
   const active = activeIndex >= 0 ? options[activeIndex] : null;
+  const energized =
+    options.find((option) => option.id === hoveredId && !option.disabled) ??
+    active;
   const es = locale === "es";
 
   useEffect(() => {
@@ -117,6 +125,7 @@ export function AkiSelector({
 
   function handleKey(event: KeyboardEvent<HTMLElement>) {
     suppressClick.current = false;
+    setHoveredId(null);
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
       move(1, true);
@@ -166,10 +175,10 @@ export function AkiSelector({
       className={"aks-selector " + className}
       data-intensity={intensity}
       data-motion={motion}
-      data-effect={active.effect ?? "quiet"}
+      data-effect={energized?.effect ?? "quiet"}
       style={
-        active.accent
-          ? ({ "--aks-glow": active.accent } as CSSProperties)
+        energized?.accent
+          ? ({ "--aks-glow": energized.accent } as CSSProperties)
           : undefined
       }
       aria-label={ariaLabel}
@@ -183,6 +192,7 @@ export function AkiSelector({
         onPointerCancel={() => {
           startPoint.current = null;
         }}
+        onPointerLeave={() => setHoveredId(null)}
       >
         <div className="aks-selector__ambient" aria-hidden="true" />
         <div className="aks-selector__floor" aria-hidden="true" />
@@ -205,18 +215,43 @@ export function AkiSelector({
             "aria-hidden": farAway || undefined,
             tabIndex: selected && !option.disabled ? 0 : -1,
             "data-selected": selected,
+            "data-energized": option.id === energized?.id,
             "data-effect": option.effect ?? "quiet",
+            "data-arrival": option.arrival,
             className: "aks-selector__card",
             style,
             onKeyDown: handleKey,
+            onPointerEnter: (event: PointerEvent<HTMLElement>) => {
+              if (event.pointerType === "mouse" && !option.disabled && !farAway)
+                setHoveredId(option.id);
+            },
+            onPointerDown: () => setHoveredId(null),
           };
           const content = (
             <>
               <span className="aks-selector__effect" aria-hidden="true">
-                <span className="aks-selector__effect-orbit" />
-                <span className="aks-selector__effect-burst" />
-                <span className="aks-selector__effect-sparks" />
+                <span className="aks-selector__sustain">
+                  <span className="aks-selector__effect-orbit" />
+                  <span className="aks-selector__effect-burst" />
+                  <span className="aks-selector__effect-sparks" />
+                </span>
+                <span className="aks-selector__ignition" />
+                <span className="aks-selector__particles">
+                  {Array.from({ length: 10 }, (_, particle) => (
+                    <i
+                      key={particle}
+                      style={{ "--aks-particle": particle } as CSSProperties}
+                    />
+                  ))}
+                </span>
               </span>
+              {option.arrival && (
+                <span className="aks-selector__arrival" aria-hidden="true">
+                  <span className="aks-selector__arrival-trail" />
+                  <span className="aks-selector__arrival-actor" />
+                  <span className="aks-selector__arrival-detail" />
+                </span>
+              )}
               <span className="aks-selector__card-face">
                 <span className="aks-selector__symbol" aria-hidden="true">
                   {option.symbol}
