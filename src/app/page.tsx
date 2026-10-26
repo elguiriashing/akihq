@@ -1,5 +1,5 @@
 import { managementLocale } from "@/lib/management-locale";
-import { PortalHeaderTools } from "@/components/PortalHeaderTools";
+import { SuiteMarketingHeader } from "@/components/SuiteMarketingHeader";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PortalLogo } from "@/components/PortalLogo";
@@ -205,23 +205,7 @@ export default async function Home({
   const login = `/login?lang=${lang}`;
   return (
     <main className="hq-landing" id="top">
-      <header className="hq-landing-header">
-        <Link className="hq-landing-brand" href="/" aria-label="AkiHQ home">
-          <PortalLogo product="hq" />
-        </Link>
-        <nav aria-label="Primary navigation">
-          <a href="#tools">{c.navTools}</a>
-          <a href="#pricing">{c.navPricing}</a>
-          <Link className="hq-nav-login" href={login}>
-            {c.navAccess} <span aria-hidden="true">↗</span>
-          </Link>
-        </nav>
-        <PortalHeaderTools
-          locale={lang}
-          product="business"
-          languageHref={`/?lang=${lang === "en" ? "es" : "en"}`}
-        />
-      </header>
+      <SuiteMarketingHeader locale={lang} />
 
       <section className="hq-hero">
         <div className="hq-hero-copy">
