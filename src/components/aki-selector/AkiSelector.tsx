@@ -116,6 +116,7 @@ export function AkiSelector({
   }
 
   function handleKey(event: KeyboardEvent<HTMLElement>) {
+    suppressClick.current = false;
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
       move(1, true);
