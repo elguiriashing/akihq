@@ -1,5 +1,11 @@
 # AKIPASA MASTER SYSTEM CONTRACT
 
+## 2026-10-27 | Correct claim emails for AkiHQ-owned AkiPasa venue listings
+
+The AkiHQ management app shares the same claim decision outbox as AkiPasa. Its claim decision renderer is now aligned with the authoritative AkiPasa renderer: **AkiHQ** is the venue management destination, while the early-partner reward is specifically three months of **AkiPasa listing Premium for the approved activities venue**, accessed through AkiHQ. This is not AkiBusiness paid operations software, consumer Premium, or an HQ-wide subscription. On approval, EN/ES email includes an authenticated first-party survey CTA at `akipasa.com/{locale}/business/early-partner?claim={claimId}`. On rejection, the email explains the missing evidence and links to the AkiHQ claims route without any offer.
+
+The production AkiPasa ownership review remains manual; no customer, claim, billing, grant, database or provider data is changed by this AkiHQ source parity patch. Both product email renderers use the same support sender and claim-ID idempotency, so no duplicate send is initiated. New isolated EN/ES tests assert canonical URLs and no AkiBusiness naming for the claim decision flow. Route 66 remains pending human verification.
+
 ## 2026-10-25 | Native user-agent detection
 
 The Android marker AkiHQAndroid must match this product's Google sign-in action.

@@ -1,5 +1,12 @@
 # Change Impact Register
 
+## 2026-10-27 | Mirror AkiPasa's early-adopter claim email in AkiHQ
+
+- **Before:** The AkiHQ claim decision renderer had the old basic approval email and no early-partner survey; depending on which Worker delivered the shared outbox, customers could receive inconsistent content.
+- **Change:** Align EN/ES approvals with the AkiPasa listing Premium-in-AkiHQ offer and first-party survey. Owner/denial management links use `akihq.app` and state that AkiHQ is the manager, not AkiBusiness operations. Reject emails remain promotional-free.
+- **Safety:** No new account, claim, checkout, subscription, SQL, ownership or Stripe changes. Old sent mail is retained as historical. Shared claim-ID provider idempotency is unchanged.
+- **Validation:** Run AkiHQ's full CI and EN/ES sample mail unit tests, verify shipped source independently. Revert source without touching prior delivery status or customer account grants.
+
 ## 2026-10-25 | Android user-agent callback contract
 
 The native shell now emits AkiHQAndroid, matching the existing server Google
