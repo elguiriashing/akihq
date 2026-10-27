@@ -10,7 +10,10 @@ const source = readFileSync(
   "utf8",
 );
 const compiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022,
+  },
 }).outputText;
 
 function fixture({
@@ -76,14 +79,27 @@ function fixture({
   };
 }
 
-for (const id of [null, "", "not-a-tag", "AW-18500420718", "G-PW8547QDGD", 'G-TEST\"<script>']) {
+for (const id of [
+  null,
+  "",
+  "not-a-tag",
+  "AW-18500420718",
+  "G-PW8547QDGD",
+  'G-TEST"<script>',
+]) {
   test(`missing, invalid or AkiPasa ID is closed: ${String(id)}`, () => {
     const f = fixture({ id, analytics: true });
     assert.equal(f.scripts.length, 0);
     assert.equal(f.w.gtag, undefined);
   });
 }
-for (const host of ["localhost", "preview.workers.dev", "preview.pages.dev", `evil.${canonicalHost}`, `${canonicalHost}.evil.test`]) {
+for (const host of [
+  "localhost",
+  "preview.workers.dev",
+  "preview.pages.dev",
+  `evil.${canonicalHost}`,
+  `${canonicalHost}.evil.test`,
+]) {
   test(`does not track noncanonical host ${host}`, () => {
     const f = fixture({ host, analytics: true });
     assert.equal(f.scripts.length, 0);
@@ -95,12 +111,20 @@ test("default consent is denied and does not load any Google script", () => {
   const f = fixture();
   assert.equal(f.scripts.length, 0);
   assert.equal(f.w["ga-disable-G-TEST000001"], true);
-  assert.deepEqual(f.commands().map((c) => c.slice(0, 2)), [
-    ["consent", "default"],
-    ["consent", "update"],
-  ]);
+  assert.deepEqual(
+    f.commands().map((c) => c.slice(0, 2)),
+    [
+      ["consent", "default"],
+      ["consent", "update"],
+    ],
+  );
   for (const command of f.commands()) {
-    for (const key of ["analytics_storage", "ad_storage", "ad_user_data", "ad_personalization"]) {
+    for (const key of [
+      "analytics_storage",
+      "ad_storage",
+      "ad_user_data",
+      "ad_personalization",
+    ]) {
       assert.equal(command[2][key], "denied");
     }
   }
@@ -119,7 +143,10 @@ test("grant uses only the configured destination after denied defaults", () => {
   const f = fixture();
   f.change({ analytics: true });
   assert.equal(f.scripts.length, 1);
-  assert.equal(f.scripts[0].src, "https://www.googletagmanager.com/gtag/js?id=G-TEST000001");
+  assert.equal(
+    f.scripts[0].src,
+    "https://www.googletagmanager.com/gtag/js?id=G-TEST000001",
+  );
   const commands = f.commands();
   assert.equal(commands[0][0], "consent");
   assert.equal(commands[0][1], "default");
@@ -139,15 +166,25 @@ test("marketing consent never enables the AkiPasa advertising campaign", () => {
     assert.equal(c[2].ad_user_data, "denied");
     assert.equal(c[2].ad_personalization, "denied");
   }
-  assert.equal(f.commands().some((c) => c[1] === "AW-18500420718"), false);
+  assert.equal(
+    f.commands().some((c) => c[1] === "AW-18500420718"),
+    false,
+  );
 });
 
 test("server tracking restriction overrides both stored and changed consent", () => {
-  const f = fixture({ analytics: true, marketing: true, trackingAllowed: false });
+  const f = fixture({
+    analytics: true,
+    marketing: true,
+    trackingAllowed: false,
+  });
   f.change({ analytics: true, marketing: true });
   assert.equal(f.scripts.length, 0);
   assert.equal(f.w["ga-disable-G-TEST000001"], true);
-  assert.equal(f.commands().some((c) => c[0] === "config"), false);
+  assert.equal(
+    f.commands().some((c) => c[0] === "config"),
+    false,
+  );
 });
 
 test("repeated grants and effect remounts do not duplicate the loader or config", () => {
@@ -158,7 +195,10 @@ test("repeated grants and effect remounts do not duplicate the loader or config"
   f.change({ analytics: true });
   assert.equal(f.scripts.length, 1);
   assert.equal(f.commands().filter((c) => c[0] === "config").length, 1);
-  assert.equal(f.commands().filter((c) => c[0] === "consent" && c[1] === "default").length, 1);
+  assert.equal(
+    f.commands().filter((c) => c[0] === "consent" && c[1] === "default").length,
+    1,
+  );
   assert.equal(f.w["ga-disable-G-TEST000001"], false);
 });
 
@@ -169,8 +209,13 @@ test("revocation disables measurement and clears only analytics cookies", () => 
   assert.equal(f.commands().at(-1)[2].analytics_storage, "denied");
   assert.ok(f.writes.some((c) => c.includes(`Domain=${canonicalHost}`)));
   assert.ok(f.writes.some((c) => c.includes(`Domain=www.${canonicalHost}`)));
-  assert.ok(f.writes.every((c) => c.startsWith("_ga") && c.includes("Max-Age=0")));
-  assert.equal(f.writes.some((c) => c.includes("akipasa.com")), false);
+  assert.ok(
+    f.writes.every((c) => c.startsWith("_ga") && c.includes("Max-Age=0")),
+  );
+  assert.equal(
+    f.writes.some((c) => c.includes("akipasa.com")),
+    false,
+  );
 });
 
 test("account policy changes revoke tracking without duplicate registration", () => {
