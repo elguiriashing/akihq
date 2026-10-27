@@ -11,11 +11,15 @@ const claim = {
   decision: "approved" as const,
 };
 
-it("approved AkiPasa venue claims link to AkiHQ with the three-month listing Premium survey", () => {
+it("renders AkiHQ-managed AkiPasa Premium claims in EN and ES", () => {
   for (const locale of ["en", "es"] as const) {
     const mail = renderClaimDecision({ ...claim, locale });
-    expect(mail.text).toContain(`https://akihq.app/${locale}/business/venue/${claim.venueId}`);
-    expect(mail.text).toContain(`https://akipasa.com/${locale}/business/early-partner?claim=${claim.claimId}`);
+    expect(mail.text).toContain(
+      `https://akihq.app/${locale}/business/venue/${claim.venueId}`,
+    );
+    expect(mail.text).toContain(
+      `https://akipasa.com/${locale}/business/early-partner?claim=${claim.claimId}`,
+    );
     expect(mail.text).toContain("AkiHQ");
     expect(mail.text).toContain("AkiPasa Premium");
     expect(mail.text).not.toContain("AkiBusiness");
@@ -25,10 +29,16 @@ it("approved AkiPasa venue claims link to AkiHQ with the three-month listing Pre
   }
 });
 
-it("denied claims use the AkiHQ claims route without implying any Premium reward", () => {
+it("keeps claim denials linked to AkiHQ without Premium promises", () => {
   for (const locale of ["en", "es"] as const) {
-    const mail = renderClaimDecision({ ...claim, locale, decision: "rejected" });
-    expect(mail.text).toContain(`https://akihq.app/${locale}/business?view=claims&venueId=${claim.venueId}`);
+    const mail = renderClaimDecision({
+      ...claim,
+      locale,
+      decision: "rejected",
+    });
+    expect(mail.text).toContain(
+      `https://akihq.app/${locale}/business?view=claims&venueId=${claim.venueId}`,
+    );
     expect(mail.text).toContain("AkiHQ");
     expect(mail.text).not.toContain("AkiBusiness");
     expect(mail.text).not.toContain("early-partner");
