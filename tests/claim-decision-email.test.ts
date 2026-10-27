@@ -21,7 +21,9 @@ it("renders AkiHQ-managed AkiPasa Premium claims in EN and ES", () => {
       `https://akipasa.com/${locale}/business/early-partner?claim=${claim.claimId}`,
     );
     expect(mail.text).toContain("AkiHQ");
-    expect(mail.text).toContain("AkiPasa Premium");
+    expect(mail.text).toContain(
+      locale === "es" ? "AkiPasa Premium" : "AkiPasa listing Premium",
+    );
     expect(mail.text).not.toContain("AkiBusiness");
     expect(mail.text).toContain(locale === "es" ? "3 meses" : "3 months");
     expect(mail.html).not.toContain("<script>");
