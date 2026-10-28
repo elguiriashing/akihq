@@ -6,7 +6,6 @@
 - Preserve `/login`, callbacks, recovery, workspace/tenant authorization, existing bookmarks, subscriptions and staff tools. AkiBusiness remains independent.
 - No schema, Stripe, account, email, provider configuration or migration. Test EN/ES guest/auth root, avoid redirect loops, full CI/Cloudflare and exact production SHA. Roll back root page only.
 
-
 ## 2026-10-27 | Mirror AkiPasa's early-adopter claim email in AkiHQ
 
 - **Before:** The AkiHQ claim decision renderer had the old basic approval email and no early-partner survey; depending on which Worker delivered the shared outbox, customers could receive inconsistent content.
