@@ -18,15 +18,12 @@ export default async function Home({
   searchParams: Promise<{ lang?: string; locale?: string }>;
 }) {
   const locale = managementLocale("/", await searchParams);
+  let signedIn = false;
   try {
     const { user } = await optionalUser();
-    if (user) redirect(`/${locale}/business`);
-  } catch (error) {
-    // Next.js redirect uses a thrown navigation signal: never swallow it.
-    if (error && typeof error === "object" && "digest" in error &&
-        String(error.digest).startsWith("NEXT_REDIRECT")) throw error;
-    // If the auth service is unavailable, the dedicated login still provides
-    // recovery/help without publishing the retired sales homepage.
+    signedIn = Boolean(user);
+  } catch {
+    // Preserve access to the sign-in/recovery page during auth outages.
   }
-  redirect(`/login?lang=${locale}`);
+  redirect(signedIn ? `/${locale}/business` : `/login?lang=${locale}`);
 }
