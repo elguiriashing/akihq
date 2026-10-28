@@ -205,22 +205,27 @@ describe("existing identity security contracts", () => {
   });
 });
 
-describe("public AkiHQ product-link identity", () => {
-  it("renders the three discovery brands with existing PortalLogo assets and accessible destinations", () => {
+describe("AkiHQ private management entry and independent product identities", () => {
+  it("routes root visitors to the host-local sign-in or authorized workspace", () => {
     const page = readFileSync("src/app/page.tsx", "utf8");
+    expect(page).toContain("optionalUser");
+    expect(page).toContain("redirect(signedIn ?");
+    expect(page).toContain("robots: { index: false, follow: false }");
+    expect(page).toContain("/login?lang=");
+    expect(page).toContain("/business");
+    expect(page).not.toContain("usedForTitle");
+    expect(page).not.toContain("public landing");
+  });
+
+  it("retains each product's brand assets without merging AkiBusiness", () => {
     const logo = readFileSync("src/components/PortalLogo.tsx", "utf8");
-    const styles = readFileSync("src/app/landing.css", "utf8");
-    for (const [product, domain, source] of [
-      ["pasa", "akipasa.com", "/brand/v3/pasa.svg"],
-      ["duermo", "akiduermo.com", "/brand/v3/duermo.svg"],
-      ["coches", "akicoches.com", "/brand/v3/coches.svg"],
+    for (const source of [
+      "/brand/v3/pasa.svg",
+      "/brand/v3/duermo.svg",
+      "/brand/v3/coches.svg",
+      "/brand/v3/business.svg",
     ]) {
-      expect(page).toContain(`<PortalLogo product="${product}" />`);
-      expect(page).toContain(`href="https://${domain}/"`);
       expect(logo).toContain(source);
     }
-    expect(page).toContain("usedForTitle");
-    expect(page).toContain("PARA GESTIONAR");
-    expect(styles).toContain(".hq-used-for-logos");
   });
 });
