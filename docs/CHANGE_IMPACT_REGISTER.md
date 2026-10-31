@@ -1,5 +1,28 @@
 # Change Impact Register
 
+## 2026-10-28 | Business-only root
+
+- `/` no longer exposes public marketing; it resolves to existing `/login?lang=en|es` or the existing signed-in `/{locale}/business` using host-local authentication.
+- Preserve `/login`, callbacks, recovery, workspace/tenant authorization, existing bookmarks, subscriptions and staff tools. AkiBusiness remains independent.
+- No schema, Stripe, account, email, provider configuration or migration. Test EN/ES guest/auth root, avoid redirect loops, full CI/Cloudflare and exact production SHA. Roll back root page only.
+
+## 2026-10-27 | Mirror AkiPasa's early-adopter claim email in AkiHQ
+
+- **Before:** The AkiHQ claim decision renderer had the old basic approval email and no early-partner survey; depending on which Worker delivered the shared outbox, customers could receive inconsistent content.
+- **Change:** Align EN/ES approvals with the AkiPasa listing Premium-in-AkiHQ offer and first-party survey. Owner/denial management links use `akihq.app` and state that AkiHQ is the manager, not AkiBusiness operations. Reject emails remain promotional-free.
+- **Safety:** No new account, claim, checkout, subscription, SQL, ownership or Stripe changes. Old sent mail is retained as historical. Shared claim-ID provider idempotency is unchanged.
+- **Validation:** Run AkiHQ's full CI and EN/ES sample mail unit tests, verify shipped source independently. Revert source without touching prior delivery status or customer account grants.
+
+## 2026-10-25 | Android user-agent callback contract
+
+The native shell now emits AkiHQAndroid, matching the existing server Google
+OAuth initiator. The previous AkiPasaAndroid marker omitted android=1 and left
+the browser on the ordinary callback. A regression derives its input from the
+actual MainActivity source and invokes the real server action. Package/version,
+signing, provider configuration, cookie/PKCE flow and data permissions are unchanged.
+Native compile/tests/lint and hosted web checks must pass; actual signed-device
+Google return remains a separate acceptance check.
+
 ## 2026-10-24 | Owner-approved monthly pricing and upgrade paths
 
 The current commercial catalogue is `APPROVED_PRICING_20261024.md` and
@@ -1965,3 +1988,216 @@ No roles, links, data, billing, analytics, storage or provider configuration cha
 See AKISUITE_ICON_FAMILY.md for dependencies, checks, native rebuild limitations
 and source-only rollback. Local visual/asset validation and required CI are
 separate from exact-source production and signed native-device acceptance.
+
+## 2026-10-25 | AkiSuite navigation and surface continuity
+
+Owner-authorized tightening preserves identity, tenant permissions, booking and
+billing authority. Discovery membership audience now survives explicit Business
+handoffs, reload and browser history without enabling checkout. Duermo/Coches
+share one desktop rail/mobile dock component where available; Coches membership
+retains its product header. Pasa's auth selector uses all five canonical brands
+and origins. Duermo auth stays teal; HQ marketing and login use one request
+language, keep readable dark-surface text, and expose header controls. Business
+login gains local home/language/appearance controls retaining input only in memory.
+Each repository carries only its affected subset. No schema, feature activation,
+provider setting, customer record or native signing change. Source revert is the
+rollback. Full source, browser/CI and exact production checks remain required;
+device/authenticated acceptance must not be inferred from fixtures.
+
+## 2026-10-25 | AkiSelector workspace login integration
+
+Alex explicitly selected the existing private lab's AkiSelector for the public
+login workspace chooser. All five apps appear: Pasa orange, Duermo teal,
+Coches red/burgundy, HQ yellow/space grey and Business purple. Reuse the
+engine's card scene, swipe, keyboard navigation and reduced-motion behavior
+in a compact sign-in adapter. Previewing an app never submits, navigates or
+replaces a login form; opening another app is an explicit localized action
+with only the bounded referral code passed across origins. Current product
+is selected initially. Mobile keeps the chooser after the sign-in fields.
+The static operating app uses a DOM adapter and the same scene styles, with
+no framework runtime or third-party dependency added. The private lab keeps
+its administrator-only route. No pricing, session, tenant, permissions or
+provider setting changes. Source revert is rollback. Source, responsive
+browser, exact live source and physical device acceptance remain distinct.
+
+### Login selector focus and clipping acceptance
+
+Keyboard selection focuses only after the selected card is committed, using
+preventScroll. The compact login scene clips without becoming a scroll container,
+so Home/End cannot shift the card stage sideways. This changes presentation
+focus only; application opening remains an explicit link. Browser evidence
+asserts zero scene scroll and captures settled transitions.
+
+## 2026-10-26 | Direct workspace icon navigation
+
+Owner-requested sign-in refinement: the five icon cards are the navigation
+links themselves. Remove the visible previous/next controls, caption/count and
+separate Open/current-workspace row from every public login chooser. Swiping
+and Arrow/Home/End browse the carousel without navigation or draft changes;
+an explicit tap/click or Enter on an icon follows its canonical localized link.
+Suppress the compatibility click after a horizontal swipe so it cannot open an
+app accidentally. Current app identity uses aria-current; browsing is distinct
+from authorization and never submits the sign-in form. The private lab keeps
+its original radio-selection controls by default through an opt-in link mode.
+
+Dependencies: identical React engine/adapter/CSS copies in Pasa, Duermo, Coches
+and HQ; equivalent static Business adapter at both guest sign-in entries.
+Business selector assets advance to v2 and production offline cache to 155,
+with release assertions retained. Existing bounded referral-only href helper,
+EN/ES, product icons/palettes, reduced motion, roving focus, 44px active targets
+and phone placement after the form remain. No session, permission, identity,
+price, tenant, API/provider, database, analytics or customer-data changes.
+
+Validation: destination/keyboard/private-lab regressions plus responsive browser
+checks for first-click icon navigation, swipe click suppression, retained draft,
+no footer/actions, localized/referral-safe URLs and zero scene scroll. Complete
+hosted source/browser/Cloudflare checks and exact live-source verification are
+required before release; installed native/device acceptance remains separate.
+Rollback is a source revert and renewed Business asset/cache versions.
+
+### 2026-10-26 | HQ membership Pasa artwork
+
+Use the v3 Pasa app icon beside the existing Duermo/Coches app icons in both
+languages; the stacked wordmark is inappropriate in the square package badge.
+No package, price, entitlement or destination changes. Rendered membership
+regressions cover the selected icon; required CI/live verification remains.
+
+## 2026-10-26 | Cinematic AkiSelector energy and transitions
+
+The login selector now uses five distinct vector-mask materials: Pasa flame
+tongues/cinders, Duermo tidal ribbons, Coches diagonal velocity trails, HQ
+precision orbital tracks and Business spectral curtains. The existing generic
+effect IDs remain compatible with the private lab. Every activation has a
+brief lens flare, dissipating wave and glass reflection. Outgoing artwork stays
+mounted for a 650ms opacity decay; incoming energy ramps over 280ms while card
+travel eases over 680ms. Interrupted changes converge via CSS transitions,
+without JavaScript animation frames or timeouts. Inactive material loops pause.
+
+Mouse hover previews only energy and retains selection, roving focus, current
+app and href geometry; pointer exit restores selected energy. Touch/pen retain
+swipe browsing and direct icon navigation with the compatibility-click guard.
+Keyboard input clears hover preview. EN/ES, referral-only links, preserved
+login drafts, mobile placement and administrator-only lab boundaries remain.
+Both explicit motion-off and OS reduced motion remove loops/transitions/flare.
+
+Dependencies: shared React engine/CSS in Pasa, Duermo, Coches and HQ; equivalent
+DOM adapter and identical CSS in Business. Business engine CSS, adapter CSS and JS URLs advance to
+v2/v3/v3 and its effective paid release cache to v156, including release assertions.
+No authentication exchange, session, API, tenant/role, database, storage,
+analytics, payment, provider configuration or Android binary change. This is
+web-delivered presentation. Rollback restores source and advances static asset
+versions/cache again. Source and real-browser evidence is recorded in the PR;
+full CI, production deployment and physical-device acceptance are separate gates.
+
+## 2026-10-26 | Product-specific AkiSelector opening stories
+
+The five login choices opt into an optional product arrival independently from
+the reusable ember/breeze/bloom/solar/aurora idle effect. Pasa drops a discovery
+pin and sparks; Duermo rolls and softly lands a suitcase; Coches sends a red
+coupe with spinning wheels and a light wake across the foreground; free AkiHQ
+gathers locations into a management hub; operations AkiBusiness wakes a till
+and prints a receipt. Each decorative vector story plays once over 1.25–1.7s,
+then disappears as its material rises into the sustained hovering/orbit phase.
+The Coches idle is slower and includes a red orbital arc. Returning to an app
+restarts its story; uninterrupted idle does not replay it. Generic lab effects
+remain compatible without product stories unless the caller opts in.
+
+Dependencies: AkiSelector option arrival, WorkspaceSelector adapter, shared CSS
+and the equivalent static Business DOM adapter. All artwork is inline SVG masks
+and CSS; no image/provider calls, animation timers or new packages. Decorative
+actors ignore pointer events and are hidden from assistive technology. Direct
+links are immediate, with no animation wait; browsing, safe referral/locale
+URLs, drafts, keyboard focus, swipe suppression and auth/session/permissions
+remain intact. Reduced motion and motion-off hide opening stories and keep
+static idle artwork. Business engine CSS v3 / adapter CSS v3 / JS v4 and the
+effective release cache v157 advance together with release assertions.
+
+Validation includes all five actual actor animations becoming visible, finishing
+once and handing off to full idle opacity, plus source/component/browser parity.
+The current report records completed checks and separate broader map acceptance.
+No production data, SQL, storage, billing, analytics, provider configuration or
+Android binary changes. Source revert plus fresh static versions is rollback.
+GitHub publication is still awaiting the explicit authorization requested earlier;
+no push, PR, merge or deployment is implied by this design refinement.
+
+## 2026-10-26 | Aligned AkiHQ and AkiBusiness marketing headers
+
+The homepage uses SuiteMarketingHeader with a byte-identical shared stylesheet
+in AkiBusiness assets. Order is brand, Tools, Pricing, sibling product, language,
+appearance, Aki Apps and sign-in. Fixed link/control slots, 40px brand artwork,
+44px controls, 88px desktop header, common padding and a stable scrollbar gutter
+keep corresponding buttons in the same position across both products. At <=680px
+there are two compact rows; the sibling remains in Apps when its direct link is
+hidden at <=900px. Each product retains its own colour and wordmark.
+
+Dependencies: root marketing page, PortalHeaderTools, ThemeToggle, canonical
+suiteHref/referral destinations, EN/ES managementLocale and /login language.
+Account/management headers, authentication, session boundaries, tenant/RLS,
+subscription/price/readiness, APIs, data, analytics, provider config and native
+shell are untouched. No sibling-checkout import. Rollback is a source revert.
+The independent main branch and existing Worker remain the release authority.
+
+Validation: actual header rendered assertions pass both locales and retain
+control order/localized login/peer links. A Chromium harness using actual
+components and production styles compared all corresponding header slots with
+the static Business adapter: 40 surfaces across EN/ES, light/dark and widths
+360/600/900/1280/1536 passed within 1 CSS pixel. Menu opening, Escape, bounds,
+40px branding, 44px sign-in and horizontal overflow were checked; desktop/mobile
+screenshots inspected. The initial full HQ check passed 401 tests and its Next
+production build; added header regressions pass 2/2. Final lint/types, packaging,
+required hosted CI and actual deployed source remain separate release gates.
+
+Verification update: final full-repository formatting, lint and TypeScript checks
+passed, plus the added 2/2 header tests. The earlier full check passed all401
+existing tests and the Next production build. The shared stylesheet remains
+byte-identical to the static Business copy. Cloudflare packaging and hosted
+required checks are separate release evidence; no live publication is claimed.
+
+## 2026-10-26 | Mouse dragging, corner arrows and branded login names
+
+The public login AkiSelector supports primary-button mouse dragging alongside
+touch/pen swipes. Cards follow a bounded horizontal pointer offset; capture
+starts only after 10px of horizontal intent, leaving ordinary clicks and
+vertical touch scrolling intact. Release outside the scene is supported. A
+45px horizontal release browses one enabled option, with wraparound; shorter
+drags snap back and suppress their compatibility click. Pointer cancellation
+and capture loss clear temporary offsets. Modified/right/middle clicks retain
+ordinary link behavior, and starting a later pointer/keyboard action clears the
+click guard. Native HTML link/image dragging is prevented within the scene.
+
+Two localized, keyboard-accessible 44px circular arrows sit in the lower scene
+corners. They browse in place without submitting, navigating or replacing the
+login form; the separate footer/caption stays hidden. Generic lab callers opt
+in via showBrowseArrows. Names use the individual product accent and self-hosted
+Poppins Semibold 600, with a dark label backing for legibility over effects.
+The Latin WOFF2 is vendored from @fontsource/poppins 5.3.0 with its SIL OFL;
+requests stay on the app's own origin. Existing startup/idle artwork, motion-off,
+reduced motion, EN/ES/referral-safe hrefs, current-product semantics, drafts and
+auth/session/role behavior remain. No API, database, billing, analytics, provider
+or native Android binary change.
+
+Shared React engine, adapter, CSS and font assets are copied across four Next
+apps; Business has an equivalent DOM adapter and matching assets. Business
+engine/adapter CSS v4, JS v5 and paid release cache v158 include the font and
+retain production assertions. Acceptance covers real mouse capture/release
+outside the scene, follow-pointer geometry, short-drag suppression, immediate
+subsequent clicks, arrows/wraparound/keyboard, touch and cancelled gestures,
+loaded font/brand colours and responsive label bounds. Regression evidence is
+recorded in the PR; exact-head CI and production verification gate release.
+Rollback restores source with fresh static cache/asset versions; no data rollback.
+
+Capture-transfer follow-up: descendant lostpointercapture events are ignored;
+only loss on the scene cancels its gesture. Mouse movement with no primary
+button held clears a pending gesture after an uncaptured outside release.
+Acceptance now uses real Chromium touch input originating on a card descendant,
+and covers outside vertical release followed by ordinary mouse hover.
+
+## 2026-10-31 — Consolidated HQ privacy, analytics and Android source
+
+Integrates PRs #90, #99 and #86 on current main `ba33054c4df0a40c93192656f0d21ee86cc99693`, preserving the business-only root, current web OAuth behavior, tenant authorization and shared identity. The EN/ES public privacy notice and account links now identify AkiHQ and the shared deletion process. AkiPasa #342 is verified live at `6151fea31ba397bde0e266072a95ce243a6ce015`; both public localized deletion instructions were checked anonymously.
+
+Analytics removes the copied AkiPasa destination and remains disabled without a verified independent HQ measurement ID. Canonical host, visitor consent, server eligibility, denied advertising, revocation and remount handling remain enforced. Google receipt and configuration of the existing independent HQ stream are still unverified activation requirements. The privacy wording is conditional on analytics availability.
+
+Android uses the strict fixed-origin callback parser, including rejection of duplicate or conflicting native markers, and prioritizes validated incoming callbacks over restored WebView state. Current main's manifest and scheme filter remain unchanged. The workflow produces unsigned release/debug artifacts and an importable Studio project; it does not sign, publish or install an app. Physical signed-device OAuth remains unverified.
+
+Fresh integrated-head format, lint, type, web/browser/account, analytics and Android checks are required before source merge. Original PR check results are historical. No production SQL, customer mutation, provider setup, deletion or backup cleanup is performed. Rollback is a source revert/redeploy, with no data rollback. This entry records source readiness and explicit remaining acceptance limits; it does not certify real deletion or provider operation.

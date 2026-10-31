@@ -1,0 +1,1301 @@
+/* AkiSelector v2 · five materials, continuous energy, no runtime animation loop. */
+.aks-selector {
+  --aks-glow: 242, 107, 29;
+  --aks-energy: 0.85;
+  --aks-ease: cubic-bezier(0.18, 0.8, 0.22, 1);
+  width: 100%;
+  max-width: 900px;
+  color: #fff6e9;
+  isolation: isolate;
+}
+.aks-selector[data-intensity="subtle"] {
+  --aks-energy: 0.65;
+}
+.aks-selector[data-intensity="cinematic"] {
+  --aks-energy: 1;
+}
+.aks-selector__scene {
+  position: relative;
+  width: 100%;
+  height: clamp(320px, 44vw, 440px);
+  overflow: hidden;
+  border: 1px solid #ffffff12;
+  border-radius: 25px;
+  background:
+    radial-gradient(ellipse at 50% 110%, #182337, transparent 70%), #080c16;
+  touch-action: pan-y;
+}
+.aks-selector__scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.3;
+  background-image: radial-gradient(circle, #ffffff55 0.6px, transparent 1px);
+  background-size: 29px 29px;
+  mask-image: linear-gradient(transparent, #0008 60%, transparent);
+}
+.aks-selector__ambient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 38% 65% at 50% 55%,
+    #ffffff06,
+    transparent
+  );
+  opacity: var(--aks-energy);
+}
+.aks-selector__floor {
+  position: absolute;
+  bottom: 12%;
+  left: 12%;
+  width: 76%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #ffffff26, transparent);
+  pointer-events: none;
+}
+.aks-selector__floor::after {
+  content: "";
+  position: absolute;
+  inset: -12px 25%;
+  border-radius: 50%;
+  background: #ffffff12;
+  filter: blur(16px);
+}
+.aks-selector__card {
+  --aks-own-glow: 242, 107, 29;
+  position: absolute;
+  top: 45%;
+  width: clamp(100px, 24%, 142px);
+  height: clamp(162px, 39%, 206px);
+  padding: 0;
+  color: #f9fafc;
+  border: 1px solid #ffffff20;
+  border-radius: 32px;
+  background: linear-gradient(155deg, #1b2332, #0b101c 72%);
+  box-shadow:
+    0 14px 30px #0005,
+    inset 0 1px #ffffff0a;
+  cursor: pointer;
+  transform: translate(calc(-50% + var(--aks-drag-offset, 0px)), -50%)
+    scale(0.78);
+  opacity: 0.58;
+  z-index: calc(8 - var(--aks-order));
+  transition:
+    left 0.68s var(--aks-ease),
+    transform 0.68s var(--aks-ease),
+    opacity 0.5s ease,
+    border-color 0.5s ease,
+    box-shadow 0.6s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.aks-selector__card[data-effect="ember"] {
+  --aks-own-glow: 242, 107, 29;
+}
+.aks-selector__card[data-effect="breeze"] {
+  --aks-own-glow: 47, 194, 165;
+}
+.aks-selector__card[data-effect="bloom"] {
+  --aks-own-glow: 255, 48, 71;
+}
+.aks-selector__card[data-effect="solar"] {
+  --aks-own-glow: 255, 197, 51;
+}
+.aks-selector__card[data-effect="aurora"] {
+  --aks-own-glow: 154, 112, 250;
+}
+.aks-selector__card[data-selected="true"] {
+  z-index: 10;
+  opacity: 1;
+  transform: translate(calc(-50% + var(--aks-drag-offset, 0px)), -50%) scale(1);
+  border-color: rgba(var(--aks-own-glow), 0.65);
+  box-shadow:
+    0 18px 35px #0007,
+    0 0 24px rgba(var(--aks-own-glow), 0.17),
+    inset 0 1px #ffffff25;
+}
+.aks-selector__card[data-energized="true"] {
+  z-index: 11;
+  opacity: 1;
+  border-color: rgba(var(--aks-own-glow), 0.85);
+  box-shadow:
+    0 18px 35px #0007,
+    0 0 32px rgba(var(--aks-own-glow), 0.26),
+    inset 0 0 24px rgba(var(--aks-own-glow), 0.08);
+}
+.aks-selector__card[data-selected="false"]:hover {
+  transform: translate(calc(-50% + var(--aks-drag-offset, 0px)), -50%)
+    scale(0.86);
+}
+.aks-selector__card:disabled {
+  cursor: default;
+}
+.aks-selector__card:focus-visible,
+.aks-selector__nav:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 6px;
+}
+.aks-selector__card-face {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 14px 7px;
+  overflow: hidden;
+  border-radius: inherit;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(var(--aks-own-glow), 0.16),
+    transparent 75%
+  );
+}
+/* A narrow moving reflection gives the glass its own arrival beat. */
+.aks-selector__card-face::after {
+  content: "";
+  position: absolute;
+  inset: -50% -100%;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 44%,
+    #ffffff20 48%,
+    #ffffff04 52%,
+    transparent 56%
+  );
+  opacity: 0;
+  transform: translateX(-45%);
+}
+.aks-selector__card[data-energized="true"] .aks-selector__card-face::after {
+  animation: aks-glass-arrive 1.1s var(--aks-ease) both;
+}
+.aks-selector__symbol {
+  font-size: clamp(28px, 4vw, 41px);
+  line-height: 1;
+  filter: drop-shadow(0 5px 10px #0005);
+  transition: transform 0.7s var(--aks-ease);
+}
+.aks-selector__card[data-energized="true"] .aks-selector__symbol {
+  transform: translateY(-2px);
+}
+.aks-selector__label {
+  font-size: 0.91rem;
+  line-height: 1.2;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+/* Keep every outgoing layer mounted: energy decays instead of disappearing. */
+.aks-selector__effect {
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  inset: -42% -65%;
+  display: block;
+  opacity: 0;
+  transform: scale(0.7) translateY(8px);
+  transition:
+    opacity 0.65s ease,
+    transform 0.85s var(--aks-ease);
+}
+.aks-selector__card[data-energized="true"] .aks-selector__effect {
+  opacity: var(--aks-energy);
+  transform: scale(1) translateY(0);
+  transition-duration: 0.28s, 0.85s;
+}
+.aks-selector__effect::before {
+  content: "";
+  position: absolute;
+  inset: -15%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse,
+    rgba(var(--aks-own-glow), 0.24),
+    transparent 65%
+  );
+  transform: scale(1.1);
+}
+.aks-selector__effect-orbit,
+.aks-selector__effect-burst,
+.aks-selector__effect-sparks {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: linear-gradient(
+    160deg,
+    #fff5cb,
+    rgba(var(--aks-own-glow), 1) 35%,
+    rgba(var(--aks-own-glow), 0.1) 90%
+  );
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  filter: drop-shadow(0 0 5px rgba(var(--aks-own-glow), 0.8));
+  animation-play-state: paused;
+}
+.aks-selector__card[data-energized="true"]
+  :is(
+    .aks-selector__effect-orbit,
+    .aks-selector__effect-burst,
+    .aks-selector__effect-sparks
+  ) {
+  animation-play-state: running;
+}
+/* PASA · sculpted flame tongues, convection and rising cinders. */
+[data-effect="ember"] > .aks-selector__effect .aks-selector__effect-orbit {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cpath fill='white' d='M74 246C3 211 36 160 21 121C61 142 24 199 77 214C43 163 84 146 63 73C119 123 60 151 101 188C87 124 135 96 113 12C181 79 121 132 151 168C175 145 169 112 175 94C219 180 179 238 132 248C156 216 142 205 139 190C112 218 118 241 111 254C96 222 74 228 74 246Z'/%3E%3C/svg%3E");
+  animation: aks-fire-rise 2.8s ease-in-out infinite alternate;
+}
+[data-effect="ember"] > .aks-selector__effect .aks-selector__effect-burst {
+  inset: 16% 12% -4%;
+  opacity: 0.6;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cpath fill='white' d='M40 238C-3 190 50 180 29 119C80 151 33 192 73 215C73 164 118 139 98 54C153 113 101 177 132 207C151 188 154 167 153 142C193 195 155 239 127 250L40 238Z'/%3E%3C/svg%3E");
+  animation: aks-fire-inner 1.9s ease-in-out infinite alternate;
+}
+[data-effect="ember"] > .aks-selector__effect .aks-selector__effect-sparks {
+  inset: 10%;
+  opacity: 0.2;
+  filter: blur(8px);
+  mask-image: linear-gradient(transparent, #000);
+  animation: aks-breathe 3s ease-in-out infinite alternate;
+}
+/* DUERMO · long liquid ribbons; a calm tidal field, without dashed circles. */
+[data-effect="breeze"] > .aks-selector__effect .aks-selector__effect-orbit {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cg fill='none' stroke='white' stroke-linecap='round'%3E%3Cpath stroke-width='2' d='M-30 172C35 20 104 247 230 64M-32 202C51 43 106 268 230 94'/%3E%3Cpath stroke-width='6' d='M-30 187C42 30 104 261 230 79'/%3E%3Cpath stroke-width='1' d='M-30 217C59 64 116 283 230 109'/%3E%3C/g%3E%3C/svg%3E");
+  animation: aks-tide 5s ease-in-out infinite alternate;
+}
+[data-effect="breeze"] > .aks-selector__effect .aks-selector__effect-burst {
+  inset: 2% -10%;
+  opacity: 0.5;
+  transform: rotate(175deg);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cpath fill='none' stroke='white' stroke-width='3' d='M-20 148C31 260 91 7 220 132M-20 160C31 272 91 19 220 144M-20 169C31 281 91 28 220 153'/%3E%3C/svg%3E");
+  animation: aks-undertow 6s ease-in-out infinite alternate;
+}
+[data-effect="breeze"] > .aks-selector__effect .aks-selector__effect-sparks {
+  inset: 10%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse,
+    transparent 25%,
+    rgba(var(--aks-own-glow), 0.25),
+    transparent 65%
+  );
+  animation: aks-breathe 4s ease-in-out infinite alternate;
+}
+/* COCHES · sharp red aero wakes, hot vanishing points, diagonal velocity. */
+[data-effect="bloom"] > .aks-selector__effect .aks-selector__effect-orbit {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cg fill='white'%3E%3Cpath d='M0 208L200 63L44 190ZM0 228L200 83L66 190ZM0 246L200 108L91 193ZM12 173L181 48L46 162ZM30 248L196 133L88 225Z'/%3E%3C/g%3E%3C/svg%3E");
+  animation: aks-velocity 1.65s cubic-bezier(0.2, 0.5, 0.3, 1) infinite;
+}
+[data-effect="bloom"] > .aks-selector__effect .aks-selector__effect-burst {
+  inset: -8% -18%;
+  opacity: 0.55;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cg fill='none' stroke='white'%3E%3Cpath stroke-width='1' d='M-20 203L220 33M-20 218L220 48M-20 236L220 66M-20 255L220 85'/%3E%3Cpath stroke-width='3' d='M0 173L45 141M156 102L200 71M10 252L67 212'/%3E%3C/g%3E%3C/svg%3E");
+  animation: aks-velocity 2.2s 0.3s ease-out infinite;
+}
+[data-effect="bloom"] > .aks-selector__effect .aks-selector__effect-sparks {
+  inset: 14% -18%;
+  background: linear-gradient(
+    145deg,
+    transparent 40%,
+    rgba(var(--aks-own-glow), 0.4) 50%,
+    transparent 60%
+  );
+  filter: blur(12px);
+  animation: aks-breathe 2.5s ease-in-out infinite alternate;
+}
+/* HQ · precision instrument: segmented orbital tracks and a rotating gimbal. */
+[data-effect="solar"] > .aks-selector__effect .aks-selector__effect-orbit {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cg fill='none' stroke='white'%3E%3Cellipse cx='100' cy='130' rx='87' ry='69' transform='rotate(-40 100 130)' stroke-width='2'/%3E%3Cellipse cx='100' cy='130' rx='74' ry='100' stroke-width='1' stroke-dasharray='28 8 2 8'/%3E%3Cpath d='M100 18V31M100 229V242M4 130H17M183 130H196' stroke-width='3'/%3E%3C/g%3E%3C/svg%3E");
+  animation: aks-gimbal 18s linear infinite;
+}
+[data-effect="solar"] > .aks-selector__effect .aks-selector__effect-burst {
+  inset: 7% -2%;
+  opacity: 0.7;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cg fill='none' stroke='white'%3E%3Cpath stroke-width='5' d='M30 110A75 91 0 0 1 126 43M171 151A75 91 0 0 1 73 217'/%3E%3Cellipse cx='100' cy='130' rx='93' ry='54' transform='rotate(36 100 130)' stroke-width='1' stroke-dasharray='2 7'/%3E%3C/g%3E%3C/svg%3E");
+  animation: aks-gimbal 12s linear infinite reverse;
+}
+[data-effect="solar"] > .aks-selector__effect .aks-selector__effect-sparks {
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 45deg,
+    transparent 0 30%,
+    rgba(var(--aks-own-glow), 0.17),
+    transparent 50%
+  );
+  mask-image: radial-gradient(
+    ellipse,
+    transparent 35%,
+    #000 50%,
+    transparent 68%
+  );
+  animation: aks-gimbal 8s linear infinite;
+}
+/* BUSINESS · folded spectral curtains with a bright, wandering silk edge. */
+[data-effect="aurora"] > .aks-selector__effect .aks-selector__effect-orbit {
+  background: linear-gradient(
+    170deg,
+    #c2d6ff 0%,
+    #b58bff 24%,
+    rgba(var(--aks-own-glow), 0.75) 55%,
+    transparent 88%
+  );
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cpath fill='white' d='M10 208C58 163 13 85 53 32C66 67 73 72 91 26C98 70 122 49 136 20C122 83 172 97 190 54L187 211C152 247 143 168 122 227C93 258 85 173 64 225C49 249 33 174 10 251Z'/%3E%3C/svg%3E");
+  opacity: 0.55;
+  animation: aks-silk 6s ease-in-out infinite alternate;
+}
+[data-effect="aurora"] > .aks-selector__effect .aks-selector__effect-burst {
+  inset: -2% 3%;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260'%3E%3Cg fill='none' stroke='white'%3E%3Cpath stroke-width='2' d='M14 234C70 168 22 93 54 32C70 81 74 69 91 26C98 82 119 58 136 20C124 100 170 106 188 54'/%3E%3Cpath stroke-width='1' d='M20 254C76 188 28 113 60 52C76 101 80 89 97 46C104 102 125 78 142 40C130 120 176 126 194 74'/%3E%3C/g%3E%3C/svg%3E");
+  animation: aks-silk 4.5s ease-in-out infinite alternate-reverse;
+}
+[data-effect="aurora"] > .aks-selector__effect .aks-selector__effect-sparks {
+  inset: 10%;
+  background: repeating-linear-gradient(
+    94deg,
+    transparent 0 8px,
+    rgba(var(--aks-own-glow), 0.16) 9px,
+    transparent 12px 19px
+  );
+  mask-image: radial-gradient(ellipse, #0008, transparent 70%);
+  animation: aks-silk 7s ease-in-out infinite alternate;
+}
+[data-effect="quiet"]
+  > .aks-selector__effect
+  :is(
+    .aks-selector__effect-orbit,
+    .aks-selector__effect-burst,
+    .aks-selector__effect-sparks,
+    .aks-selector__particles
+  ) {
+  display: none;
+}
+/* Shared arrival grammar: a short lens flare, followed by a dissipating wave. */
+.aks-selector__ignition {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.aks-selector__ignition::before,
+.aks-selector__ignition::after {
+  content: "";
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+}
+.aks-selector__ignition::before {
+  border: 1px solid rgba(var(--aks-own-glow), 0.9);
+  box-shadow: 0 0 12px rgba(var(--aks-own-glow), 0.4);
+}
+.aks-selector__ignition::after {
+  inset: 48% -10%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--aks-own-glow), 0.8),
+    #fff9,
+    rgba(var(--aks-own-glow), 0.8),
+    transparent
+  );
+  filter: blur(3px);
+}
+.aks-selector__card[data-effect="bloom"] .aks-selector__ignition {
+  rotate: -36deg;
+}
+.aks-selector__card[data-effect="breeze"] .aks-selector__ignition::before {
+  border-radius: 40% 60% 45% 55%;
+  scale: 1.2 0.7;
+}
+.aks-selector__card[data-effect="solar"] .aks-selector__ignition::before {
+  border-style: dashed;
+}
+.aks-selector__card[data-effect="aurora"] .aks-selector__ignition::after {
+  rotate: 90deg;
+  filter: blur(6px);
+}
+[data-energized="true"] .aks-selector__ignition {
+  opacity: 1;
+}
+[data-energized="true"] .aks-selector__ignition::before {
+  animation: aks-shockwave 1s var(--aks-ease) both;
+}
+[data-energized="true"] .aks-selector__ignition::after {
+  animation: aks-flare 0.8s var(--aks-ease) both;
+}
+.aks-selector__particles {
+  position: absolute;
+  inset: 0;
+}
+.aks-selector__particles i {
+  --aks-angle: calc(var(--aks-particle) * 137.5deg);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(var(--aks-own-glow), 0.9);
+  box-shadow: 0 0 5px rgba(var(--aks-own-glow), 0.7);
+  opacity: 0;
+  animation: aks-motes 3.2s calc(var(--aks-particle) * -0.32s) ease-out infinite
+    paused;
+}
+[data-energized="true"] .aks-selector__particles i {
+  animation-play-state: running;
+}
+.aks-selector__card[data-effect="ember"] .aks-selector__particles i {
+  height: 6px;
+  animation-name: aks-cinders;
+}
+.aks-selector__card[data-effect="bloom"] .aks-selector__particles i {
+  width: 18px;
+  height: 1px;
+  border-radius: 0;
+  animation-name: aks-speed-particle;
+}
+.aks-selector__card[data-effect="solar"] .aks-selector__particles i {
+  width: 3px;
+  height: 3px;
+  border-radius: 0;
+}
+.aks-selector__footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 10px 0;
+}
+.aks-selector__caption {
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  text-align: center;
+}
+.aks-selector__caption strong {
+  font-size: 1.1rem;
+}
+.aks-selector__caption span {
+  color: #b8c4d6;
+  font-size: 0.9rem;
+}
+.aks-selector__caption small {
+  color: #8495b1;
+  font-size: 0.72rem;
+}
+.aks-selector__nav {
+  width: 45px;
+  height: 45px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 1px solid #ffffff48;
+  color: inherit;
+  background: #1a2a42;
+  cursor: pointer;
+  font-size: 1.35rem;
+}
+.aks-selector__nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.aks-selector--empty {
+  padding: 2rem;
+  border: 1px solid #ffffff33;
+  border-radius: 16px;
+}
+@keyframes aks-glass-arrive {
+  0% {
+    opacity: 0;
+    transform: translateX(-45%);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(45%);
+  }
+}
+@keyframes aks-fire-rise {
+  from {
+    transform: translateY(7px) scale(0.94, 1) rotate(-4deg);
+  }
+  to {
+    transform: translateY(-6px) scale(1.04, 1.07) rotate(4deg);
+  }
+}
+@keyframes aks-fire-inner {
+  from {
+    transform: scale(0.88, 1.04) skewX(4deg);
+  }
+  to {
+    transform: scale(1.08, 0.94) skewX(-7deg);
+  }
+}
+@keyframes aks-tide {
+  from {
+    transform: translate(-9px, 8px) rotate(-8deg) scale(0.95);
+  }
+  to {
+    transform: translate(9px, -8px) rotate(8deg) scale(1.05);
+  }
+}
+@keyframes aks-undertow {
+  from {
+    transform: rotate(175deg) translateY(8px) scale(0.95);
+  }
+  to {
+    transform: rotate(188deg) translateY(-8px) scale(1.1);
+  }
+}
+@keyframes aks-velocity {
+  0% {
+    transform: translate(18px, -14px) scale(0.9);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-16px, 12px) scale(1.08);
+    opacity: 0;
+  }
+}
+@keyframes aks-gimbal {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes aks-silk {
+  from {
+    transform: skewX(-9deg) translate(-7px, 6px) scale(0.95);
+  }
+  to {
+    transform: skewX(8deg) translate(7px, -6px) scale(1.06);
+  }
+}
+@keyframes aks-breathe {
+  from {
+    opacity: 0.25;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 0.65;
+    transform: scale(1.08);
+  }
+}
+@keyframes aks-shockwave {
+  0% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  15% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+@keyframes aks-flare {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.1);
+  }
+  20% {
+    opacity: 0.8;
+    transform: scaleX(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1.5);
+  }
+}
+@keyframes aks-motes {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--aks-angle)) translateY(65px) scale(0.4);
+  }
+  30% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(calc(var(--aks-angle) + 25deg)) translateY(140px)
+      scale(0.2);
+  }
+}
+@keyframes aks-cinders {
+  0% {
+    opacity: 0;
+    transform: translate(calc(var(--aks-particle) * 16px - 75px), 95px)
+      rotate(-20deg);
+  }
+  20% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--aks-particle) * 18px - 85px), -135px)
+      rotate(20deg) scale(0.3);
+  }
+}
+@keyframes aks-speed-particle {
+  0% {
+    opacity: 0;
+    transform: translate(110px, calc(var(--aks-particle) * 14px - 110px))
+      rotate(-36deg);
+  }
+  20% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-125px, calc(var(--aks-particle) * 14px + 55px))
+      rotate(-36deg);
+  }
+}
+.aks-selector[data-motion="off"] *,
+.aks-selector[data-motion="off"] *::before,
+.aks-selector[data-motion="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+.aks-selector[data-motion="off"] .aks-selector__ignition {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aks-selector *,
+  .aks-selector *::before,
+  .aks-selector *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .aks-selector .aks-selector__ignition {
+    display: none;
+  }
+  .aks-selector .aks-selector__effect {
+    transform: none;
+  }
+}
+@media (max-width: 560px) {
+  .aks-selector__scene {
+    height: 325px;
+    border-radius: 20px;
+  }
+  .aks-selector__card {
+    width: 104px;
+    height: 166px;
+    border-radius: 27px;
+  }
+  .aks-selector__symbol {
+    font-size: 32px;
+  }
+  .aks-selector__label {
+    font-size: 0.82rem;
+  }
+  .aks-selector__effect {
+    inset: -38% -60%;
+  }
+  .aks-selector__caption {
+    min-width: 135px;
+  }
+}
+
+/* Product stories: a one-shot arrival, then the material's quieter idle phase.
+   Only opt-in login cards use these; effect names remain generic in the lab. */
+.aks-selector__sustain {
+  position: absolute;
+  inset: 0;
+}
+.aks-selector__arrival {
+  position: absolute;
+  inset: -35% -100%;
+  pointer-events: none;
+  z-index: 4;
+  overflow: visible;
+}
+.aks-selector__arrival-actor,
+.aks-selector__arrival-detail,
+.aks-selector__arrival-trail {
+  position: absolute;
+  display: block;
+  left: 50%;
+  top: 50%;
+  width: 120px;
+  height: 90px;
+  margin: -45px 0 0 -60px;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    145deg,
+    #fff3d9 0%,
+    rgb(var(--aks-own-glow)) 30%,
+    rgba(var(--aks-own-glow), 0.5) 100%
+  );
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  filter: drop-shadow(0 0 7px rgba(var(--aks-own-glow), 0.6));
+}
+.aks-selector__card[data-arrival][data-energized="true"]
+  .aks-selector__sustain {
+  animation: aks-story-settle 1.65s ease-out both;
+}
+.aks-selector__card[data-arrival][data-energized="true"] .aks-selector__symbol {
+  animation: aks-story-reveal 1.7s ease-out both;
+}
+/* Coches: a low, fast coupe crosses the foreground with tyre rotation and a
+   luminous wake. The closing speed lines become the red orbital idle. */
+[data-arrival="coches"] .aks-selector__arrival-actor {
+  width: 142px;
+  height: 71px;
+  margin: -35px 0 0 -71px;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 90'%3E%3Cg fill='white'%3E%3Cpath fill-rule='evenodd' d='M9 56L16 41L47 35L65 15Q70 10 83 10H121Q131 10 141 24L154 39L171 44L177 61L171 69H9L4 63ZM57 35H90V17H79Q72 17 68 23ZM97 17V35H143L133 22Q129 17 120 17ZM12 48L10 55H29L31 47ZM160 47L164 55H173L170 48Z'/%3E%3Ccircle cx='40' cy='66' r='18'/%3E%3Ccircle cx='143' cy='66' r='18'/%3E%3C/g%3E%3Cg fill='black'%3E%3Ccircle cx='40' cy='66' r='10'/%3E%3Ccircle cx='143' cy='66' r='10'/%3E%3C/g%3E%3C/svg%3E");
+}
+[data-arrival="coches"] .aks-selector__arrival-detail {
+  width: 142px;
+  height: 71px;
+  margin: -35px 0 0 -71px;
+  background: transparent;
+}
+[data-arrival="coches"] .aks-selector__arrival-detail::before,
+[data-arrival="coches"] .aks-selector__arrival-detail::after {
+  content: "";
+  position: absolute;
+  left: 24px;
+  top: 44px;
+  width: 16px;
+  height: 16px;
+  background: #ffe5e8;
+  border-radius: 50%;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cg fill='none' stroke='white' stroke-width='1.5'%3E%3Ccircle cx='10' cy='10' r='7'/%3E%3Cpath d='M10 3V17M3 10H17M5 5L15 15M15 5L5 15'/%3E%3C/g%3E%3C/svg%3E");
+}
+[data-arrival="coches"] .aks-selector__arrival-detail::after {
+  left: 105px;
+}
+[data-arrival="coches"][data-energized="true"]
+  .aks-selector__arrival-detail::before,
+[data-arrival="coches"][data-energized="true"]
+  .aks-selector__arrival-detail::after {
+  animation: aks-wheel-turn 0.25s linear 5 both;
+}
+@keyframes aks-wheel-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+[data-arrival="coches"] .aks-selector__arrival-trail {
+  width: 200px;
+  height: 22px;
+  margin: 12px 0 0 -100px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--aks-own-glow), 0.2) 20%,
+    rgba(var(--aks-own-glow), 0.9)
+  );
+  mask-image: linear-gradient(
+    transparent 0 5%,
+    #000 7% 11%,
+    transparent 13% 44%,
+    #000 46% 51%,
+    transparent 53% 88%,
+    #000 90% 94%,
+    transparent 96%
+  );
+}
+[data-arrival="coches"][data-energized="true"]
+  :is(.aks-selector__arrival-actor, .aks-selector__arrival-detail) {
+  animation: aks-car-pass 1.25s cubic-bezier(0.22, 0.55, 0.35, 1) both;
+}
+[data-arrival="coches"][data-energized="true"] .aks-selector__arrival-trail {
+  animation: aks-car-wake 1.4s ease-out both;
+}
+/* The driving idle deliberately slows down after the opening acceleration. */
+.aks-selector__card[data-arrival="coches"] .aks-selector__effect-orbit {
+  animation-duration: 7s;
+}
+.aks-selector__card[data-arrival="coches"] .aks-selector__effect-burst {
+  animation-duration: 9s;
+}
+.aks-selector__card[data-arrival="coches"] .aks-selector__effect-sparks {
+  inset: 2% -5%;
+  filter: drop-shadow(0 0 6px rgba(var(--aks-own-glow), 0.5));
+  border-radius: 50%;
+  background: conic-gradient(
+    from 30deg,
+    transparent 8%,
+    rgba(var(--aks-own-glow), 0.75) 24%,
+    transparent 40% 65%,
+    rgba(var(--aks-own-glow), 0.5),
+    transparent
+  );
+  mask-image: radial-gradient(
+    ellipse,
+    transparent 53%,
+    #000 54% 55%,
+    transparent 57%
+  );
+  animation: aks-gimbal 16s linear infinite;
+}
+/* Duermo: a wheeled case rolls in, tips upright, lands with a soft compression,
+   then dissolves into the teal tide. A luggage tag follows its little bounce. */
+[data-arrival="duermo"] .aks-selector__arrival-actor {
+  width: 76px;
+  height: 106px;
+  margin: -53px 0 0 -38px;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 140'%3E%3Cg fill='white'%3E%3Cpath fill-rule='evenodd' d='M35 31V8Q35 3 41 3H61Q67 3 67 8V31H75Q88 31 88 45V117Q88 129 76 129H24Q12 129 12 117V45Q12 31 25 31ZM42 30H60V11H42ZM28 50H32V110H28ZM48 50H52V110H48ZM68 50H72V110H68Z'/%3E%3Crect x='23' y='126' width='12' height='12' rx='5'/%3E%3Crect x='66' y='126' width='12' height='12' rx='5'/%3E%3C/g%3E%3C/svg%3E");
+}
+[data-arrival="duermo"] .aks-selector__arrival-detail {
+  width: 76px;
+  height: 106px;
+  margin: -53px 0 0 -38px;
+  background: #d3fff5;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 140'%3E%3Cpath fill='white' fill-rule='evenodd' d='M66 23L85 34L76 52L58 42ZM68 31A3 3 0 1 0 74 31A3 3 0 1 0 68 31Z'/%3E%3C/svg%3E");
+}
+[data-arrival="duermo"] .aks-selector__arrival-trail {
+  top: 75%;
+  width: 115px;
+  height: 14px;
+  margin: -7px 0 0 -57px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse,
+    rgba(var(--aks-own-glow), 0.65),
+    transparent 70%
+  );
+  filter: blur(4px);
+}
+[data-arrival="duermo"][data-energized="true"]
+  :is(.aks-selector__arrival-actor, .aks-selector__arrival-detail) {
+  animation: aks-case-roll 1.65s cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+[data-arrival="duermo"][data-energized="true"] .aks-selector__arrival-trail {
+  animation: aks-soft-landing 1.65s ease-out both;
+}
+/* Pasa: a destination pin drops, bounces and opens a little celebration of
+   nearby things to do. Its orange sparks flow straight into the ember idle. */
+[data-arrival="pasa"] .aks-selector__arrival-actor {
+  width: 81px;
+  height: 100px;
+  margin: -57px 0 0 -40px;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 130'%3E%3Cpath fill='white' fill-rule='evenodd' d='M50 4C24 4 9 22 9 44C9 74 50 121 50 121S91 74 91 44C91 22 76 4 50 4ZM50 23A21 21 0 1 0 50 65A21 21 0 1 0 50 23Z'/%3E%3Cpath fill='white' d='M49 28L53 39L65 43L53 47L49 58L45 47L34 43L45 39Z'/%3E%3C/svg%3E");
+}
+[data-arrival="pasa"] .aks-selector__arrival-detail {
+  width: 180px;
+  height: 140px;
+  margin: -70px 0 0 -90px;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 140'%3E%3Cg stroke='white' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M27 68L10 65M43 39L30 25M76 22L72 6M112 26L120 10M139 47L155 36M151 79L171 78M39 103L25 114M129 109L141 124'/%3E%3C/g%3E%3Cpath fill='white' d='M151 11L154 18L161 21L154 24L151 31L148 24L141 21L148 18ZM18 88L20 93L25 95L20 97L18 102L16 97L11 95L16 93Z'/%3E%3C/svg%3E");
+}
+[data-arrival="pasa"] .aks-selector__arrival-trail {
+  top: 77%;
+  width: 100px;
+  height: 18px;
+  margin: -9px 0 0 -50px;
+  border: 1px solid rgba(var(--aks-own-glow), 0.8);
+  border-radius: 50%;
+  background: transparent;
+}
+[data-arrival="pasa"][data-energized="true"] .aks-selector__arrival-actor {
+  animation: aks-pin-drop 1.5s var(--aks-ease) both;
+}
+[data-arrival="pasa"][data-energized="true"] .aks-selector__arrival-detail {
+  animation: aks-discover-sparks 1.5s ease-out both;
+}
+[data-arrival="pasa"][data-energized="true"] .aks-selector__arrival-trail {
+  animation: aks-pin-ripple 1.5s ease-out both;
+}
+/* HQ: two locations gather around one management hub. The connecting paths
+   resolve into the gold gimbal — an overview, rather than a cash register. */
+[data-arrival="hq"] .aks-selector__arrival-actor {
+  width: 76px;
+  height: 76px;
+  margin: -38px 0 0 -38px;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='white' stroke-width='5' stroke-linejoin='round'%3E%3Crect x='15' y='15' width='70' height='70' rx='17'/%3E%3Cpath d='M30 33H44V47H30ZM56 33H70V47H56ZM30 58H44V72H30ZM56 58H70V72H56Z'/%3E%3C/g%3E%3C/svg%3E");
+}
+[data-arrival="hq"]
+  :is(.aks-selector__arrival-trail, .aks-selector__arrival-detail) {
+  width: 60px;
+  height: 62px;
+  margin: -31px 0 0 -30px;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 100'%3E%3Cg fill='none' stroke='white' stroke-width='4' stroke-linejoin='round'%3E%3Cpath d='M12 44L45 15L78 44V87H12ZM35 87V61H55V87M25 46H34M56 46H65M45 6V1'/%3E%3C/g%3E%3C/svg%3E");
+}
+[data-arrival="hq"][data-energized="true"] .aks-selector__arrival-actor {
+  animation: aks-hub-open 1.65s var(--aks-ease) both;
+}
+[data-arrival="hq"][data-energized="true"] .aks-selector__arrival-trail {
+  animation: aks-location-left 1.65s var(--aks-ease) both;
+}
+[data-arrival="hq"][data-energized="true"] .aks-selector__arrival-detail {
+  animation: aks-location-right 1.65s var(--aks-ease) both;
+}
+/* Business: the operating terminal wakes up and prints a receipt. The ticket
+   lifts away, leaving the purple aurora as the quiet operating-state glow. */
+[data-arrival="business"] .aks-selector__arrival-actor {
+  width: 123px;
+  height: 100px;
+  margin: -37px 0 0 -61px;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 130'%3E%3Cpath fill='white' fill-rule='evenodd' d='M25 10H132Q140 10 138 19L129 78H88V91H139L152 113V122H7V111L21 91H72V78H18L11 20Q10 10 25 10ZM24 21L29 65H118L125 21ZM28 103L22 113H137L131 103Z'/%3E%3Cpath fill='white' d='M46 37L58 48L87 28L92 34L58 60L41 43Z'/%3E%3C/svg%3E");
+}
+[data-arrival="business"] .aks-selector__arrival-detail {
+  top: 29%;
+  width: 43px;
+  height: 63px;
+  margin: -31px 0 0 -21px;
+  background: #eadeff;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 90'%3E%3Cpath fill='white' fill-rule='evenodd' d='M7 2H53V82L47 87L41 82L35 87L29 82L23 87L17 82L10 87L7 82ZM16 16H44V20H16ZM16 29H44V33H16ZM16 42H36V46H16ZM30 61H44V66H30Z'/%3E%3C/svg%3E");
+  transform-origin: 50% 100%;
+}
+[data-arrival="business"] .aks-selector__arrival-trail {
+  width: 160px;
+  height: 110px;
+  margin: -55px 0 0 -80px;
+  border: 1px solid rgba(var(--aks-own-glow), 0.6);
+  border-radius: 18px;
+  background: transparent;
+}
+[data-arrival="business"][data-energized="true"] .aks-selector__arrival-actor {
+  animation: aks-terminal-wake 1.7s var(--aks-ease) both;
+}
+[data-arrival="business"][data-energized="true"] .aks-selector__arrival-detail {
+  animation: aks-receipt-print 1.7s ease-out both;
+}
+[data-arrival="business"][data-energized="true"] .aks-selector__arrival-trail {
+  animation: aks-terminal-scan 1.7s ease-out both;
+}
+@keyframes aks-story-settle {
+  0%,
+  28% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  65% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes aks-story-reveal {
+  0%,
+  60% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes aks-car-pass {
+  0% {
+    opacity: 0;
+    transform: translate(-155px, 14px) scale(0.65);
+  }
+  12% {
+    opacity: 1;
+  }
+  38% {
+    opacity: 1;
+    transform: translate(-20px, 4px) scale(1.08) rotate(-3deg);
+  }
+  53% {
+    transform: translate(27px, 2px) scale(1.12) rotate(1deg);
+  }
+  76% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(185px, -7px) scale(0.75);
+  }
+}
+@keyframes aks-car-wake {
+  0%,
+  7% {
+    opacity: 0;
+    transform: translateX(-145px) scaleX(0.2);
+  }
+  37% {
+    opacity: 0.8;
+    transform: translateX(-55px) scaleX(0.85);
+  }
+  75% {
+    opacity: 0.5;
+    transform: translateX(95px) scaleX(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(160px) scaleX(0.3);
+  }
+}
+@keyframes aks-case-roll {
+  0% {
+    opacity: 0;
+    transform: translate(-128px, 24px) rotate(-28deg) scale(0.7);
+  }
+  14% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 1;
+    transform: translate(-5px, 3px) rotate(-12deg) scale(1);
+  }
+  53% {
+    transform: translate(2px, -10px) rotate(5deg) scale(1);
+  }
+  63% {
+    transform: translateY(8px) scale(1.08, 0.9);
+  }
+  73% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.45);
+  }
+}
+@keyframes aks-soft-landing {
+  0%,
+  28% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  63% {
+    opacity: 0.8;
+    transform: scale(1.12, 0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7, 0.4);
+  }
+}
+@keyframes aks-pin-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-105px) rotate(-12deg) scale(0.65);
+  }
+  15% {
+    opacity: 1;
+  }
+  39% {
+    transform: translateY(11px) rotate(0) scale(1.08, 0.9);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-9px) scale(0.97, 1.04);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+}
+@keyframes aks-discover-sparks {
+  0%,
+  30% {
+    opacity: 0;
+    transform: scale(0.25) rotate(-12deg);
+  }
+  48% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.25) rotate(12deg);
+  }
+}
+@keyframes aks-pin-ripple {
+  0%,
+  33% {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+  43% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+@keyframes aks-hub-open {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-35deg);
+  }
+  27% {
+    opacity: 1;
+    transform: scale(1.05) rotate(4deg);
+  }
+  57% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.3) rotate(20deg);
+  }
+}
+@keyframes aks-location-left {
+  0% {
+    opacity: 0;
+    transform: translate(-115px, 20px) scale(0.5) rotate(-15deg);
+  }
+  27%,
+  43% {
+    opacity: 1;
+    transform: translate(-77px, -12px) scale(0.8) rotate(-7deg);
+  }
+  78% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.15);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes aks-location-right {
+  0%,
+  9% {
+    opacity: 0;
+    transform: translate(115px, 20px) scale(0.5) rotate(15deg);
+  }
+  33%,
+  48% {
+    opacity: 1;
+    transform: translate(77px, -12px) scale(0.8) rotate(7deg);
+  }
+  84% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.15);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes aks-terminal-wake {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) rotateX(35deg) scale(0.65);
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(0) rotateX(0) scale(1.04);
+  }
+  40%,
+  68% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.5);
+  }
+}
+@keyframes aks-receipt-print {
+  0%,
+  24% {
+    opacity: 0;
+    transform: translateY(25px) scaleY(0.05);
+  }
+  35% {
+    opacity: 1;
+  }
+  61% {
+    opacity: 1;
+    transform: translateY(-14px) scaleY(1);
+  }
+  74% {
+    opacity: 1;
+    transform: translate(7px, -21px) rotate(6deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(36px, -55px) rotate(20deg) scale(0.65);
+  }
+}
+@keyframes aks-terminal-scan {
+  0%,
+  17% {
+    opacity: 0;
+    transform: scale(0.4, 0.1);
+  }
+  43% {
+    opacity: 0.65;
+    transform: scale(0.9, 0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+.aks-selector[data-motion="off"] .aks-selector__arrival {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aks-selector .aks-selector__arrival {
+    display: none;
+  }
+}
+
+/* Drag offsets follow the pointer; the ordinary easing resumes on release. */
+.aks-selector__scene {
+  cursor: grab;
+}
+.aks-selector__scene[data-dragging="true"],
+.aks-selector__scene[data-dragging="true"] .aks-selector__card {
+  cursor: grabbing;
+}
+.aks-selector__scene[data-dragging="true"] .aks-selector__card {
+  transition: none;
+}
+.aks-selector .aks-selector__browse {
+  position: absolute;
+  bottom: 6px;
+  width: 44px;
+  height: 44px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid #ffffff35;
+  background: #121b2ce8;
+  color: #f7f5ef;
+  box-shadow: 0 4px 12px #0004;
+  cursor: pointer;
+  touch-action: manipulation;
+  font: 400 30px/1 system-ui;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+.aks-selector .aks-selector__browse--previous {
+  left: 10px;
+}
+.aks-selector .aks-selector__browse--next {
+  right: 10px;
+}
+.aks-selector .aks-selector__browse:hover {
+  background: #24334e;
+  border-color: #ffffff85;
+}
+.aks-selector .aks-selector__browse:focus-visible {
+  outline: 3px solid white;
+  outline-offset: 2px;
+}
+.aks-selector .aks-selector__browse:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

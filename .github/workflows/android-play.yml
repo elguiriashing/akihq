@@ -27,9 +27,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.5.0"
-      - run: gradle --no-daemon test lint bundleRelease
+      - name: Prepare self-contained Android Studio project
+        run: |
+          gradle --no-daemon wrapper --gradle-version 9.5.0 --distribution-type bin
+          printf '%s\n' "$GITHUB_SHA" > BUILD-SOURCE.txt
+      - run: ./gradlew --no-daemon test lint bundleRelease assembleRelease assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: akihq-unsigned-aab
-          path: Android/app/build/outputs/bundle/release/*.aab
+          name: akihq-android-artifacts
+          path: |
+            Android/app/build/outputs/bundle/release/*.aab
+            Android/app/build/outputs/apk/release/*.apk
+            Android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: akihq-android-studio-project
+          path: |
+            Android/
+            !Android/**/build/**
+            !Android/.gradle/**
+            !Android/local.properties
+          include-hidden-files: true
           if-no-files-found: error

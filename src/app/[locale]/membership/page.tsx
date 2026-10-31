@@ -23,7 +23,7 @@ export default async function HQMembershipPage({
       key: "pasa",
       title: premiumName("akipasa", "business", locale),
       price: approvedPricing.discovery.akipasa.businessCents,
-      image: "/brand/logo-stacked-light.svg",
+      image: "/brand/v3/pasa.svg",
       subject: es ? "tu local y sus eventos" : "your venue and events",
       details: es
         ? [
@@ -141,7 +141,9 @@ export default async function HQMembershipPage({
                   <li key={d}>{d}</li>
                 ))}
               </ul>
-              <Link href={suiteHref(item.key, locale, { path: "/membership" })}>
+              <Link
+                href={`${suiteHref(item.key, locale, { path: "/membership" })}${item.key === "pasa" ? "?" : "&"}audience=business`}
+              >
                 {es
                   ? "Quiero destacar con Premium"
                   : "Explore my Premium upgrade"}{" "}

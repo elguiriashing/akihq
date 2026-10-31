@@ -38,8 +38,8 @@ export function ProductPrivacy({ locale }: { locale: "en" | "es" }) {
         <h2>{es ? "Analítica opcional" : "Optional analytics"}</h2>
         <p>
           {es
-            ? "Si aceptas la analítica, Google Analytics recibe un identificador de navegador, páginas e interacciones, información del dispositivo y navegador, y una ubicación aproximada derivada de la dirección IP. Puedes retirar el consentimiento en los controles de privacidad. No configuramos Google Ads en este dominio. Las funciones esenciales de cuenta y seguridad no dependen de aceptar la analítica."
-            : "If you accept analytics, Google Analytics receives a browser identifier, pages and interactions, device and browser information, and approximate location derived from the IP address. You can withdraw consent in the privacy controls. We do not configure Google Ads on this domain. Essential account and security functions do not depend on accepting analytics."}
+            ? "Cuando la analítica opcional esté disponible y la aceptes, Google Analytics recibe un identificador de navegador, páginas e interacciones, información del dispositivo y navegador, y una ubicación aproximada derivada de la dirección IP. Puedes retirar el consentimiento en los controles de privacidad. No configuramos Google Ads en este dominio. Las funciones esenciales de cuenta y seguridad no dependen de aceptar la analítica."
+            : "When optional analytics is available and you accept it, Google Analytics receives a browser identifier, pages and interactions, device and browser information, and approximate location derived from the IP address. You can withdraw consent in the privacy controls. We do not configure Google Ads on this domain. Essential account and security functions do not depend on accepting analytics."}
         </p>
         <h2>{es ? "Servicios y destinatarios" : "Services and recipients"}</h2>
         <p>
