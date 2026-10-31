@@ -2191,3 +2191,13 @@ only loss on the scene cancels its gesture. Mouse movement with no primary
 button held clears a pending gesture after an uncaptured outside release.
 Acceptance now uses real Chromium touch input originating on a card descendant,
 and covers outside vertical release followed by ordinary mouse hover.
+
+## 2026-10-31 — Consolidated HQ privacy, analytics and Android source
+
+Integrates PRs #90, #99 and #86 on current main `ba33054c4df0a40c93192656f0d21ee86cc99693`, preserving the business-only root, current web OAuth behavior, tenant authorization and shared identity. The EN/ES public privacy notice and account links now identify AkiHQ and the shared deletion process. AkiPasa #342 is verified live at `6151fea31ba397bde0e266072a95ce243a6ce015`; both public localized deletion instructions were checked anonymously.
+
+Analytics removes the copied AkiPasa destination and remains disabled without a verified independent HQ measurement ID. Canonical host, visitor consent, server eligibility, denied advertising, revocation and remount handling remain enforced. Google receipt and configuration of the existing independent HQ stream are still unverified activation requirements. The privacy wording is conditional on analytics availability.
+
+Android uses the strict fixed-origin callback parser, including rejection of duplicate or conflicting native markers, and prioritizes validated incoming callbacks over restored WebView state. Current main's manifest and scheme filter remain unchanged. The workflow produces unsigned release/debug artifacts and an importable Studio project; it does not sign, publish or install an app. Physical signed-device OAuth remains unverified.
+
+Fresh integrated-head format, lint, type, web/browser/account, analytics and Android checks are required before source merge. Original PR check results are historical. No production SQL, customer mutation, provider setup, deletion or backup cleanup is performed. Rollback is a source revert/redeploy, with no data rollback. This entry records source readiness and explicit remaining acceptance limits; it does not certify real deletion or provider operation.

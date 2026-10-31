@@ -75,7 +75,8 @@ public final class MainActivity extends Activity {
             );
         }
 
-        if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
+        if (savedInstanceState == null || (getIntent() != null && getIntent().getData() != null)
+                || webView.restoreState(savedInstanceState) == null) {
             loadLaunchUrl(getIntent());
         }
     }
@@ -179,13 +180,11 @@ public final class MainActivity extends Activity {
 
     private String resolveLaunchUrl(Uri deepLink) {
         if (deepLink == null) return BuildConfig.APP_URL;
-        String callback = NavigationPolicy.appCallbackUrl(deepLink.toString());
+        String callback = AppAuthCallback.toWebUrl(deepLink.toString());
         if (callback != null) return callback;
         if (!NavigationPolicy.isInternal(deepLink.toString())) return BuildConfig.APP_URL;
-        if ("1".equals(deepLink.getQueryParameter("android"))
-                && deepLink.getPath() != null && deepLink.getPath().matches("/(en|es)/auth/callback")) {
-            return deepLink.buildUpon().appendQueryParameter("native", "1").build().toString();
-        }
+        String legacy = AppAuthCallback.nativeHttpsCallback(deepLink.toString());
+        if (legacy != null) return legacy;
         return deepLink.toString();
     }
 
@@ -248,7 +247,7 @@ public final class MainActivity extends Activity {
         setIntent(intent);
         Uri uri = intent.getData();
         if (uri != null && (NavigationPolicy.isInternal(uri.toString())
-                || NavigationPolicy.appCallbackUrl(uri.toString()) != null)) {
+                || AppAuthCallback.toWebUrl(uri.toString()) != null)) {
             webView.loadUrl(resolveLaunchUrl(uri));
         }
     }
